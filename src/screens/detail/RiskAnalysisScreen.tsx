@@ -1,307 +1,505 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shield, TrendingDown, Globe, AlertTriangle } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts'
+import {
+  ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
+  Droplets, BarChart3, Target, ArrowUpRight, ArrowDownRight,
+  Layers, Globe, PieChart as PieIcon, RefreshCw, Info,
+} from 'lucide-react'
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
+  XAxis, YAxis, Tooltip, BarChart, Bar, RadarChart, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, Radar,
+} from 'recharts'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
-import type { Asset, RiskLevel, ScenarioResult } from '../../types'
-import { assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry, portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS } from '../../types'
+import { usePortfolio } from '../../store/usePortfolio'
+import { analyzePortfolio } from '../../services/riskAnalysis'
+import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority } from '../../types'
+import {
+  assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry,
+  portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS,
+} from '../../types'
 import './DetailScreen.css'
+import './RiskAnalysisScreen.css'
 
-const CHART_COLORS = [
-  '#6366f1', '#8b5cf6', '#a78bfa', '#c084fc',
-  '#06b6d4', '#14b8a6', '#10b981', '#f59e0b',
-  '#ef4444', '#ec4899', '#64748b', '#84cc16',
-]
+const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#64748b', '#84cc16']
 
-function computeRiskMetrics(assets: Asset[]) {
-  const total = assets.reduce((s, a) => s + assetCurrentValue(a), 0)
-  if (total === 0) return null
-
-  const sectors = new Set(assets.map(a => a.sector || 'other'))
-  const types = new Set(assets.map(a => a.type))
-  const countries = new Set(assets.map(a => a.country || 'Unknown'))
-
-  const diversificationScore = Math.min(100, (sectors.size * 8 + types.size * 10 + countries.size * 6))
-  const maxWeight = Math.max(...assets.map(a => assetCurrentValue(a) / total)) * 100
-  const concentrationRisk = maxWeight
-  const liquidityScore = assets.filter(a => a.category === 'public').reduce((s, a) => s + assetCurrentValue(a), 0) / total * 100
-
-  // Simulated volatility metrics
-  const annualizedVolatility = 12 + Math.random() * 8
-  const sharpeRatio = 0.5 + Math.random() * 1.5
-  const maxDrawdown = -(8 + Math.random() * 12)
-  const beta = 0.7 + Math.random() * 0.6
-
-  let riskScore = 50
-  riskScore += (diversificationScore - 50) * 0.3
-  riskScore -= (concentrationRisk - 20) * 0.3
-  riskScore += (liquidityScore - 50) * 0.2
-  riskScore = Math.max(10, Math.min(95, riskScore))
-
-  let riskLevel: RiskLevel = 'moderate'
-  if (riskScore >= 75) riskLevel = 'low'
-  else if (riskScore >= 50) riskLevel = 'moderate'
-  else if (riskScore >= 25) riskLevel = 'high'
-  else riskLevel = 'very_high'
-
-  const recommendations: string[] = []
-  if (concentrationRisk > 30) recommendations.push('Consider reducing concentration in your top holding')
-  if (sectors.size < 4) recommendations.push('Diversify across more sectors for better risk management')
-  if (liquidityScore < 50) recommendations.push('Increase allocation to liquid assets for better flexibility')
-  if (types.size < 3) recommendations.push('Add different asset types to improve diversification')
-  if (recommendations.length === 0) recommendations.push('Your portfolio shows good diversification')
-
-  return {
-    riskScore: +riskScore.toFixed(0), riskLevel,
-    diversificationScore: +diversificationScore.toFixed(0),
-    concentrationRisk: +concentrationRisk.toFixed(1),
-    liquidityScore: +liquidityScore.toFixed(0),
-    annualizedVolatility: +annualizedVolatility.toFixed(2),
-    sharpeRatio: +sharpeRatio.toFixed(2),
-    maxDrawdown: +maxDrawdown.toFixed(2),
-    beta: +beta.toFixed(2),
-    recommendations,
-  }
+const RISK_LEVEL_META: Record<string, { color: string; label: string; desc: string }> = {
+  conservative: { color: '#10b981', label: 'Conservative', desc: 'Low risk tolerance with focus on capital preservation' },
+  moderate:     { color: '#6366f1', label: 'Moderate',     desc: 'Balanced approach between growth and stability' },
+  growth:       { color: '#f59e0b', label: 'Growth',       desc: 'Higher risk tolerance for potential growth' },
+  aggressive:   { color: '#ef4444', label: 'Aggressive',   desc: 'High risk tolerance with focus on maximum returns' },
 }
 
-function getScenarios(totalValue: number): ScenarioResult[] {
-  return [
-    { name: 'Market Crash (-30%)', description: 'A severe market downturn similar to 2008', impact: -totalValue * 0.3, impactPercent: -30 },
-    { name: 'Correction (-10%)', description: 'A standard market correction', impact: -totalValue * 0.1, impactPercent: -10 },
-    { name: 'Rate Hike (+2%)', description: 'Central bank raises rates by 200bps', impact: -totalValue * 0.08, impactPercent: -8 },
-    { name: 'Recession', description: 'GDP contraction for 2+ quarters', impact: -totalValue * 0.2, impactPercent: -20 },
-    { name: 'Bull Market (+20%)', description: 'Strong economic growth and market rally', impact: totalValue * 0.2, impactPercent: 20 },
-    { name: 'Inflation Spike', description: 'CPI exceeds 8% year-over-year', impact: -totalValue * 0.12, impactPercent: -12 },
-  ]
+const VOL_LEVEL_META: Record<string, { color: string; label: string }> = {
+  low: { color: '#10b981', label: 'Low' }, moderate: { color: '#6366f1', label: 'Moderate' },
+  high: { color: '#f59e0b', label: 'High' }, very_high: { color: '#ef4444', label: 'Very High' },
 }
 
-function generateVolatilityData() {
+const SHARPE_META: Record<string, { color: string; label: string; desc: string }> = {
+  poor:          { color: '#ef4444', label: 'Poor',          desc: 'Returns do not justify the risk taken' },
+  below_average: { color: '#f59e0b', label: 'Below Average', desc: 'Below market average risk-adjusted returns' },
+  average:       { color: '#6366f1', label: 'Average',       desc: 'Market average risk-adjusted returns' },
+  good:          { color: '#06b6d4', label: 'Good',          desc: 'Good risk-adjusted returns' },
+  excellent:     { color: '#10b981', label: 'Excellent',     desc: 'Excellent risk-adjusted returns' },
+}
+
+const LIQ_LABEL: Record<string, string> = {
+  immediate: 'Immediate (0-1 day)', short_term: 'Short-term (1-7 days)',
+  medium_term: 'Medium-term (1-4 wks)', long_term: 'Long-term (1+ months)',
+}
+const LIQ_COLOR: Record<string, string> = { immediate: '#10b981', short_term: '#06b6d4', medium_term: '#f59e0b', long_term: '#ef4444' }
+
+const SEVERITY_META: Record<ScenarioSeverity, { color: string; bg: string }> = {
+  mild:     { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  moderate: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  severe:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  extreme:  { color: '#dc2626', bg: 'rgba(220,38,38,0.15)' },
+}
+
+const PRIORITY_META: Record<SuggestionPriority, { color: string; bg: string }> = {
+  high:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  medium: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  low:    { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+}
+
+const fmt = (n: number) => '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+function generateVolHistory(score: number) {
   const data = []
-  let vol = 12
+  let v = score
   for (let i = 0; i < 52; i++) {
-    vol += (Math.random() - 0.48) * 2
-    vol = Math.max(5, Math.min(35, vol))
-    data.push({ week: `W${i + 1}`, volatility: +vol.toFixed(2) })
+    v += (Math.random() - 0.48) * 4
+    v = Math.max(5, Math.min(50, v))
+    data.push({ week: `W${i + 1}`, vol: +v.toFixed(1) })
   }
   return data
 }
 
 export default function RiskAnalysisScreen() {
   const navigate = useNavigate()
+  const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [visible, setVisible] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'volatility' | 'exposure' | 'scenarios'>('overview')
-
-  const portfolio = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
-  const assets: Asset[] = portfolio.assets || []
-  const totalValue = assets.reduce((s: number, a: Asset) => s + assetCurrentValue(a), 0)
+  const [tab, setTab] = useState<'overview' | 'volatility' | 'scenarios' | 'exposure'>('overview')
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
-  const risk = useMemo(() => computeRiskMetrics(assets), [assets])
-  const scenarios = useMemo(() => getScenarios(totalValue), [totalValue])
-  const volData = useMemo(() => generateVolatilityData(), [])
+  const assets: Asset[] = portfolio?.assets ?? []
+  const risk = useMemo(() => analyzePortfolio(assets, totalValue, totalGainLossPercent), [assets, totalValue, totalGainLossPercent])
+  const volHistory = useMemo(() => risk ? generateVolHistory(risk.annualizedVolatility) : [], [risk])
 
-  const sectorAlloc = useMemo(() => portfolioAllocationBySector({ ...portfolio, assets }), [assets])
-  const countryAlloc = useMemo(() => portfolioAllocationByCountry({ ...portfolio, assets }), [assets])
-  const typeAlloc = useMemo(() => portfolioAllocationByType({ ...portfolio, assets }), [assets])
-
-  const fmt = (n: number) => '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  const riskLevelColor = (level?: RiskLevel) => {
-    switch (level) {
-      case 'low': return 'var(--status-success)'
-      case 'moderate': return 'var(--status-warning)'
-      case 'high': return 'var(--status-error)'
-      case 'very_high': return '#dc2626'
-      default: return 'var(--text-secondary)'
-    }
-  }
+  const sectorAlloc = useMemo(() => portfolio ? portfolioAllocationBySector(portfolio) : {}, [portfolio])
+  const countryAlloc = useMemo(() => portfolio ? portfolioAllocationByCountry(portfolio) : {}, [portfolio])
+  const typeAlloc = useMemo(() => portfolio ? portfolioAllocationByType(portfolio) : {}, [portfolio])
 
   const pieData = (alloc: Record<string, number>, labels: Record<string, string>) =>
-    Object.entries(alloc).map(([key, val]) => ({
-      name: labels[key as keyof typeof labels] || key,
-      value: +val.toFixed(2),
-    })).sort((a, b) => b.value - a.value)
+    Object.entries(alloc).map(([k, v]) => ({ name: labels[k as keyof typeof labels] || k, value: +v.toFixed(2) })).sort((a, b) => b.value - a.value)
+
+  // Radar data for overview
+  const radarData = risk ? [
+    { metric: 'Diversification', value: risk.diversificationScore },
+    { metric: 'Liquidity', value: risk.liquidityScore },
+    { metric: 'Stability', value: Math.max(0, 100 - risk.annualizedVolatility * 2) },
+    { metric: 'Risk-Adj Return', value: Math.max(0, Math.min(100, (risk.sharpeRatio + 1) * 25)) },
+    { metric: 'Concentration', value: Math.max(0, 100 - risk.concentrationIndex * 100) },
+  ] : []
+
+  const rlm = risk ? RISK_LEVEL_META[risk.riskLevel] : null
+
+  if (!risk) {
+    return (
+      <div className="risk-page">
+        <div className="risk-page__header">
+          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
+        </div>
+        <GlassContainer padding="48px" borderRadius={20} className="risk-empty">
+          <Shield size={48} style={{ color: 'var(--text-tertiary)' }} />
+          <h2>No Portfolio Data</h2>
+          <p>Add assets to see a comprehensive risk analysis.</p>
+        </GlassContainer>
+      </div>
+    )
+  }
 
   return (
-    <div className="detail-screen">
-      <div className="detail-bg-glow detail-bg-glow--1" />
-      <div className="detail-bg-glow detail-bg-glow--2" />
-      <div className={`detail-content ${visible ? 'detail-content--visible' : ''}`}>
-        <div className="detail-header">
+    <div className="risk-page">
+      <div className={`risk-page__inner ${visible ? 'risk-page__inner--visible' : ''}`}>
+        {/* Header */}
+        <div className="risk-page__header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
         </div>
 
-        <GlassContainer>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Shield size={24} style={{ color: 'var(--brand-primary)' }} />
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Risk Analysis</h1>
+        {/* Risk Score Hero */}
+        <GlassContainer padding="32px" borderRadius={20} className="risk-hero">
+          <div className="risk-hero__ring">
+            <svg width="180" height="180" viewBox="0 0 180 180">
+              <circle cx="90" cy="90" r="76" fill="none" stroke="var(--glass-border)" strokeWidth="10" />
+              <circle cx="90" cy="90" r="76" fill="none" stroke={rlm!.color} strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 76} strokeDashoffset={2 * Math.PI * 76 * (1 - risk.riskScore / 100)}
+                transform="rotate(-90 90 90)" style={{ transition: 'stroke-dashoffset 1.2s ease' }} />
+            </svg>
+            <div className="risk-hero__score">{risk.riskScore}</div>
           </div>
-
-          <div className="tab-bar">
-            <button className={`tab-btn ${tab === 'overview' ? 'tab-btn--active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-            <button className={`tab-btn ${tab === 'volatility' ? 'tab-btn--active' : ''}`} onClick={() => setTab('volatility')}>Volatility</button>
-            <button className={`tab-btn ${tab === 'exposure' ? 'tab-btn--active' : ''}`} onClick={() => setTab('exposure')}>Exposure</button>
-            <button className={`tab-btn ${tab === 'scenarios' ? 'tab-btn--active' : ''}`} onClick={() => setTab('scenarios')}>Scenarios</button>
+          <div className="risk-hero__info">
+            <span className="risk-hero__badge" style={{ background: rlm!.color }}>{rlm!.label}</span>
+            <p className="risk-hero__desc">{rlm!.desc}</p>
+            <div className="risk-hero__mini-stats">
+              <div><span>Sharpe</span><strong>{risk.sharpeRatio}</strong></div>
+              <div><span>Volatility</span><strong>{risk.annualizedVolatility}%</strong></div>
+              <div><span>Max DD</span><strong>-{risk.maxDrawdownPercent}%</strong></div>
+            </div>
           </div>
+        </GlassContainer>
 
-          {!risk ? (
-            <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: 40 }}>Add assets to your portfolio to see risk analysis.</p>
-          ) : (
-            <>
-              {tab === 'overview' && (
-                <>
-                  <div className="risk-score-large">
-                    <svg width="160" height="160" viewBox="0 0 160 160" className="risk-score-svg">
-                      <circle cx="80" cy="80" r="68" fill="none" stroke="var(--glass-border)" strokeWidth="10" />
-                      <circle
-                        cx="80" cy="80" r="68" fill="none"
-                        stroke={riskLevelColor(risk.riskLevel)}
-                        strokeWidth="10" strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 68}
-                        strokeDashoffset={2 * Math.PI * 68 * (1 - risk.riskScore / 100)}
-                        transform="rotate(-90 80 80)"
-                        style={{ transition: 'stroke-dashoffset 1s ease' }}
-                      />
-                    </svg>
-                    <div className="risk-score-large__value">{risk.riskScore}</div>
-                    <div className="risk-score-large__label" style={{ color: riskLevelColor(risk.riskLevel), textTransform: 'capitalize' }}>
-                      {risk.riskLevel.replace('_', ' ')} Risk
+        {/* Tabs */}
+        <div className="risk-tabs">
+          {(['overview', 'volatility', 'scenarios', 'exposure'] as const).map(t => (
+            <button key={t} className={`risk-tab ${tab === t ? 'risk-tab--active' : ''}`} onClick={() => setTab(t)}>
+              {t === 'overview' && <BarChart3 size={15} />}
+              {t === 'volatility' && <TrendingUp size={15} />}
+              {t === 'scenarios' && <AlertTriangle size={15} />}
+              {t === 'exposure' && <Globe size={15} />}
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* ═══════ OVERVIEW TAB ═══════ */}
+        {tab === 'overview' && (
+          <div className="risk-tab-content">
+            {/* Info banner */}
+            <div className="risk-info-banner">
+              <Info size={16} />
+              <span>Risk metrics are calculated based on asset-class historical data and your portfolio composition. They are indicative and not investment advice.</span>
+            </div>
+
+            {/* Key Metrics Grid */}
+            <div className="risk-metrics-grid">
+              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                <div className="risk-metric-card__icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}><Target size={20} /></div>
+                <div className="risk-metric-card__label">Sharpe Ratio</div>
+                <div className="risk-metric-card__value">{risk.sharpeRatio}</div>
+                <div className="risk-metric-card__sub" style={{ color: SHARPE_META[risk.sharpeRating].color }}>{SHARPE_META[risk.sharpeRating].label}</div>
+              </GlassContainer>
+              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                <div className="risk-metric-card__icon" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><TrendingDown size={20} /></div>
+                <div className="risk-metric-card__label">Max Drawdown</div>
+                <div className="risk-metric-card__value">-{risk.maxDrawdownPercent}%</div>
+                <div className="risk-metric-card__sub">{fmt(risk.maxDrawdown)}</div>
+              </GlassContainer>
+              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                <div className="risk-metric-card__icon" style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}><Droplets size={20} /></div>
+                <div className="risk-metric-card__label">Liquidity Score</div>
+                <div className="risk-metric-card__value">{risk.liquidityScore}/100</div>
+                <div className="risk-metric-card__sub">{risk.liquidityLevel.replace('_', ' ')}</div>
+              </GlassContainer>
+              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                <div className="risk-metric-card__icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><Layers size={20} /></div>
+                <div className="risk-metric-card__label">Diversification</div>
+                <div className="risk-metric-card__value">{risk.diversificationScore}/100</div>
+                <div className="risk-metric-card__sub">HHI: {risk.concentrationIndex.toFixed(2)}</div>
+              </GlassContainer>
+            </div>
+
+            {/* Concentration Warnings */}
+            {risk.concentrationWarnings.length > 0 && (
+              <GlassContainer padding="20px" borderRadius={16}>
+                <h3 className="risk-section-title"><AlertTriangle size={16} style={{ color: 'var(--status-warning)' }} /> Concentration Warnings</h3>
+                <div className="risk-warnings">
+                  {risk.concentrationWarnings.map((w, i) => (
+                    <div key={i} className={`risk-warning risk-warning--${w.type}`}>
+                      <AlertTriangle size={14} />
+                      <span>{w.message}</span>
+                      {w.percentage > 0 && <span className="risk-warning__pct">{w.percentage.toFixed(0)}%</span>}
                     </div>
+                  ))}
+                </div>
+              </GlassContainer>
+            )}
+
+            {/* Radar + Risk Contribution row */}
+            <div className="risk-two-col">
+              <GlassContainer padding="20px" borderRadius={16}>
+                <h3 className="risk-section-title">Portfolio Health</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="var(--glass-border)" />
+                    <PolarAngleAxis dataKey="metric" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                    <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+                    <Radar dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </GlassContainer>
+
+              <GlassContainer padding="20px" borderRadius={16}>
+                <h3 className="risk-section-title">Risk Contribution by Type</h3>
+                <div className="risk-contrib-list">
+                  {Object.entries(risk.riskContributionByType).sort(([,a],[,b]) => b - a).map(([type, pct], i) => (
+                    <div key={type} className="risk-contrib-row">
+                      <div className="risk-contrib-row__dot" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      <span className="risk-contrib-row__label">{type}</span>
+                      <div className="risk-contrib-row__bar-bg">
+                        <div className="risk-contrib-row__bar" style={{ width: `${pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      </div>
+                      <span className="risk-contrib-row__pct">{pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassContainer>
+            </div>
+
+            {/* Benchmark Comparison */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title"><BarChart3 size={16} /> Benchmark Comparison — {risk.benchmarkComparison.benchmarkName}</h3>
+              <div className="bench-grid">
+                <div className="bench-col">
+                  <div className="bench-col__header">Your Portfolio</div>
+                  <div className="bench-stat"><span>Return</span><strong style={{ color: risk.benchmarkComparison.portfolioReturn >= 0 ? 'var(--status-success)' : 'var(--status-error)' }}>{risk.benchmarkComparison.portfolioReturn >= 0 ? '+' : ''}{risk.benchmarkComparison.portfolioReturn}%</strong></div>
+                  <div className="bench-stat"><span>Volatility</span><strong>{risk.benchmarkComparison.portfolioVolatility}%</strong></div>
+                  <div className="bench-stat"><span>Sharpe</span><strong>{risk.benchmarkComparison.portfolioSharpe}</strong></div>
+                </div>
+                <div className="bench-vs">VS</div>
+                <div className="bench-col">
+                  <div className="bench-col__header">{risk.benchmarkComparison.benchmarkName}</div>
+                  <div className="bench-stat"><span>Return</span><strong>+{risk.benchmarkComparison.benchmarkReturn}%</strong></div>
+                  <div className="bench-stat"><span>Volatility</span><strong>{risk.benchmarkComparison.benchmarkVolatility}%</strong></div>
+                  <div className="bench-stat"><span>Sharpe</span><strong>{risk.benchmarkComparison.benchmarkSharpe}</strong></div>
+                </div>
+              </div>
+              <div className="bench-verdict">{risk.benchmarkComparison.verdict}</div>
+            </GlassContainer>
+
+            {/* Top Risk Contributors */}
+            <GlassContainer padding="20px" borderRadius={16}>
+              <h3 className="risk-section-title">Top Risk Contributors</h3>
+              <div className="risk-top-list">
+                {risk.topRiskContributors.map((c, i) => (
+                  <div key={i} className="risk-top-row">
+                    <span className="risk-top-row__rank">#{i + 1}</span>
+                    <div className="risk-top-row__info">
+                      <span className="risk-top-row__name">{c.assetName}</span>
+                      <span className="risk-top-row__sub">{c.symbol || c.type} &middot; {c.portfolioWeight}% weight</span>
+                    </div>
+                    <div className="risk-top-row__bar-bg">
+                      <div className="risk-top-row__bar" style={{ width: `${c.riskContribution}%`, background: c.riskContribution > 30 ? '#ef4444' : c.riskContribution > 15 ? '#f59e0b' : '#6366f1' }} />
+                    </div>
+                    <span className="risk-top-row__pct">{c.riskContribution}%</span>
                   </div>
+                ))}
+              </div>
+            </GlassContainer>
 
-                  <div className="stats-grid">
-                    <div className="stat-card">
-                      <div className="stat-card__label">Diversification</div>
-                      <div className="stat-card__value">{risk.diversificationScore}/100</div>
+            {/* Rebalancing Suggestions */}
+            {risk.rebalancingSuggestions.length > 0 && (
+              <GlassContainer padding="20px" borderRadius={16}>
+                <h3 className="risk-section-title"><RefreshCw size={16} /> Rebalancing Suggestions</h3>
+                <div className="risk-suggestions">
+                  {risk.rebalancingSuggestions.map((s, i) => (
+                    <div key={i} className="risk-suggestion">
+                      <div className="risk-suggestion__action" style={{ background: s.action === 'buy' ? 'rgba(16,185,129,0.15)' : s.action === 'sell' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', color: s.action === 'buy' ? '#10b981' : s.action === 'sell' ? '#ef4444' : '#6366f1' }}>
+                        {s.action === 'buy' ? <ArrowUpRight size={14} /> : s.action === 'sell' ? <ArrowDownRight size={14} /> : <RefreshCw size={14} />}
+                        {s.action.toUpperCase()}
+                      </div>
+                      <div className="risk-suggestion__info">
+                        <strong>{s.assetType}</strong>
+                        <span>{s.currentPercent}% → {s.targetPercent}%</span>
+                      </div>
+                      <div className="risk-suggestion__reason">{s.reason}</div>
+                      <span className="risk-suggestion__badge" style={{ background: PRIORITY_META[s.priority].bg, color: PRIORITY_META[s.priority].color }}>{s.priority}</span>
                     </div>
-                    <div className="stat-card">
-                      <div className="stat-card__label">Liquidity</div>
-                      <div className="stat-card__value">{risk.liquidityScore}%</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-card__label">Concentration</div>
-                      <div className="stat-card__value">{risk.concentrationRisk}%</div>
-                    </div>
+                  ))}
+                </div>
+              </GlassContainer>
+            )}
+          </div>
+        )}
+
+        {/* ═══════ VOLATILITY TAB ═══════ */}
+        {tab === 'volatility' && (
+          <div className="risk-tab-content">
+            {/* Volatility Overview */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Volatility Overview</h3>
+              <div className="vol-hero">
+                <div className="vol-gauge">
+                  <svg width="140" height="140" viewBox="0 0 140 140">
+                    <circle cx="70" cy="70" r="58" fill="none" stroke="var(--glass-border)" strokeWidth="8" />
+                    <circle cx="70" cy="70" r="58" fill="none" stroke={VOL_LEVEL_META[risk.volatilityLevel].color}
+                      strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 58} strokeDashoffset={2 * Math.PI * 58 * (1 - Math.min(risk.annualizedVolatility / 60, 1))}
+                      transform="rotate(-90 70 70)" style={{ transition: 'stroke-dashoffset 1s ease' }} />
+                  </svg>
+                  <div className="vol-gauge__val">{risk.annualizedVolatility}%</div>
+                  <div className="vol-gauge__label" style={{ color: VOL_LEVEL_META[risk.volatilityLevel].color }}>{VOL_LEVEL_META[risk.volatilityLevel].label}</div>
+                </div>
+                <div className="vol-stats">
+                  <div className="vol-stat"><span>Daily Volatility</span><strong>{risk.volatility}%</strong></div>
+                  <div className="vol-stat"><span>Annualized</span><strong>{risk.annualizedVolatility}%</strong></div>
+                  <div className="vol-stat"><span>VIX Equivalent</span><strong>{(risk.annualizedVolatility * 0.8).toFixed(1)}</strong></div>
+                </div>
+              </div>
+            </GlassContainer>
+
+            {/* Sharpe Ratio Scale */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Sharpe Ratio — {risk.sharpeRatio}</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16 }}>{SHARPE_META[risk.sharpeRating].desc}</p>
+              <div className="sharpe-scale">
+                {Object.entries(SHARPE_META).map(([key, meta]) => (
+                  <div key={key} className={`sharpe-tier ${risk.sharpeRating === key ? 'sharpe-tier--active' : ''}`} style={{ borderColor: risk.sharpeRating === key ? meta.color : 'var(--glass-border)' }}>
+                    <div className="sharpe-tier__dot" style={{ background: meta.color }} />
+                    <span>{meta.label}</span>
                   </div>
+                ))}
+              </div>
+            </GlassContainer>
 
-                  <div className="detail-section">
-                    <div className="detail-section-title">Recommendations</div>
-                    {risk.recommendations.map((r, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8, padding: '8px 0' }}>
-                        <AlertTriangle size={16} style={{ color: 'var(--status-warning)', flexShrink: 0, marginTop: 2 }} />
-                        <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{r}</span>
+            {/* Max Drawdown */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Maximum Drawdown</h3>
+              <div className="dd-row">
+                <div className="dd-big" style={{ color: 'var(--status-error)' }}>-{risk.maxDrawdownPercent}%</div>
+                <div className="dd-amount">{fmt(risk.maxDrawdown)}</div>
+              </div>
+              <div className="dd-bar-bg">
+                <div className="dd-bar" style={{ width: `${Math.min(risk.maxDrawdownPercent, 100)}%` }} />
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>Estimated worst-case loss based on historical asset-class drawdowns</p>
+            </GlassContainer>
+
+            {/* Historical Volatility */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Simulated Volatility (52 Weeks)</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={volHistory}>
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} interval={7} />
+                  <YAxis hide />
+                  <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Volatility']} />
+                  <Area type="monotone" dataKey="vol" stroke="#f59e0b" fill="rgba(245,158,11,0.12)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </GlassContainer>
+
+            {/* High Correlations */}
+            {risk.highCorrelations.length > 0 && (
+              <GlassContainer padding="20px" borderRadius={16}>
+                <h3 className="risk-section-title">High Correlations</h3>
+                <div className="corr-list">
+                  {risk.highCorrelations.map((c, i) => (
+                    <div key={i} className="corr-row">
+                      <span>{c.asset1}</span>
+                      <div className="corr-bar-bg"><div className="corr-bar" style={{ width: `${c.correlation * 100}%` }} /></div>
+                      <span>{c.asset2}</span>
+                      <strong>{(c.correlation * 100).toFixed(0)}%</strong>
+                    </div>
+                  ))}
+                </div>
+              </GlassContainer>
+            )}
+
+            {/* Liquidity Breakdown */}
+            <GlassContainer padding="20px" borderRadius={16}>
+              <h3 className="risk-section-title"><Droplets size={16} /> Liquidity Breakdown</h3>
+              <div className="liq-list">
+                {Object.entries(risk.liquidityBreakdown).filter(([,v]) => v > 0).sort(([,a],[,b]) => b - a).map(([cat, pct]) => (
+                  <div key={cat} className="liq-row">
+                    <span className="liq-row__label">{LIQ_LABEL[cat] || cat}</span>
+                    <div className="liq-row__bar-bg"><div className="liq-row__bar" style={{ width: `${pct}%`, background: LIQ_COLOR[cat] || '#6366f1' }} /></div>
+                    <span className="liq-row__pct">{pct.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </GlassContainer>
+          </div>
+        )}
+
+        {/* ═══════ SCENARIOS TAB ═══════ */}
+        {tab === 'scenarios' && (
+          <div className="risk-tab-content">
+            <div className="risk-info-banner">
+              <Info size={16} />
+              <span>Stress tests model how your portfolio might react to different economic scenarios based on historical asset-class behavior.</span>
+            </div>
+
+            {/* Bar Chart */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Impact Overview</h3>
+              <ResponsiveContainer width="100%" height={Math.max(180, risk.scenarioAnalysis.length * 44)}>
+                <BarChart data={risk.scenarioAnalysis} layout="vertical">
+                  <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}%`} />
+                  <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: number) => [`${v > 0 ? '+' : ''}${v}%`, 'Impact']} />
+                  <Bar dataKey="impactPercent" radius={[0, 6, 6, 0]}>
+                    {risk.scenarioAnalysis.map((s, i) => (
+                      <Cell key={i} fill={s.impactPercent >= 0 ? '#10b981' : '#ef4444'} opacity={0.8} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </GlassContainer>
+
+            {/* Scenario Cards */}
+            <div className="scenario-cards">
+              {risk.scenarioAnalysis.map((s, i) => (
+                <GlassContainer key={i} padding="20px" borderRadius={16} className="scenario-card-v2">
+                  <div className="scenario-card-v2__top">
+                    <h4>{s.name}</h4>
+                    <span className="scenario-severity" style={{ background: SEVERITY_META[s.severity].bg, color: SEVERITY_META[s.severity].color }}>{s.severity}</span>
+                  </div>
+                  <p className="scenario-card-v2__desc">{s.description}</p>
+                  <div className="scenario-card-v2__impact" style={{ color: s.impactPercent >= 0 ? 'var(--status-success)' : 'var(--status-error)' }}>
+                    {s.impactPercent >= 0 ? '+' : ''}{s.impactPercent}%
+                    <span className="scenario-card-v2__amt">{s.impactAmount >= 0 ? '+' : '-'}{fmt(s.impactAmount)}</span>
+                  </div>
+                  <div className="scenario-bar-bg">
+                    <div className="scenario-bar" style={{ width: `${Math.min(Math.abs(s.impactPercent), 100)}%`, background: s.impactPercent >= 0 ? '#10b981' : '#ef4444' }} />
+                  </div>
+                </GlassContainer>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ EXPOSURE TAB ═══════ */}
+        {tab === 'exposure' && (
+          <div className="risk-tab-content">
+            {[
+              { title: 'Sector Exposure', icon: <PieIcon size={16} />, data: pieData(sectorAlloc, SECTOR_LABELS as Record<string, string>) },
+              { title: 'Asset Type Breakdown', icon: <Layers size={16} />, data: pieData(typeAlloc, ASSET_TYPE_LABELS as Record<string, string>) },
+              { title: 'Geographic Exposure', icon: <Globe size={16} />, data: pieData(countryAlloc, {}) },
+            ].map(({ title, icon, data }) => (
+              <GlassContainer key={title} padding="24px" borderRadius={16}>
+                <h3 className="risk-section-title">{icon} {title}</h3>
+                <div className="exposure-row">
+                  <div className="exposure-chart">
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={45}>
+                          {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
+                          formatter={(v: number) => [fmt(v), 'Value']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="exposure-legend">
+                    {data.map((d, i) => (
+                      <div key={d.name} className="exposure-legend__item">
+                        <div className="exposure-legend__dot" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        <span className="exposure-legend__name">{d.name}</span>
+                        <span className="exposure-legend__val">{fmt(d.value)}</span>
+                        <span className="exposure-legend__pct">{totalValue > 0 ? ((d.value / totalValue) * 100).toFixed(1) : 0}%</span>
                       </div>
                     ))}
                   </div>
-                </>
-              )}
-
-              {tab === 'volatility' && (
-                <>
-                  <div className="stats-grid">
-                    <div className="stat-card">
-                      <div className="stat-card__label">Annualized Vol.</div>
-                      <div className="stat-card__value">{risk.annualizedVolatility}%</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-card__label">Sharpe Ratio</div>
-                      <div className="stat-card__value">{risk.sharpeRatio}</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-card__label">Max Drawdown</div>
-                      <div className="stat-card__value" style={{ color: 'var(--status-error)' }}>{risk.maxDrawdown}%</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-card__label">Beta</div>
-                      <div className="stat-card__value">{risk.beta}</div>
-                    </div>
-                  </div>
-
-                  <div className="detail-section-title" style={{ marginTop: 16 }}>Historical Volatility (52 weeks)</div>
-                  <div style={{ width: '100%', height: 200 }}>
-                    <ResponsiveContainer>
-                      <AreaChart data={volData}>
-                        <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} interval={7} />
-                        <YAxis hide />
-                        <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
-                        <Area type="monotone" dataKey="volatility" stroke="var(--status-warning)" fill="rgba(245,158,11,0.15)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
-              )}
-
-              {tab === 'exposure' && (
-                <>
-                  {[
-                    { title: 'Sector Exposure', data: pieData(sectorAlloc, SECTOR_LABELS as Record<string, string>) },
-                    { title: 'Asset Type Breakdown', data: pieData(typeAlloc, ASSET_TYPE_LABELS as Record<string, string>) },
-                    { title: 'Geographic Exposure', data: pieData(countryAlloc, {} as Record<string, string>) },
-                  ].map(({ title, data }) => (
-                    <div key={title} className="detail-section">
-                      <div className="detail-section-title">{title}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                        <div style={{ width: 180, height: 180 }}>
-                          <ResponsiveContainer>
-                            <PieChart>
-                              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
-                                {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                              </Pie>
-                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
-                                formatter={(v: number) => [fmt(v), 'Value']} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {data.map((d, i) => (
-                            <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                              <div style={{ width: 10, height: 10, borderRadius: 3, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                              <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{d.name}</span>
-                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(d.value)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {tab === 'scenarios' && (
-                <>
-                  <div className="detail-section-title">Stress Test Scenarios</div>
-                  <div style={{ width: '100%', height: 220, marginBottom: 24 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={scenarios} layout="vertical">
-                        <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false}
-                          tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}%`} />
-                        <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
-                        <Bar dataKey="impactPercent" radius={[0, 6, 6, 0]}>
-                          {scenarios.map((s, i) => (
-                            <Cell key={i} fill={s.impactPercent >= 0 ? 'var(--status-success)' : 'var(--status-error)'} opacity={0.8} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {scenarios.map((s, i) => (
-                    <div key={i} className="scenario-card">
-                      <div className="scenario-card__name">{s.name}</div>
-                      <div className="scenario-card__desc">{s.description}</div>
-                      <div className="scenario-card__impact" style={{ color: s.impact >= 0 ? 'var(--status-success)' : 'var(--status-error)' }}>
-                        {s.impact >= 0 ? '+' : ''}{fmt(s.impact)} ({s.impactPercent > 0 ? '+' : ''}{s.impactPercent}%)
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
-          )}
-        </GlassContainer>
+                </div>
+              </GlassContainer>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

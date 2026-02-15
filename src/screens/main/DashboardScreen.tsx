@@ -9,6 +9,7 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Bell, Shield,
   Newspaper, ChevronRight,
 } from 'lucide-react'
+import { analyzePortfolio } from '../../services/riskAnalysis'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
@@ -80,16 +81,11 @@ export default function DashboardScreen() {
       .slice(0, 6)
   }, [hasAssets, nonLoanAssets])
 
-  // Simulated risk score
-  const riskScore = useMemo(() => {
-    if (!hasAssets) return 0
-    const sectors = new Set(nonLoanAssets.map(a => a.sector || 'other'))
-    const types = new Set(nonLoanAssets.map(a => a.type))
-    let score = 50
-    score += sectors.size * 5
-    score += types.size * 4
-    return Math.min(95, Math.max(20, score))
-  }, [hasAssets, nonLoanAssets])
+  // Real risk analysis
+  const riskResult = useMemo(() => hasAssets ? analyzePortfolio(nonLoanAssets, totalValue, totalGainLossPercent) : null, [hasAssets, nonLoanAssets, totalValue, totalGainLossPercent])
+  const riskScore = riskResult?.riskScore ?? 0
+  const riskLevelLabel = riskResult ? ({ conservative: 'Conservative', moderate: 'Moderate', growth: 'Growth', aggressive: 'Aggressive' }[riskResult.riskLevel]) : 'N/A'
+  const riskColor = riskResult ? ({ conservative: 'var(--status-success)', moderate: 'var(--brand-primary)', growth: 'var(--status-warning)', aggressive: 'var(--status-error)' }[riskResult.riskLevel]) : 'var(--text-tertiary)'
 
   if (!hasAssets) {
     return (
@@ -218,7 +214,7 @@ export default function DashboardScreen() {
               <svg width="100" height="100" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="var(--glass-border)" strokeWidth="8" />
                 <circle cx="50" cy="50" r="42" fill="none"
-                  stroke={riskScore >= 70 ? 'var(--status-success)' : riskScore >= 40 ? 'var(--status-warning)' : 'var(--status-error)'}
+                  stroke={riskColor}
                   strokeWidth="8" strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 42}
                   strokeDashoffset={2 * Math.PI * 42 * (1 - riskScore / 100)}
@@ -231,8 +227,8 @@ export default function DashboardScreen() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: riskScore >= 70 ? 'var(--status-success)' : riskScore >= 40 ? 'var(--status-warning)' : 'var(--status-error)', textTransform: 'capitalize', marginBottom: 8 }}>
-                {riskScore >= 70 ? 'Low' : riskScore >= 40 ? 'Moderate' : 'High'} Risk
+              <div style={{ fontSize: 14, fontWeight: 600, color: riskColor, textTransform: 'capitalize', marginBottom: 8 }}>
+                {riskLevelLabel}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>View full analysis</div>
             </div>

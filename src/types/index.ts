@@ -233,29 +233,44 @@ export type PerformancePeriod = '1D' | '1W' | '1M' | '1Y'
 // Risk Analysis
 // ============================================
 
-export type RiskLevel = 'low' | 'moderate' | 'high' | 'very_high'
+export type RiskLevel = 'conservative' | 'moderate' | 'growth' | 'aggressive'
+export type VolatilityLevel = 'low' | 'moderate' | 'high' | 'very_high'
+export type SharpeRating = 'poor' | 'below_average' | 'average' | 'good' | 'excellent'
+export type LiquidityLevel = 'high' | 'moderate' | 'low' | 'illiquid'
+export type LiquidityCategory = 'immediate' | 'short_term' | 'medium_term' | 'long_term'
+export type ScenarioSeverity = 'mild' | 'moderate' | 'severe' | 'extreme'
+export type SuggestionPriority = 'high' | 'medium' | 'low'
 
-export interface RiskAnalysisResult {
-  riskScore: number
-  riskLevel: RiskLevel
-  diversificationScore: number
-  concentrationRisk: number
-  liquidityScore: number
-  annualizedVolatility: number
-  sharpeRatio: number
-  maxDrawdown: number
-  beta: number
-  sectorExposure: Record<string, number>
-  geographicExposure: Record<string, number>
-  typeExposure: Record<string, number>
-  recommendations: string[]
+export interface ConcentrationWarning { type: 'high' | 'medium'; message: string; asset: string; percentage: number }
+export interface CorrelationPair { asset1: string; asset2: string; correlation: number }
+export interface BenchmarkComparison {
+  benchmarkName: string; benchmarkReturn: number; benchmarkVolatility: number; benchmarkSharpe: number
+  portfolioReturn: number; portfolioVolatility: number; portfolioSharpe: number
+  returnDiff: number; riskDiff: number; verdict: string
+}
+export interface AssetRiskContribution { assetName: string; symbol?: string; type: AssetType; portfolioWeight: number; riskContribution: number }
+export interface RebalancingSuggestion {
+  action: 'buy' | 'sell' | 'review'; assetType: string; currentPercent: number; targetPercent: number
+  changeAmount: number; reason: string; priority: SuggestionPriority
 }
 
 export interface ScenarioResult {
-  name: string
-  description: string
-  impact: number
-  impactPercent: number
+  name: string; description: string; impactPercent: number; impactAmount: number; severity: ScenarioSeverity
+}
+
+export interface RiskAnalysisResult {
+  riskScore: number; riskLevel: RiskLevel
+  volatility: number; annualizedVolatility: number; volatilityLevel: VolatilityLevel
+  sharpeRatio: number; sharpeRating: SharpeRating
+  maxDrawdown: number; maxDrawdownPercent: number
+  concentrationWarnings: ConcentrationWarning[]; concentrationIndex: number
+  liquidityScore: number; liquidityLevel: LiquidityLevel; liquidityBreakdown: Record<LiquidityCategory, number>
+  diversificationScore: number; highCorrelations: CorrelationPair[]
+  scenarioAnalysis: ScenarioResult[]
+  riskContributionByType: Record<string, number>
+  benchmarkComparison: BenchmarkComparison
+  topRiskContributors: AssetRiskContribution[]
+  rebalancingSuggestions: RebalancingSuggestion[]
 }
 
 // ============================================

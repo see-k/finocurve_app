@@ -63,11 +63,11 @@ npm run build
 
 | Dashboard | Market Analysis |
 |-----------|-----------------|
-| ![Dashboard](dashboard-two-col.png) | ![Markets](markets-tradingview.png) |
+| ![Dashboard](public/images/dashboard-two-col.png) | ![Markets](public/images/markets-tradingview.png) |
 
 | Portfolio | Risk Analysis |
 |-----------|---------------|
-| ![Portfolio](portfolio-with-bg.png) | ![News](markets-news-tab.png) |
+| ![Portfolio](public/images/portfolio-with-bg.png) | ![News](public/images/markets-news-tab.png) |
 
 ---
 *FinoCurve - Empowering your financial journey.*
