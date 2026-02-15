@@ -1,0 +1,22 @@
+.glass-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.glass-icon-button:hover {
+  background: var(--glass-bg-hover);
+  transform: scale(1.05);
+}
+
+.glass-icon-button:active {
+  transform: scale(0.95);
+}

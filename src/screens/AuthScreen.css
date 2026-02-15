@@ -1,0 +1,127 @@
+.auth-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 4px 16px rgba(99, 102, 241, 0.3));
+}
+
+.auth-bg-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.auth-bg-glow--1 {
+  width: 400px;
+  height: 400px;
+  background: var(--primary-alpha-20);
+  top: -80px;
+  left: -80px;
+}
+
+.auth-bg-glow--2 {
+  width: 300px;
+  height: 300px;
+  background: rgba(14, 127, 185, 0.08);
+  bottom: -60px;
+  right: -60px;
+}
+
+.auth-content {
+  display: flex;
+  flex-direction: column;
+  max-width: 460px;
+  width: 100%;
+  padding: 32px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  z-index: 1;
+}
+
+.auth-content--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.auth-header {
+  margin-bottom: 24px;
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-title {
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-forgot {
+  font-size: 13px;
+  color: var(--primary);
+  text-align: right;
+  margin-top: -4px;
+}
+
+.auth-forgot:hover {
+  color: var(--primary-hover);
+}
+
+.auth-toggle-pw {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.auth-toggle-pw:hover {
+  color: var(--text-primary);
+}
+
+.auth-switch {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 24px;
+}
+
+.auth-switch a {
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-switch a:hover {
+  color: var(--primary-hover);
+}

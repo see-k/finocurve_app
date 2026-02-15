@@ -1,0 +1,63 @@
+.tv-chart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+.tv-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+}
+.tv-chart-symbol {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.tv-chart-close {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tv-chart-close:hover {
+  background: var(--glass-bg-strong);
+}
+.tv-chart-container {
+  flex: 1;
+  position: relative;
+}
+.tv-chart-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  background: var(--bg-primary);
+}
+.tv-chart-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: tvSpin 0.8s linear infinite;
+}
+@keyframes tvSpin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,80 @@
+.glass-text-field {
+  width: 100%;
+}
+
+.glass-text-field__wrapper {
+  display: flex;
+  align-items: center;
+  border-radius: 30px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.glass-text-field__wrapper:focus-within {
+  border-color: var(--primary);
+  border-width: 2px;
+}
+
+.glass-text-field--error .glass-text-field__wrapper {
+  border-color: var(--error);
+}
+
+.glass-text-field--disabled .glass-text-field__wrapper {
+  opacity: 0.5;
+}
+
+.glass-text-field__prefix,
+.glass-text-field__suffix {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.glass-text-field__prefix {
+  padding-left: 20px;
+  padding-right: 0;
+}
+
+.glass-text-field__suffix {
+  padding-right: 20px;
+  padding-left: 0;
+}
+
+.glass-text-field__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: var(--font-family);
+  padding: 18px 24px;
+  width: 100%;
+}
+
+.glass-text-field__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.glass-text-field__input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+textarea.glass-text-field__input {
+  resize: none;
+}
+
+.glass-text-field__error {
+  display: block;
+  color: var(--error);
+  font-size: 12px;
+  margin-top: 6px;
+  padding-left: 24px;
+}

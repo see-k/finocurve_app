@@ -1,0 +1,90 @@
+.settings-sub {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  position: relative;
+  overflow-y: auto;
+}
+.settings-sub-bg {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+.settings-sub-bg--1 { width: 400px; height: 400px; top: -80px; left: -80px; background: var(--brand-primary); }
+.settings-sub-bg--2 { width: 350px; height: 350px; bottom: -80px; right: -80px; background: var(--brand-secondary); }
+
+.settings-sub-content {
+  max-width: 560px; width: 100%;
+  opacity: 0; transform: translateY(16px); transition: all 0.4s ease;
+}
+.settings-sub-content--visible { opacity: 1; transform: translateY(0); }
+.settings-sub-header {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+}
+.settings-sub-title { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+
+/* FAQ */
+.faq-list { display: flex; flex-direction: column; gap: 8px; }
+.faq-item {
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.faq-item__question {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; cursor: pointer; font-size: 15px; font-weight: 600;
+  color: var(--text-primary); width: 100%; border: none; background: none; text-align: left;
+}
+.faq-item__question:hover { background: var(--glass-bg); }
+.faq-item__answer {
+  padding: 0 20px 16px; font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+}
+.faq-chevron {
+  transition: transform 0.2s ease; flex-shrink: 0; color: var(--text-tertiary);
+}
+.faq-chevron--open { transform: rotate(180deg); }
+
+/* About */
+.about-logo {
+  width: 80px; height: 80px; border-radius: 20px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 800; color: white; margin: 0 auto 16px;
+}
+.about-logo-img {
+  width: 100px; height: 100px;
+  object-fit: contain;
+  border-radius: 24px;
+  margin: 0 auto 16px;
+  display: block;
+  filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
+}
+.about-app-name { font-size: 24px; font-weight: 800; color: var(--text-primary); text-align: center; }
+.about-version { font-size: 14px; color: var(--text-tertiary); text-align: center; margin-top: 4px; }
+.about-features {
+  margin-top: 24px; display: flex; flex-direction: column; gap: 8px;
+}
+.about-feature-item {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 14px; color: var(--text-secondary); padding: 8px 0;
+}
+.about-feature-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: rgba(99, 102, 241, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--brand-primary); flex-shrink: 0;
+}
+.about-links {
+  margin-top: 24px; display: flex; flex-direction: column; gap: 4px;
+}
+.about-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--glass-border);
+  cursor: pointer; font-size: 14px; color: var(--brand-primary);
+}

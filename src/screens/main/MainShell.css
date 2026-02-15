@@ -1,0 +1,338 @@
+/* ============================================
+   Layout
+   ============================================ */
+.main-shell {
+  display: flex;
+  height: 100vh;
+  background: var(--bg-primary);
+}
+
+/* ============================================
+   Pill-shaped floating navbar (left side)
+   ============================================ */
+.nav-bar {
+  position: fixed;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: slideInLeft 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+/* ─── Logo ──────────────────────────────────── */
+.nav-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-logo__img {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  object-fit: contain;
+  cursor: default;
+  filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.3));
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.nav-logo__img:hover {
+  filter: drop-shadow(0 2px 14px rgba(99, 102, 241, 0.5));
+  transform: scale(1.05);
+}
+
+/* ─── Pill container ────────────────────────── */
+.nav-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition:
+    background 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Nav item (circular button) ────────────── */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.nav-item svg {
+  width: 20px;
+  height: 20px;
+  transition: filter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-strong);
+  transform: scale(1.08);
+}
+
+.nav-item--active {
+  color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.nav-item--active svg {
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.4));
+}
+
+.nav-item--active:hover {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+/* Active indicator bar (left side) */
+.nav-item__indicator {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--brand-primary);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+  animation: indicatorPulse 2s ease-in-out infinite;
+}
+
+@keyframes indicatorPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.5); }
+  50% { opacity: 0.7; box-shadow: 0 0 4px rgba(99, 102, 241, 0.25); }
+}
+
+/* Tooltip (right side) */
+.nav-item::after,
+.nav-fab::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-6px);
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item:hover::after,
+.nav-fab:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ─── FAB button ────────────────────────────── */
+.nav-fab-area {
+  display: flex;
+  justify-content: center;
+}
+
+.fab-container {
+  position: relative;
+}
+
+.nav-fab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  color: white;
+  cursor: pointer;
+  box-shadow:
+    0 4px 16px rgba(99, 102, 241, 0.35),
+    0 0 0 1px rgba(99, 102, 241, 0.3);
+  transition:
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.15s ease;
+  outline: none;
+}
+
+.nav-fab:hover {
+  transform: scale(1.1);
+  box-shadow:
+    0 6px 24px rgba(99, 102, 241, 0.45),
+    0 0 0 1px rgba(99, 102, 241, 0.4);
+}
+
+.nav-fab svg {
+  transition: transform 0.2s ease;
+}
+
+.nav-fab--open svg {
+  transform: rotate(45deg);
+}
+
+/* FAB pop-up menu — opens to the RIGHT of the fab button */
+.fab-menu {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: fabSlideRight 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 170px;
+}
+
+@keyframes fabSlideRight {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.fab-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.fab-menu__item:hover {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+}
+
+.fab-menu__item svg {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.fab-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+}
+
+/* ============================================
+   Main Content Column — wraps ticker + content
+   ============================================ */
+.main-content-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Ticker tape — sits above main-content, spans full viewport width */
+.shell-ticker {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 84px; /* space for the floating pill nav */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main-content__inner {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* ============================================
+   Light theme adjustments
+   ============================================ */
+[data-theme="light"] .nav-pill {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="light"] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] .nav-item--active {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+[data-theme="light"] .fab-menu {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.1);
+}

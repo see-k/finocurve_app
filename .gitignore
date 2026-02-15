@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-electron/
+dist-tsnode/
+*.local
+.DS_Store
+*.png
+*.jpg
+*.jpeg
+!public/**
+!src/**
+.playwright-mcp/
