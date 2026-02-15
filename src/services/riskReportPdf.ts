@@ -1,7 +1,7 @@
 /**
  * Risk Analysis PDF Report Generator
  * Generates a professional multi-page risk report using jsPDF.
- * Ported from the FinoCurve mobile app's risk_report_pdf_service.dart
+ * Includes company logo and detailed portfolio analysis.
  */
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -34,6 +34,25 @@ function severityLabel(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+/** Load an image from a URL and return as base64 data URL */
+function loadImageAsBase64(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(null); return }
+      ctx.drawImage(img, 0, 0)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
 interface ReportOptions {
   risk: RiskAnalysisResult
   assets: Asset[]
@@ -45,16 +64,22 @@ interface ReportOptions {
   typeAlloc: Record<string, number>
 }
 
-export function generateRiskReportPdf(opts: ReportOptions) {
+export async function generateRiskReportPdf(opts: ReportOptions) {
   const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()
   const ph = doc.internal.pageSize.getHeight()
   const margin = 20
-  const cw = pw - margin * 2 // content width
+  const cw = pw - margin * 2
   let y = 0
 
   const riskColor = RISK_COLORS[risk.riskLevel] || C.brand
+
+  // ── Load company logo ──
+  let logoData: string | null = null
+  try {
+    logoData = await loadImageAsBase64('/images/finocurve-logo-transparent.png')
+  } catch { /* ignore */ }
 
   // ────────────────────────────────────
   // Helper functions
@@ -62,7 +87,7 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   function addFooter() {
     doc.setFontSize(8)
     doc.setTextColor(...C.muted)
-    doc.text(`FinoCurve Risk Report — Generated ${new Date().toLocaleDateString()}`, margin, ph - 8)
+    doc.text('FinoCurve Risk Report', margin, ph - 8)
     doc.text(`Page ${doc.getNumberOfPages()}`, pw - margin, ph - 8, { align: 'right' })
   }
 
@@ -89,20 +114,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
     y += 8
   }
 
-  function label(text: string) {
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...C.muted)
-    doc.text(text, margin, y)
-  }
-
-  function value(text: string, x: number = margin, color: [number, number, number] = C.text) {
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...color)
-    doc.text(text, x, y)
-  }
-
   function bodyText(text: string, maxW: number = cw) {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
@@ -113,16 +124,17 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   }
 
   function drawProgressBar(x: number, yPos: number, width: number, pct: number, color: [number, number, number]) {
+    const clampedPct = Math.min(Math.max(pct, 0), 100)
     doc.setFillColor(...C.lightBg)
     doc.roundedRect(x, yPos, width, 4, 2, 2, 'F')
     doc.setFillColor(...color)
-    doc.roundedRect(x, yPos, Math.max(2, width * (pct / 100)), 4, 2, 2, 'F')
+    doc.roundedRect(x, yPos, Math.max(2, width * (clampedPct / 100)), 4, 2, 2, 'F')
   }
 
   // ────────────────────────────────────
   // PAGE 1: Cover
   // ────────────────────────────────────
-  // Brand header bar
+  // Dark header
   doc.setFillColor(...C.dark)
   doc.rect(0, 0, pw, 80, 'F')
 
@@ -130,7 +142,14 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   doc.setFillColor(...riskColor)
   doc.rect(0, 80, pw, 3, 'F')
 
-  // Title
+  // Company logo (top-right of header)
+  if (logoData) {
+    try {
+      doc.addImage(logoData, 'PNG', pw - margin - 36, 12, 36, 36)
+    } catch { /* ignore if image fails */ }
+  }
+
+  // Title text
   doc.setFontSize(28)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C.white)
@@ -149,6 +168,15 @@ export function generateRiskReportPdf(opts: ReportOptions) {
 
   doc.setFillColor(...C.lightBg)
   doc.roundedRect(margin, y - 4, cw, 60, 4, 4, 'F')
+
+  // Logo watermark in summary box (small)
+  if (logoData) {
+    try {
+      doc.setGState(new (doc as any).GState({ opacity: 0.06 }))
+      doc.addImage(logoData, 'PNG', pw - margin - 52, y, 48, 48)
+      doc.setGState(new (doc as any).GState({ opacity: 1 }))
+    } catch { /* ignore */ }
+  }
 
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
@@ -212,7 +240,43 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   addFooter()
 
   // ────────────────────────────────────
-  // PAGE 2: Risk Metrics & Volatility
+  // PAGE 2: Portfolio Composition
+  // ────────────────────────────────────
+  newPage()
+
+  sectionTitle('Portfolio Composition')
+
+  const holdingsHead = ['#', 'Asset', 'Type', 'Value', 'Weight', 'Gain/Loss']
+  const holdingsBody = assets.sort((a, b) => assetCurrentValue(b) - assetCurrentValue(a)).map((a, i) => {
+    const cv = assetCurrentValue(a)
+    const gl = cv - (a.costBasis * a.quantity)
+    const glPct = a.costBasis > 0 ? ((cv / (a.costBasis * a.quantity)) - 1) * 100 : 0
+    return [
+      `${i + 1}`,
+      a.name,
+      ASSET_TYPE_LABELS[a.type] || a.type,
+      fmt(cv),
+      `${(cv / totalValue * 100).toFixed(1)}%`,
+      `${gl >= 0 ? '+' : ''}${fmt(gl)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(1)}%)`,
+    ]
+  })
+
+  autoTable(doc, {
+    startY: y,
+    head: [holdingsHead],
+    body: holdingsBody,
+    margin: { left: margin, right: margin },
+    theme: 'striped',
+    headStyles: { fillColor: C.dark, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 8, textColor: C.text },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 45 }, 5: { cellWidth: 40 } },
+  })
+
+  y = (doc as any).lastAutoTable.finalY + 12
+
+  // ────────────────────────────────────
+  // PAGE 3: Risk Metrics
   // ────────────────────────────────────
   newPage()
 
@@ -243,7 +307,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
 
   y = (doc as any).lastAutoTable.finalY + 12
 
-  // Risk contribution
   sectionTitle('Risk Contribution by Asset Type')
 
   const contribEntries = Object.entries(risk.riskContributionByType).sort(([,a], [,b]) => b - a)
@@ -261,7 +324,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
 
   y += 6
 
-  // Benchmark comparison
   checkSpace(40)
   sectionTitle('Benchmark Comparison — S&P 500')
 
@@ -287,43 +349,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   const vLines = doc.splitTextToSize(risk.benchmarkComparison.verdict, cw)
   doc.text(vLines, margin, y)
   y += vLines.length * 4 + 4
-
-  // ────────────────────────────────────
-  // PAGE 3: Portfolio Composition
-  // ────────────────────────────────────
-  newPage()
-
-  sectionTitle('Portfolio Composition')
-
-  // Holdings table
-  const holdingsHead = ['#', 'Asset', 'Type', 'Value', 'Weight', 'Gain/Loss']
-  const holdingsBody = assets.map((a, i) => {
-    const cv = assetCurrentValue(a)
-    const gl = cv - (a.costBasis * a.quantity)
-    const glPct = a.costBasis > 0 ? ((cv / (a.costBasis * a.quantity)) - 1) * 100 : 0
-    return [
-      `${i + 1}`,
-      a.name,
-      ASSET_TYPE_LABELS[a.type] || a.type,
-      fmt(cv),
-      `${(cv / totalValue * 100).toFixed(1)}%`,
-      `${gl >= 0 ? '+' : ''}${fmt(gl)} (${glPct >= 0 ? '+' : ''}${glPct.toFixed(1)}%)`,
-    ]
-  })
-
-  autoTable(doc, {
-    startY: y,
-    head: [holdingsHead],
-    body: holdingsBody,
-    margin: { left: margin, right: margin },
-    theme: 'striped',
-    headStyles: { fillColor: C.dark, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 8, textColor: C.text },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 45 }, 5: { cellWidth: 40 } },
-  })
-
-  y = (doc as any).lastAutoTable.finalY + 12
 
   // Top risk contributors
   checkSpace(30)
@@ -440,9 +465,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
 
   y = (doc as any).lastAutoTable.finalY + 14
 
-  // ────────────────────────────────────
-  // Scenario details
-  // ────────────────────────────────────
   risk.scenarioAnalysis.forEach(s => {
     checkSpace(24)
     doc.setFontSize(10)
@@ -507,7 +529,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
     y += 8
   }
 
-  // Concentration warnings
   if (risk.concentrationWarnings.length > 0) {
     checkSpace(20)
     sectionTitle('Concentration Warnings')
@@ -525,7 +546,6 @@ export function generateRiskReportPdf(opts: ReportOptions) {
     y += 4
   }
 
-  // Liquidity breakdown
   checkSpace(30)
   sectionTitle('Liquidity Analysis')
 
@@ -551,6 +571,14 @@ export function generateRiskReportPdf(opts: ReportOptions) {
   // PAGE 7: Methodology & Disclaimers
   // ────────────────────────────────────
   newPage()
+
+  // Logo at top of methodology page
+  if (logoData) {
+    try {
+      doc.addImage(logoData, 'PNG', pw / 2 - 15, y, 30, 30)
+      y += 34
+    } catch { /* ignore */ }
+  }
 
   sectionTitle('Methodology')
 
@@ -600,9 +628,7 @@ export function generateRiskReportPdf(opts: ReportOptions) {
     y += lines.length * 3.5 + 2
   })
 
-  // ────────────────────────────────────
-  // Save
-  // ────────────────────────────────────
+  // ── Save ──
   const dateStr = new Date().toISOString().slice(0, 10)
   doc.save(`FinoCurve_Risk_Report_${dateStr}.pdf`)
 }

@@ -129,21 +129,18 @@ export default function RiskAnalysisScreen() {
     return result
   }, [countryAlloc, totalValue])
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!risk || !portfolio) return
     setGeneratingPdf(true)
-    // Small timeout so the loading state renders
-    setTimeout(() => {
-      try {
-        generateRiskReportPdf({
-          risk, assets, totalValue, totalGainLossPercent,
-          portfolioName: portfolio.name || 'My Portfolio',
-          sectorAlloc, countryAlloc, typeAlloc,
-        })
-      } finally {
-        setGeneratingPdf(false)
-      }
-    }, 100)
+    try {
+      await generateRiskReportPdf({
+        risk, assets, totalValue, totalGainLossPercent,
+        portfolioName: portfolio.name || 'My Portfolio',
+        sectorAlloc, countryAlloc, typeAlloc,
+      })
+    } finally {
+      setGeneratingPdf(false)
+    }
   }
 
   const pieData = (alloc: Record<string, number>, labels: Record<string, string>) =>
