@@ -9,15 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0",
-    "recharts": "^2.15.0",
-    "lucide-react": "^0.469.0"
+    "react-simple-maps": "^3.0.0",
+    "react-tooltip": "^5.30.0",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/react-simple-maps": "^3.0.6",
     "@vitejs/plugin-react": "^4.3.0",
     "electron": "^34.0.0",
     "typescript": "^5.7.0",

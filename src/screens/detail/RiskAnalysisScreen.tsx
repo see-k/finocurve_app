@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
   Droplets, BarChart3, Target, ArrowUpRight, ArrowDownRight,
-  Layers, Globe, PieChart as PieIcon, RefreshCw, Info,
+  Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
@@ -14,11 +14,13 @@ import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import { usePortfolio } from '../../store/usePortfolio'
 import { analyzePortfolio } from '../../services/riskAnalysis'
+import { generateRiskReportPdf } from '../../services/riskReportPdf'
+import WorldMap from '../../components/WorldMap'
 import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority } from '../../types'
 import {
   assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry,
   portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS,
-} from '../../types'
+} from '../../types'z
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
@@ -76,11 +78,35 @@ function generateVolHistory(score: number) {
   return data
 }
 
+// Country code → emoji flag
+const COUNTRY_TO_ISO2: Record<string, string> = {
+  US: 'US', USA: 'US', 'United States': 'US', UK: 'GB', 'United Kingdom': 'GB', GB: 'GB',
+  Germany: 'DE', DE: 'DE', France: 'FR', FR: 'FR', Japan: 'JP', JP: 'JP',
+  China: 'CN', CN: 'CN', India: 'IN', IN: 'IN', Australia: 'AU', AU: 'AU',
+  Canada: 'CA', CA: 'CA', Brazil: 'BR', BR: 'BR', 'South Korea': 'KR', KR: 'KR',
+  Switzerland: 'CH', CH: 'CH', Netherlands: 'NL', NL: 'NL', Italy: 'IT', IT: 'IT',
+  Spain: 'ES', ES: 'ES', Sweden: 'SE', SE: 'SE', Norway: 'NO', NO: 'NO',
+  Denmark: 'DK', DK: 'DK', Finland: 'FI', FI: 'FI', Ireland: 'IE', IE: 'IE',
+  Taiwan: 'TW', TW: 'TW', Singapore: 'SG', SG: 'SG', 'Hong Kong': 'HK', HK: 'HK',
+  'New Zealand': 'NZ', NZ: 'NZ', 'South Africa': 'ZA', ZA: 'ZA', Mexico: 'MX', MX: 'MX',
+  Argentina: 'AR', AR: 'AR', 'Saudi Arabia': 'SA', SA: 'SA', UAE: 'AE', AE: 'AE',
+  Israel: 'IL', IL: 'IL', Russia: 'RU', RU: 'RU', Poland: 'PL', PL: 'PL',
+  Belgium: 'BE', BE: 'BE', Austria: 'AT', AT: 'AT', Global: 'UN',
+}
+
+function countryFlag(name: string): string {
+  const iso2 = COUNTRY_TO_ISO2[name] || COUNTRY_TO_ISO2[name.toUpperCase()]
+  if (!iso2) return '🌍'
+  return iso2.split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
+}
+
 export default function RiskAnalysisScreen() {
   const navigate = useNavigate()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<'overview' | 'volatility' | 'scenarios' | 'exposure'>('overview')
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [selectedCountry, setSelectedCountry] = useState<{ name: string; pct: number } | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
@@ -91,6 +117,34 @@ export default function RiskAnalysisScreen() {
   const sectorAlloc = useMemo(() => portfolio ? portfolioAllocationBySector(portfolio) : {}, [portfolio])
   const countryAlloc = useMemo(() => portfolio ? portfolioAllocationByCountry(portfolio) : {}, [portfolio])
   const typeAlloc = useMemo(() => portfolio ? portfolioAllocationByType(portfolio) : {}, [portfolio])
+
+  // Country allocation as percentage (for the world map)
+  const countryPct = useMemo(() => {
+    const result: Record<string, number> = {}
+    if (totalValue > 0) {
+      for (const [k, v] of Object.entries(countryAlloc)) {
+        result[k] = (v / totalValue) * 100
+      }
+    }
+    return result
+  }, [countryAlloc, totalValue])
+
+  const handleExportPdf = () => {
+    if (!risk || !portfolio) return
+    setGeneratingPdf(true)
+    // Small timeout so the loading state renders
+    setTimeout(() => {
+      try {
+        generateRiskReportPdf({
+          risk, assets, totalValue, totalGainLossPercent,
+          portfolioName: portfolio.name || 'My Portfolio',
+          sectorAlloc, countryAlloc, typeAlloc,
+        })
+      } finally {
+        setGeneratingPdf(false)
+      }
+    }, 100)
+  }
 
   const pieData = (alloc: Record<string, number>, labels: Record<string, string>) =>
     Object.entries(alloc).map(([k, v]) => ({ name: labels[k as keyof typeof labels] || k, value: +v.toFixed(2) })).sort((a, b) => b.value - a.value)
@@ -129,6 +183,12 @@ export default function RiskAnalysisScreen() {
         <div className="risk-page__header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
+          <div className="risk-page__header-right">
+            <button className="risk-export-btn" onClick={handleExportPdf} disabled={generatingPdf}>
+              <FileDown size={16} />
+              {generatingPdf ? 'Generating...' : 'Export PDF'}
+            </button>
+          </div>
         </div>
 
         {/* Risk Score Hero */}
@@ -466,10 +526,52 @@ export default function RiskAnalysisScreen() {
         {/* ═══════ EXPOSURE TAB ═══════ */}
         {tab === 'exposure' && (
           <div className="risk-tab-content">
+            {/* Interactive World Map */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title"><Globe size={16} /> Geographic Exposure</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16 }}>
+                Hover over countries to see your allocation. Click a highlighted country for details.
+              </p>
+              <WorldMap
+                countryExposure={countryPct}
+                totalValue={totalValue}
+                onCountryClick={(name, pct) => setSelectedCountry({ name, pct })}
+              />
+              {selectedCountry && (
+                <div className="map-country-detail">
+                  <MapPin size={16} />
+                  <strong>{selectedCountry.name}</strong>
+                  <span>{selectedCountry.pct.toFixed(1)}% of portfolio</span>
+                  <span className="map-country-detail__val">
+                    {fmt((selectedCountry.pct / 100) * totalValue)}
+                  </span>
+                  <button className="map-country-detail__close" onClick={() => setSelectedCountry(null)}>&times;</button>
+                </div>
+              )}
+            </GlassContainer>
+
+            {/* Country Breakdown List */}
+            <GlassContainer padding="24px" borderRadius={16}>
+              <h3 className="risk-section-title">Country Breakdown</h3>
+              <div className="country-breakdown">
+                {Object.entries(countryPct).sort(([,a],[,b]) => b - a).map(([country, pct]) => (
+                  <div key={country} className="country-row">
+                    <span className="country-row__flag">{countryFlag(country)}</span>
+                    <span className="country-row__name">{country}</span>
+                    <div className="country-row__bar-bg">
+                      <div className="country-row__bar" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="country-row__pct">{pct.toFixed(1)}%</span>
+                    <span className="country-row__val">{fmt((pct / 100) * totalValue)}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassContainer>
+
+            {/* Sector + Type pie charts */}
             {[
               { title: 'Sector Exposure', icon: <PieIcon size={16} />, data: pieData(sectorAlloc, SECTOR_LABELS as Record<string, string>) },
               { title: 'Asset Type Breakdown', icon: <Layers size={16} />, data: pieData(typeAlloc, ASSET_TYPE_LABELS as Record<string, string>) },
-              { title: 'Geographic Exposure', icon: <Globe size={16} />, data: pieData(countryAlloc, {}) },
             ].map(({ title, icon, data }) => (
               <GlassContainer key={title} padding="24px" borderRadius={16}>
                 <h3 className="risk-section-title">{icon} {title}</h3>

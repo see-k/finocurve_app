@@ -252,3 +252,56 @@
 .exposure-legend__name { flex: 1; color: var(--text-secondary); }
 .exposure-legend__val { font-weight: 600; color: var(--text-primary); }
 .exposure-legend__pct { color: var(--text-tertiary); font-size: 11px; min-width: 40px; text-align: right; }
+
+/* ── PDF Export Button ── */
+.risk-page__header-right { margin-left: auto; }
+.risk-export-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: 12px; border: none;
+  background: var(--brand-primary); color: white;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.risk-export-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+.risk-export-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ── World Map ── */
+.world-map-container { position: relative; }
+.world-map-container svg { border-radius: 12px; }
+.world-map-legend {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  margin-top: 12px;
+}
+.world-map-legend__label { font-size: 11px; color: var(--text-tertiary); font-weight: 600; }
+.world-map-legend__bar {
+  width: 180px; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--glass-border), #6366f1, #8b5cf6, #ec4899, #ef4444);
+}
+
+/* Map country detail card */
+.map-country-detail {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 12px 16px; border-radius: 12px;
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border);
+  animation: mapDetailIn 0.2s ease;
+}
+@keyframes mapDetailIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.map-country-detail svg { color: var(--brand-primary); flex-shrink: 0; }
+.map-country-detail strong { font-size: 14px; color: var(--text-primary); }
+.map-country-detail span { font-size: 13px; color: var(--text-secondary); }
+.map-country-detail__val { font-weight: 700; color: var(--text-primary); margin-left: auto; }
+.map-country-detail__close {
+  background: none; border: none; color: var(--text-tertiary);
+  font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
+}
+.map-country-detail__close:hover { color: var(--text-primary); }
+
+/* ── Country Breakdown List ── */
+.country-breakdown { display: flex; flex-direction: column; gap: 8px; }
+.country-row { display: flex; align-items: center; gap: 10px; }
+.country-row__flag { font-size: 18px; flex-shrink: 0; }
+.country-row__name { font-size: 13px; color: var(--text-secondary); min-width: 100px; }
+.country-row__bar-bg { flex: 1; height: 8px; border-radius: 4px; background: var(--glass-bg); overflow: hidden; }
+.country-row__bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.6s ease; }
+.country-row__pct { font-size: 13px; font-weight: 700; color: var(--text-primary); min-width: 42px; text-align: right; }
+.country-row__val { font-size: 12px; color: var(--text-tertiary); min-width: 70px; text-align: right; }
