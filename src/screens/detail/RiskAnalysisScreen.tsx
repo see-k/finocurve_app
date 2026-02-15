@@ -20,7 +20,7 @@ import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority } 
 import {
   assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry,
   portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS,
-} from '../../types'z
+} from '../../types'
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
