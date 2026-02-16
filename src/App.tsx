@@ -22,6 +22,7 @@ import NotificationsScreen from './screens/main/NotificationsScreen'
 // Settings sub-screens
 import AccountScreen from './screens/settings/AccountScreen'
 import CurrencyPickerScreen from './screens/settings/CurrencyPickerScreen'
+import CloudStorageScreen from './screens/settings/CloudStorageScreen'
 import HelpFaqScreen from './screens/settings/HelpFaqScreen'
 import AboutScreen from './screens/settings/AboutScreen'
 
@@ -68,6 +69,7 @@ export default function App() {
       {/* Settings sub-screens */}
       <Route path="/settings/account" element={<AccountScreen />} />
       <Route path="/settings/currency" element={<CurrencyPickerScreen />} />
+      <Route path="/settings/cloud-storage" element={<CloudStorageScreen />} />
       <Route path="/settings/help" element={<HelpFaqScreen />} />
       <Route path="/settings/about" element={<AboutScreen />} />
       {/* Fallback */}

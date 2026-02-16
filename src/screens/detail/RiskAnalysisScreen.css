@@ -6,8 +6,40 @@
   width: 100%;
   overflow-y: auto;
   padding: 32px;
+  position: relative;
 }
+
+.risk-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 340px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.risk-bg__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.25;
+}
+
+.risk-bg__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 15, 35, 0.3) 0%,
+    var(--bg-primary) 300px
+  );
+}
+
 .risk-page__inner {
+  position: relative;
+  z-index: 1;
   display: flex; flex-direction: column; gap: 24px;
   max-width: 1100px;
   margin: 0 auto;
@@ -254,7 +286,16 @@
 .exposure-legend__pct { color: var(--text-tertiary); font-size: 11px; min-width: 40px; text-align: right; }
 
 /* ── PDF Export Button ── */
-.risk-page__header-right { margin-left: auto; }
+.risk-page__header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes risk-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.risk-page .spin { animation: risk-spin 1s linear infinite; }
+
 .risk-export-btn {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 20px; border-radius: 12px; border: none;

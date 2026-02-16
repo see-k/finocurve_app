@@ -9,6 +9,14 @@ interface ElectronAPI {
   }
   send: (channel: string, data: unknown) => void
   receive: (channel: string, func: (...args: unknown[]) => void) => void
+  // S3 cloud storage (user-owned bucket)
+  s3SaveCredentials?: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) => Promise<{ ok: boolean }>
+  s3ClearCredentials?: () => Promise<{ ok: boolean }>
+  s3HasCredentials?: () => Promise<boolean>
+  s3Upload?: (payload: { key: string; buffer: number[]; contentType?: string }) => Promise<{ ok: boolean }>
+  s3List?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
+  s3GetDownloadUrl?: (payload: { key: string }) => Promise<{ url: string }>
+  s3Delete?: (payload: { key: string }) => Promise<{ ok: boolean }>
 }
 
 interface Window {

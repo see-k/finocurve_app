@@ -62,6 +62,8 @@ interface ReportOptions {
   sectorAlloc: Record<string, number>
   countryAlloc: Record<string, number>
   typeAlloc: Record<string, number>
+  /** When true, returns PDF as Uint8Array instead of triggering download */
+  returnBlob?: boolean
 }
 
 export async function generateRiskReportPdf(opts: ReportOptions) {
@@ -628,7 +630,11 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     y += lines.length * 3.5 + 2
   })
 
-  // ── Save ──
+  // ── Save or return ──
   const dateStr = new Date().toISOString().slice(0, 10)
+  if (opts.returnBlob) {
+    const arr = doc.output('arraybuffer')
+    return new Uint8Array(arr)
+  }
   doc.save(`FinoCurve_Risk_Report_${dateStr}.pdf`)
 }

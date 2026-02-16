@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Moon, User, DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
@@ -24,7 +24,8 @@ export default function SettingsScreen() {
   const userEmail = prefs.userEmail || 'Not signed in'
   const initials = userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await window.electronAPI?.s3ClearCredentials?.()
     resetPreferences()
     localStorage.removeItem('finocure-portfolio')
     localStorage.removeItem('finocure-watchlist')
@@ -62,7 +63,8 @@ export default function SettingsScreen() {
     setShowExportModal(false)
   }
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
+    await window.electronAPI?.s3ClearCredentials?.()
     resetPreferences()
     localStorage.removeItem('finocure-portfolio')
     localStorage.removeItem('finocure-watchlist')
@@ -125,6 +127,9 @@ export default function SettingsScreen() {
           <SettingsRow icon={<Shield size={18} />} label="Price Alerts" value={prefs.priceAlerts ? 'On' : 'Off'}
             toggle toggled={prefs.priceAlerts}
             onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })} />
+          {typeof window !== 'undefined' && window.electronAPI?.s3List && (
+            <SettingsRow icon={<Cloud size={18} />} label="Cloud Storage" value={prefs.s3Bucket ? 'Connected' : 'Not connected'} onClick={() => navigate('/settings/cloud-storage')} />
+          )}
         </GlassContainer>
       </div>
 

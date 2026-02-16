@@ -5,22 +5,25 @@ import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import { usePreferences } from '../../store/usePreferences'
 import './SettingsSubScreen.css'
 
 export default function AccountScreen() {
   const navigate = useNavigate()
+  const { prefs, updatePreferences } = usePreferences()
   const [visible, setVisible] = useState(false)
-  const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
   const [name, setName] = useState(prefs.userName || '')
   const [email, setEmail] = useState(prefs.userEmail || '')
+
+  useEffect(() => {
+    setName(prefs.userName || '')
+    setEmail(prefs.userEmail || '')
+  }, [prefs])
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   const handleSave = () => {
-    const p = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
-    p.userName = name
-    p.userEmail = email
-    localStorage.setItem('finocure-preferences', JSON.stringify(p))
+    updatePreferences({ userName: name, userEmail: email })
     navigate(-1)
   }
 

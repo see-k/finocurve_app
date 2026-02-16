@@ -188,6 +188,10 @@ export interface UserPreferences {
   priceAlerts: boolean
   portfolioUpdates: boolean
   marketNews: boolean
+  // S3 cloud storage (user-owned bucket; secret stored in Electron main only)
+  s3Bucket?: string
+  s3Region?: string
+  s3AccessKeyId?: string
 }
 
 // ============================================
@@ -302,7 +306,7 @@ export interface AmortizationEntry {
 // Navigation
 // ============================================
 
-export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'settings'
+export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'reports' | 'settings'
 
 // ============================================
 // Display helpers

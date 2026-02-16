@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
   Droplets, BarChart3, Target, ArrowUpRight, ArrowDownRight,
-  Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin,
+  Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin, CloudUpload,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
@@ -24,6 +24,7 @@ import {
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
+const RISK_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#64748b', '#84cc16']
 
 const RISK_LEVEL_META: Record<string, { color: string; label: string; desc: string }> = {
@@ -106,9 +107,16 @@ export default function RiskAnalysisScreen() {
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<'overview' | 'volatility' | 'scenarios' | 'exposure'>('overview')
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [savingToCloud, setSavingToCloud] = useState(false)
+  const [cloudMessage, setCloudMessage] = useState<string | null>(null)
+  const [s3Connected, setS3Connected] = useState<boolean | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<{ name: string; pct: number } | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+
+  useEffect(() => {
+    window.electronAPI?.s3HasCredentials?.().then(setS3Connected).catch(() => setS3Connected(false))
+  }, [])
 
   const assets: Asset[] = portfolio?.assets ?? []
   const risk = useMemo(() => analyzePortfolio(assets, totalValue, totalGainLossPercent), [assets, totalValue, totalGainLossPercent])
@@ -143,6 +151,34 @@ export default function RiskAnalysisScreen() {
     }
   }
 
+  const handleSaveToCloud = async () => {
+    if (!risk || !portfolio || !window.electronAPI?.s3Upload) return
+    setCloudMessage(null)
+    setSavingToCloud(true)
+    try {
+      const pdfBytes = await generateRiskReportPdf({
+        risk, assets, totalValue, totalGainLossPercent,
+        portfolioName: portfolio.name || 'My Portfolio',
+        sectorAlloc, countryAlloc, typeAlloc,
+        returnBlob: true,
+      })
+      if (!pdfBytes) throw new Error('Failed to generate PDF')
+      const dateStr = new Date().toISOString().slice(0, 10)
+      const key = `reports/FinoCurve_Risk_Report_${dateStr}.pdf`
+      await window.electronAPI.s3Upload({
+        key,
+        buffer: Array.from(pdfBytes),
+        contentType: 'application/pdf',
+      })
+      setCloudMessage('Report saved to cloud')
+      setTimeout(() => setCloudMessage(null), 4000)
+    } catch (e) {
+      setCloudMessage(e instanceof Error ? e.message : 'Failed to save to cloud')
+    } finally {
+      setSavingToCloud(false)
+    }
+  }
+
   const pieData = (alloc: Record<string, number>, labels: Record<string, string>) =>
     Object.entries(alloc).map(([k, v]) => ({ name: labels[k as keyof typeof labels] || k, value: +v.toFixed(2) })).sort((a, b) => b.value - a.value)
 
@@ -160,6 +196,11 @@ export default function RiskAnalysisScreen() {
   if (!risk) {
     return (
       <div className="risk-page">
+        <div className="risk-bg">
+          <img src={RISK_BG} alt="" className="risk-bg__img" />
+          <div className="risk-bg__overlay" />
+        </div>
+        <div className="risk-page__inner risk-page__inner--visible">
         <div className="risk-page__header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
@@ -169,24 +210,47 @@ export default function RiskAnalysisScreen() {
           <h2>No Portfolio Data</h2>
           <p>Add assets to see a comprehensive risk analysis.</p>
         </GlassContainer>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="risk-page">
+      <div className="risk-bg">
+        <img src={RISK_BG} alt="" className="risk-bg__img" />
+        <div className="risk-bg__overlay" />
+      </div>
       <div className={`risk-page__inner ${visible ? 'risk-page__inner--visible' : ''}`}>
         {/* Header */}
         <div className="risk-page__header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
           <div className="risk-page__header-right">
-            <button className="risk-export-btn" onClick={handleExportPdf} disabled={generatingPdf}>
-              <FileDown size={16} />
-              {generatingPdf ? 'Generating...' : 'Export PDF'}
-            </button>
+            {s3Connected && (
+              <GlassIconButton
+                icon={savingToCloud ? <RefreshCw size={18} className="spin" /> : <CloudUpload size={18} />}
+                onClick={handleSaveToCloud}
+                size={40}
+                title={savingToCloud ? 'Saving...' : 'Save to cloud'}
+                disabled={savingToCloud}
+              />
+            )}
+            <GlassIconButton
+              icon={generatingPdf ? <RefreshCw size={18} className="spin" /> : <FileDown size={18} />}
+              onClick={handleExportPdf}
+              size={40}
+              title={generatingPdf ? 'Generating...' : 'Export PDF'}
+              disabled={generatingPdf}
+            />
           </div>
         </div>
+
+        {cloudMessage && (
+          <p style={{ fontSize: 13, marginTop: 8, marginBottom: -4, color: cloudMessage.startsWith('Report') ? 'var(--status-success)' : 'var(--status-error)' }}>
+            {cloudMessage}
+          </p>
+        )}
 
         {/* Risk Score Hero */}
         <GlassContainer padding="32px" borderRadius={20} className="risk-hero">
