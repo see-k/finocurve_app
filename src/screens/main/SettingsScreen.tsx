@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
+import UserAvatar from '../../components/UserAvatar'
 import { useTheme } from '../../theme/ThemeContext'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
@@ -81,7 +82,7 @@ export default function SettingsScreen() {
 
       {/* Profile */}
       <GlassContainer padding="20px 24px" borderRadius={20} className="settings-profile" onClick={() => navigate('/settings/account')}>
-        <div className="settings-avatar">{initials}</div>
+        <UserAvatar src={prefs.profilePicturePath} initials={initials} size={52} className="settings-avatar" />
         <div className="settings-profile__info">
           <span className="settings-profile__name">{userName}</span>
           <span className="settings-profile__email">{userEmail}</span>

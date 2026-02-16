@@ -88,3 +88,40 @@
   padding: 12px 0; border-bottom: 1px solid var(--glass-border);
   cursor: pointer; font-size: 14px; color: var(--brand-primary);
 }
+
+/* Account avatar picker */
+.account-avatar-picker {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.account-avatar-picker:hover { opacity: 0.9; }
+.account-avatar-wrapper {
+  position: relative;
+  margin-bottom: 8px;
+}
+.account-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+.account-avatar-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-primary);
+}
