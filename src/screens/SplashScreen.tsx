@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import finocurveLogo from '/images/finocurve-logo.png'
 import './SplashScreen.css'
 
 const SPLASH_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -40,7 +41,7 @@ export default function SplashScreen() {
 
       <div className={`splash-content ${fadeIn ? 'splash-content--visible' : ''}`}>
         <div className="splash-logo">
-          <img src="/images/finocurve-logo.png" alt="FinoCurve" className="splash-logo__img" draggable={false} />
+          <img src={finocurveLogo} alt="FinoCurve" className="splash-logo__img" draggable={false} />
           <h1 className="splash-title">FinoCurve</h1>
           <p className="splash-subtitle">Modern Investment Banking</p>
         </div>

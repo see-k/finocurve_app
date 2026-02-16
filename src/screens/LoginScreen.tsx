@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import GlassButton from '../components/glass/GlassButton'
+import finocurveLogo from '/images/finocurve-logo.png'
 import GlassTextField from '../components/glass/GlassTextField'
 import GlassContainer from '../components/glass/GlassContainer'
 import GlassIconButton from '../components/glass/GlassIconButton'
@@ -48,7 +49,7 @@ export default function LoginScreen() {
           />
         </div>
 
-        <img src="/images/finocurve-logo.png" alt="FinoCurve" className="auth-logo" draggable={false} />
+        <img src={finocurveLogo} alt="FinoCurve" className="auth-logo" draggable={false} />
 
         <GlassContainer className="auth-card">
           <h1 className="auth-title">Welcome Back</h1>

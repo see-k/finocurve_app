@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, Shield, Zap } from 'lucide-react'
 import GlassButton from '../components/glass/GlassButton'
+import finocurveLogo from '/images/finocurve-logo.png'
 import './WelcomeScreen.css'
 
 const WELCOME_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -29,7 +30,7 @@ export default function WelcomeScreen() {
       <div className={`welcome-content ${visible ? 'welcome-content--visible' : ''}`}>
         {/* Logo */}
         <div className="welcome-logo">
-          <img src="/images/finocurve-logo.png" alt="FinoCurve" className="welcome-logo__img" draggable={false} />
+          <img src={finocurveLogo} alt="FinoCurve" className="welcome-logo__img" draggable={false} />
         </div>
 
         <h1 className="welcome-title">FinoCurve</h1>

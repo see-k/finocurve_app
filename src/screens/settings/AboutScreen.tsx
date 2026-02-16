@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import finocurveLogo from '/images/finocurve-logo.png'
 import {
   ArrowLeft, ChevronRight, BarChart3, Shield, Globe,
   Wallet, TrendingUp, Bell, Download, Moon,
@@ -36,7 +37,7 @@ export default function AboutScreen() {
         </div>
 
         <GlassContainer>
-          <img src="/images/finocurve-logo.png" alt="FinoCurve" className="about-logo-img" draggable={false} />
+          <img src={finocurveLogo} alt="FinoCurve" className="about-logo-img" draggable={false} />
           <div className="about-app-name">FinoCurve</div>
           <div className="about-version">Version 1.0.0 (Desktop)</div>
           <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 12, lineHeight: 1.6 }}>

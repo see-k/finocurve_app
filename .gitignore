@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-electron/
 dist-tsnode/
+release/
 *.local
 .DS_Store
 *.png

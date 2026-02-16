@@ -57,11 +57,28 @@ a:hover {
   color: var(--primary-hover);
 }
 
+/* Global draggable title bar strip (macOS frameless window) */
+.global-titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  -webkit-app-region: drag;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
 /* Draggable title bar area (macOS) */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
 
 .titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure all interactive elements inside drag regions remain clickable */
+button, a, input, select, textarea, [role="button"] {
   -webkit-app-region: no-drag;
 }

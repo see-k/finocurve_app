@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Briefcase, BarChart3, Settings, Plus, Search, PenLine, Landmark } from 'lucide-react'
+import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
 import PortfolioScreen from './PortfolioScreen'
 import MarketsScreen from './MarketsScreen'
@@ -42,7 +43,7 @@ export default function MainShell() {
         {/* Logo */}
         <div className="nav-logo titlebar-drag">
           <img
-            src="/images/finocurve-logo.png"
+            src={finocurveLogo}
             alt="FinoCurve"
             className="nav-logo__img titlebar-no-drag"
             draggable={false}
