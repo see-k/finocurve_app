@@ -27,10 +27,11 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
+    await window.electronAPI?.localStorageClearPath?.()
     resetPreferences()
-    localStorage.removeItem('finocure-portfolio')
-    localStorage.removeItem('finocure-watchlist')
-    localStorage.removeItem('finocure-notifications')
+    localStorage.removeItem('finocurve-portfolio')
+    localStorage.removeItem('finocurve-watchlist')
+    localStorage.removeItem('finocurve-notifications')
     navigate('/', { replace: true })
   }
 
@@ -58,7 +59,7 @@ export default function SettingsScreen() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `finocure-portfolio.${format === 'csv' ? 'csv' : 'txt'}`
+    link.download = `finocurve-portfolio.${format === 'csv' ? 'csv' : 'txt'}`
     link.click()
     URL.revokeObjectURL(url)
     setShowExportModal(false)
@@ -66,10 +67,11 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
+    await window.electronAPI?.localStorageClearPath?.()
     resetPreferences()
-    localStorage.removeItem('finocure-portfolio')
-    localStorage.removeItem('finocure-watchlist')
-    localStorage.removeItem('finocure-notifications')
+    localStorage.removeItem('finocurve-portfolio')
+    localStorage.removeItem('finocurve-watchlist')
+    localStorage.removeItem('finocurve-notifications')
     navigate('/', { replace: true })
   }
 
@@ -128,8 +130,8 @@ export default function SettingsScreen() {
           <SettingsRow icon={<Shield size={18} />} label="Price Alerts" value={prefs.priceAlerts ? 'On' : 'Off'}
             toggle toggled={prefs.priceAlerts}
             onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })} />
-          {typeof window !== 'undefined' && window.electronAPI?.s3List && (
-            <SettingsRow icon={<Cloud size={18} />} label="Cloud Storage" value={prefs.s3Bucket ? 'Connected' : 'Not connected'} onClick={() => navigate('/settings/cloud-storage')} />
+          {typeof window !== 'undefined' && (window.electronAPI?.s3List || window.electronAPI?.localStorageChooseDirectory) && (
+            <SettingsRow icon={<Cloud size={18} />} label="Storage" value={prefs.s3Bucket ? 'S3 connected' : 'Configure'} onClick={() => navigate('/settings/cloud-storage')} />
           )}
         </GlassContainer>
       </div>

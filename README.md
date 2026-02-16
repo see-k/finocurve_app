@@ -36,8 +36,8 @@ To get started with FinoCurve locally, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/finocure-app.git
-   cd finocure-app
+   git clone https://github.com/your-username/finocurve-app.git
+   cd finocurve-app
    ```
 
 2. Install dependencies:

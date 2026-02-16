@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { UserPreferences } from '../types'
 
-const STORAGE_KEY = 'finocure-preferences'
+const STORAGE_KEY = 'finocurve-preferences'
 
 const DEFAULT_PREFS: UserPreferences = {
   hasCompletedOnboarding: false,

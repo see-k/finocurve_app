@@ -17,7 +17,7 @@ export default function CreatePortfolioScreen() {
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   const handleContinue = () => {
-    const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+    const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
     prefs.defaultCurrency = currency
 
     const portfolio = {
@@ -28,8 +28,8 @@ export default function CreatePortfolioScreen() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    localStorage.setItem('finocure-portfolio', JSON.stringify(portfolio))
-    localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(portfolio))
+    localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
     navigate('/onboarding/add-first-asset')
   }
 

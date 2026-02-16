@@ -9,16 +9,16 @@ import './SettingsSubScreen.css'
 export default function CurrencyPickerScreen() {
   const navigate = useNavigate()
   const [visible, setVisible] = useState(false)
-  const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+  const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
   const [selected, setSelected] = useState(prefs.defaultCurrency || 'USD')
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   const handleSelect = (code: string) => {
     setSelected(code)
-    const p = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+    const p = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
     p.defaultCurrency = code
-    localStorage.setItem('finocure-preferences', JSON.stringify(p))
+    localStorage.setItem('finocurve-preferences', JSON.stringify(p))
   }
 
   return (

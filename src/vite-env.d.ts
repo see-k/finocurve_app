@@ -17,6 +17,15 @@ interface ElectronAPI {
   s3List?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
   s3GetDownloadUrl?: (payload: { key: string }) => Promise<{ url: string }>
   s3Delete?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  // Local storage (device directory)
+  localStorageChooseDirectory?: () => Promise<{ path: string | null }>
+  localStorageGetPath?: () => Promise<{ path: string | null }>
+  localStorageClearPath?: () => Promise<{ ok: boolean }>
+  localStorageHasPath?: () => Promise<boolean>
+  localStorageSaveFile?: (payload: { key: string; buffer: number[] }) => Promise<{ ok: boolean }>
+  localStorageList?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
+  localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
 }
 
 interface Window {

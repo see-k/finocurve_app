@@ -30,10 +30,10 @@ export default function SignupScreen() {
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
-      const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+      const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
       prefs.userName = name
       prefs.userEmail = email
-      localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+      localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
       navigate('/onboarding/setup', { replace: true })
     }, 1500)
   }

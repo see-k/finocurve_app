@@ -19,7 +19,7 @@ function ensureWelcome(notifications: AppNotification[], add: (n: AppNotificatio
   if (notifications.length === 0) {
     add({
       id: 'welcome-1',
-      title: 'Welcome to Finocure!',
+      title: 'Welcome to FinoCurve!',
       message: 'Thanks for joining. Start by adding your first asset to track your portfolio.',
       type: 'welcome',
       createdAt: new Date().toISOString(),

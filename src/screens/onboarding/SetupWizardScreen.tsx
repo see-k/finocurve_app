@@ -34,11 +34,11 @@ export default function SetupWizardScreen() {
   }
 
   const handleContinue = () => {
-    const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+    const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
     prefs.selectedAssetTypes = selectedTypes
     prefs.primaryGoal = goal
     prefs.preferredDataEntry = dataMethod
-    localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+    localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
     navigate('/onboarding/create-portfolio')
   }
 

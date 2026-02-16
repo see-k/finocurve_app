@@ -28,4 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   s3List: (payload: { prefix: string }) => ipcRenderer.invoke('s3-list', payload),
   s3GetDownloadUrl: (payload: { key: string }) => ipcRenderer.invoke('s3-get-download-url', payload),
   s3Delete: (payload: { key: string }) => ipcRenderer.invoke('s3-delete', payload),
+  // Local storage (device directory)
+  localStorageChooseDirectory: () => ipcRenderer.invoke('local-storage-choose-directory'),
+  localStorageGetPath: () => ipcRenderer.invoke('local-storage-get-path'),
+  localStorageClearPath: () => ipcRenderer.invoke('local-storage-clear-path'),
+  localStorageHasPath: () => ipcRenderer.invoke('local-storage-has-path'),
+  localStorageSaveFile: (payload: { key: string; buffer: number[] }) =>
+    ipcRenderer.invoke('local-storage-save-file', payload),
+  localStorageList: (payload: { prefix: string }) => ipcRenderer.invoke('local-storage-list', payload),
+  localStorageOpenFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-open-file', payload),
+  localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
 })

@@ -64,10 +64,10 @@ export default function SearchPublicAssetScreen() {
       tags: [],
       sector: selected.sector as Asset['sector'],
     }
-    const portfolio = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+    const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     portfolio.assets = [...(portfolio.assets || []), asset]
     portfolio.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocure-portfolio', JSON.stringify(portfolio))
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(portfolio))
     navigate('/main', { replace: true })
   }
 

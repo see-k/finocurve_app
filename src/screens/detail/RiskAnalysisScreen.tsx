@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
   Droplets, BarChart3, Target, ArrowUpRight, ArrowDownRight,
-  Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin, CloudUpload,
+  Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin, CloudUpload, HardDrive,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
@@ -110,12 +110,15 @@ export default function RiskAnalysisScreen() {
   const [savingToCloud, setSavingToCloud] = useState(false)
   const [cloudMessage, setCloudMessage] = useState<string | null>(null)
   const [s3Connected, setS3Connected] = useState<boolean | null>(null)
+  const [localConnected, setLocalConnected] = useState<boolean | null>(null)
+  const [savingToDevice, setSavingToDevice] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<{ name: string; pct: number } | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   useEffect(() => {
     window.electronAPI?.s3HasCredentials?.().then(setS3Connected).catch(() => setS3Connected(false))
+    window.electronAPI?.localStorageHasPath?.().then(setLocalConnected).catch(() => setLocalConnected(false))
   }, [])
 
   const assets: Asset[] = portfolio?.assets ?? []
@@ -164,7 +167,7 @@ export default function RiskAnalysisScreen() {
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
       const dateStr = new Date().toISOString().slice(0, 10)
-      const key = `reports/FinoCurve_Risk_Report_${dateStr}.pdf`
+      const key = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.pdf`
       await window.electronAPI.s3Upload({
         key,
         buffer: Array.from(pdfBytes),
@@ -176,6 +179,33 @@ export default function RiskAnalysisScreen() {
       setCloudMessage(e instanceof Error ? e.message : 'Failed to save to cloud')
     } finally {
       setSavingToCloud(false)
+    }
+  }
+
+  const handleSaveToDevice = async () => {
+    if (!risk || !portfolio || !window.electronAPI?.localStorageSaveFile) return
+    setCloudMessage(null)
+    setSavingToDevice(true)
+    try {
+      const pdfBytes = await generateRiskReportPdf({
+        risk, assets, totalValue, totalGainLossPercent,
+        portfolioName: portfolio.name || 'My Portfolio',
+        sectorAlloc, countryAlloc, typeAlloc,
+        returnBlob: true,
+      })
+      if (!pdfBytes) throw new Error('Failed to generate PDF')
+      const dateStr = new Date().toISOString().slice(0, 10)
+      const key = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.pdf`
+      await window.electronAPI.localStorageSaveFile({
+        key,
+        buffer: Array.from(pdfBytes),
+      })
+      setCloudMessage('Report saved to device')
+      setTimeout(() => setCloudMessage(null), 4000)
+    } catch (e) {
+      setCloudMessage(e instanceof Error ? e.message : 'Failed to save to device')
+    } finally {
+      setSavingToDevice(false)
     }
   }
 
@@ -234,6 +264,15 @@ export default function RiskAnalysisScreen() {
                 size={40}
                 title={savingToCloud ? 'Saving...' : 'Save to cloud'}
                 disabled={savingToCloud}
+              />
+            )}
+            {localConnected && (
+              <GlassIconButton
+                icon={savingToDevice ? <RefreshCw size={18} className="spin" /> : <HardDrive size={18} />}
+                onClick={handleSaveToDevice}
+                size={40}
+                title={savingToDevice ? 'Saving...' : 'Save to device'}
+                disabled={savingToDevice}
               />
             )}
             <GlassIconButton

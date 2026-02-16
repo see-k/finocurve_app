@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-const CREDENTIALS_FILENAME = 'finocure-s3-credentials.json'
+const CREDENTIALS_FILENAME = 'finocurve-s3-credentials.json'
 
 interface StoredCredentials {
   bucket: string
