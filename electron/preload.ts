@@ -37,5 +37,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('local-storage-save-file', payload),
   localStorageList: (payload: { prefix: string }) => ipcRenderer.invoke('local-storage-list', payload),
   localStorageOpenFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-open-file', payload),
+  localStorageReadFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-read-file', payload),
   localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
 })

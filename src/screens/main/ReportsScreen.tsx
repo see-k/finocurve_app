@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
@@ -33,6 +33,20 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
 }
 
+const VIEWABLE_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg']
+function isViewable(key: string): boolean {
+  const lower = key.toLowerCase()
+  return VIEWABLE_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
+function mimeFromKey(key: string): string {
+  const lower = key.toLowerCase()
+  if (lower.endsWith('.pdf')) return 'application/pdf'
+  if (lower.endsWith('.png')) return 'image/png'
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+  return 'application/octet-stream'
+}
+
 export default function ReportsScreen() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -44,6 +58,10 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viewItem, setViewItem] = useState<FileItem | null>(null)
+  const [viewUrl, setViewUrl] = useState<string | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewError, setViewError] = useState<string | null>(null)
 
   const hasElectronS3 = typeof window !== 'undefined' && window.electronAPI?.s3List
   const hasElectronLocal = typeof window !== 'undefined' && window.electronAPI?.localStorageList
@@ -176,6 +194,36 @@ export default function ReportsScreen() {
     }
   }
 
+  const handleView = async (item: FileItem) => {
+    if (!isViewable(item.key)) return
+    setViewItem(item)
+    setViewUrl(null)
+    setViewError(null)
+    setViewLoading(true)
+    try {
+      if (item.source === 'cloud' && window.electronAPI?.s3GetDownloadUrl) {
+        const { url } = await window.electronAPI.s3GetDownloadUrl({ key: item.key })
+        setViewUrl(url)
+      } else if (item.source === 'local' && window.electronAPI?.localStorageReadFile) {
+        const { base64 } = await window.electronAPI.localStorageReadFile({ key: item.key })
+        const mime = mimeFromKey(item.key)
+        setViewUrl(`data:${mime};base64,${base64}`)
+      } else {
+        setViewError('Cannot load file for preview')
+      }
+    } catch (e) {
+      setViewError(e instanceof Error ? e.message : 'Failed to load file')
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  const closeViewer = () => {
+    setViewItem(null)
+    setViewUrl(null)
+    setViewError(null)
+  }
+
   const handleDelete = async (item: FileItem) => {
     if (!confirm(`Delete ${fileNameFromKey(item.key)}?`)) return
     setError(null)
@@ -212,8 +260,11 @@ export default function ReportsScreen() {
         </div>
       </div>
       <div className="reports-file-row__actions">
-        <GlassIconButton icon={<Download size={16} />} onClick={() => handleDownload(item)} size={36} />
-        <GlassIconButton icon={<Trash2 size={16} />} onClick={() => handleDelete(item)} size={36} />
+        {isViewable(item.key) && (
+          <GlassIconButton icon={<Eye size={16} />} onClick={() => handleView(item)} size={36} title="View" />
+        )}
+        <GlassIconButton icon={<Download size={16} />} onClick={() => handleDownload(item)} size={36} title="Open / Download" />
+        <GlassIconButton icon={<Trash2 size={16} />} onClick={() => handleDelete(item)} size={36} title="Delete" />
       </div>
     </div>
   )
@@ -391,6 +442,41 @@ export default function ReportsScreen() {
           </div>
         )}
       </div>
+
+      {/* Viewer modal */}
+      {viewItem && (
+        <div className="reports-viewer-overlay" onClick={closeViewer}>
+          <div className="reports-viewer-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="reports-viewer-header">
+              <h3 className="reports-viewer-title">{fileNameFromKey(viewItem.key)}</h3>
+              <button className="reports-viewer-close" onClick={closeViewer} aria-label="Close">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="reports-viewer-body">
+              {viewLoading && <p className="reports-viewer-loading">Loading...</p>}
+              {viewError && <p className="reports-viewer-error">{viewError}</p>}
+              {viewUrl && !viewLoading && !viewError && (
+                <>
+                  {viewItem.key.toLowerCase().endsWith('.pdf') ? (
+                    <iframe
+                      src={viewUrl}
+                      title={fileNameFromKey(viewItem.key)}
+                      className="reports-viewer-iframe"
+                    />
+                  ) : (
+                    <img
+                      src={viewUrl}
+                      alt={fileNameFromKey(viewItem.key)}
+                      className="reports-viewer-img"
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

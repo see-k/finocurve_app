@@ -25,6 +25,7 @@ interface ElectronAPI {
   localStorageSaveFile?: (payload: { key: string; buffer: number[] }) => Promise<{ ok: boolean }>
   localStorageList?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
   localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
 }
 

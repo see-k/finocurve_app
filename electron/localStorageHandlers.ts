@@ -131,6 +131,14 @@ export function registerLocalStorageHandlers(): void {
     return { ok: true }
   })
 
+  ipcMain.handle('local-storage-read-file', async (_event, payload: { key: string }) => {
+    const fullPath = getFullPath(payload.key)
+    if (!fs.existsSync(fullPath)) throw new Error('File not found')
+    const buffer = fs.readFileSync(fullPath)
+    const base64 = buffer.toString('base64')
+    return { base64 }
+  })
+
   ipcMain.handle('local-storage-delete-file', async (_event, payload: { key: string }) => {
     const fullPath = getFullPath(payload.key)
     if (fs.existsSync(fullPath)) {
