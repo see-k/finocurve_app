@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
+import { registerS3Handlers } from './s3Handlers'
+import { registerLocalStorageHandlers } from './localStorageHandlers'
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged
@@ -52,4 +54,8 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  registerS3Handlers()
+  registerLocalStorageHandlers()
+  createWindow()
+})

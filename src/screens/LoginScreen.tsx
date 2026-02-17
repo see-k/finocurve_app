@@ -24,9 +24,9 @@ export default function LoginScreen() {
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
-      const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+      const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
       prefs.userEmail = email
-      localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+      localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
       if (prefs.hasCompletedOnboarding) {
         navigate('/main', { replace: true })
       } else {

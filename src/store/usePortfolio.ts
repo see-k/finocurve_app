@@ -5,7 +5,7 @@ import {
   portfolioTotalGainLoss, portfolioTotalGainLossPercent,
 } from '../types'
 
-const STORAGE_KEY = 'finocure-portfolio'
+const STORAGE_KEY = 'finocurve-portfolio'
 
 function loadPortfolio(): Portfolio | null {
   try {

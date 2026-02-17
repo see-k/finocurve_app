@@ -40,7 +40,7 @@ export default function AssetDetailScreen() {
   const [showTvChart, setShowTvChart] = useState(false)
 
   // Load asset from portfolio
-  const portfolio = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+  const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
   const asset: Asset | undefined = (portfolio.assets || []).find((a: Asset) => a.id === assetId)
 
   const [editQty, setEditQty] = useState(asset?.quantity.toString() || '')
@@ -83,19 +83,19 @@ export default function AssetDetailScreen() {
       costBasis: parseFloat(editCost) || asset.costBasis,
       currentPrice: parseFloat(editPrice) || asset.currentPrice,
     }
-    const p = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     p.assets = (p.assets || []).map((a: Asset) => a.id === updated.id ? updated : a)
     p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocure-portfolio', JSON.stringify(p))
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
     setShowEdit(false)
     window.location.reload()
   }
 
   const handleDelete = () => {
-    const p = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     p.assets = (p.assets || []).filter((a: Asset) => a.id !== asset.id)
     p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocure-portfolio', JSON.stringify(p))
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
     navigate('/main', { replace: true })
   }
 

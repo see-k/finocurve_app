@@ -70,7 +70,7 @@ export default function LoanDetailScreen() {
   const [tab, setTab] = useState<'overview' | 'amortization' | 'payoff'>('overview')
   const [extraPay, setExtraPay] = useState(0)
 
-  const portfolio = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+  const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
   const asset: Asset | undefined = (portfolio.assets || []).find((a: Asset) => a.id === assetId)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
@@ -107,10 +107,10 @@ export default function LoanDetailScreen() {
   }
 
   const handleDelete = () => {
-    const p = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     p.assets = (p.assets || []).filter((a: Asset) => a.id !== asset.id)
     p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocure-portfolio', JSON.stringify(p))
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
     navigate('/main', { replace: true })
   }
 

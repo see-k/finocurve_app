@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { WatchlistItem } from '../types'
 
-const STORAGE_KEY = 'finocure-watchlist'
+const STORAGE_KEY = 'finocurve-watchlist'
 
 function load(): WatchlistItem[] {
   try {

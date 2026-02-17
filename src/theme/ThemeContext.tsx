@@ -10,7 +10,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
-const STORAGE_KEY = 'finocure-theme'
+const STORAGE_KEY = 'finocurve-theme'
 
 function getInitialTheme(): Theme {
   try {

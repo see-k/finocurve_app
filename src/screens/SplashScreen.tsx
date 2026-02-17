@@ -13,7 +13,7 @@ export default function SplashScreen() {
     requestAnimationFrame(() => setFadeIn(true))
 
     const timer = setTimeout(() => {
-      const prefs = localStorage.getItem('finocure-preferences')
+      const prefs = localStorage.getItem('finocurve-preferences')
       if (prefs) {
         try {
           const parsed = JSON.parse(prefs)

@@ -60,27 +60,27 @@ export default function AddFirstAssetScreen() {
           tags: [], sector: 'consumer_discretionary', country: 'US',
         },
       ]
-      const existing = JSON.parse(localStorage.getItem('finocure-portfolio') || '{}')
+      const existing = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
       existing.assets = demoAssets
       existing.updatedAt = new Date().toISOString()
-      localStorage.setItem('finocure-portfolio', JSON.stringify(existing))
+      localStorage.setItem('finocurve-portfolio', JSON.stringify(existing))
 
-      const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+      const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
       prefs.hasCompletedOnboarding = true
-      localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+      localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
       navigate('/main', { replace: true })
     } else {
-      const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+      const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
       prefs.hasCompletedOnboarding = true
-      localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+      localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
       navigate(route)
     }
   }
 
   const handleSkip = () => {
-    const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
+    const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
     prefs.hasCompletedOnboarding = true
-    localStorage.setItem('finocure-preferences', JSON.stringify(prefs))
+    localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
     navigate('/main', { replace: true })
   }
 

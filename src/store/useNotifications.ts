@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { AppNotification } from '../types'
 
-const STORAGE_KEY = 'finocure-notifications'
+const STORAGE_KEY = 'finocurve-notifications'
 
 function load(): AppNotification[] {
   try {

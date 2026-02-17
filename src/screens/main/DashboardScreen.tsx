@@ -13,7 +13,9 @@ import { analyzePortfolio } from '../../services/riskAnalysis'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
+import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import { usePortfolio } from '../../store/usePortfolio'
+import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
 import type { PerformancePeriod, Asset } from '../../types'
 import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
@@ -31,21 +33,16 @@ function getGreeting(): string {
   return 'Good evening'
 }
 
-function getInitials(name?: string): string {
-  if (!name) return 'U'
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
-
 export default function DashboardScreen() {
   const navigate = useNavigate()
   const {
     portfolio, totalValue, totalCost, totalGainLoss, totalGainLossPercent, loadDemo,
   } = usePortfolio()
+  const { prefs } = usePreferences()
   const { unreadCount } = useNotifications()
 
   const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>('1M')
 
-  const prefs = JSON.parse(localStorage.getItem('finocure-preferences') || '{}')
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'Investor'
 
   const hasAssets = portfolio && portfolio.assets.length > 0
@@ -112,7 +109,7 @@ export default function DashboardScreen() {
       {/* Greeting Header */}
       <div className="dash-greeting">
         <div className="dash-greeting__left">
-          <div className="dash-avatar">{getInitials(userName)}</div>
+          <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={48} className="dash-avatar" />
           <div>
             <h1 className="dash-greeting__title">{getGreeting()}, {userName}</h1>
             <p className="dash-greeting__subtitle">Here's your portfolio at a glance</p>

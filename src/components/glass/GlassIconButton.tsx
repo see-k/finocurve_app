@@ -7,6 +7,7 @@ interface GlassIconButtonProps {
   size?: number
   className?: string
   title?: string
+  disabled?: boolean
 }
 
 export default function GlassIconButton({
@@ -15,12 +16,14 @@ export default function GlassIconButton({
   size = 48,
   className = '',
   title,
+  disabled = false,
 }: GlassIconButtonProps) {
   return (
     <button
       className={`glass-icon-button ${className}`}
       onClick={onClick}
       title={title}
+      disabled={disabled}
       style={{
         width: `${size}px`,
         height: `${size}px`,

@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Moon, User, DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
+import UserAvatar from '../../components/UserAvatar'
 import { useTheme } from '../../theme/ThemeContext'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
@@ -24,11 +25,13 @@ export default function SettingsScreen() {
   const userEmail = prefs.userEmail || 'Not signed in'
   const initials = userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await window.electronAPI?.s3ClearCredentials?.()
+    await window.electronAPI?.localStorageClearPath?.()
     resetPreferences()
-    localStorage.removeItem('finocure-portfolio')
-    localStorage.removeItem('finocure-watchlist')
-    localStorage.removeItem('finocure-notifications')
+    localStorage.removeItem('finocurve-portfolio')
+    localStorage.removeItem('finocurve-watchlist')
+    localStorage.removeItem('finocurve-notifications')
     navigate('/', { replace: true })
   }
 
@@ -56,17 +59,19 @@ export default function SettingsScreen() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `finocure-portfolio.${format === 'csv' ? 'csv' : 'txt'}`
+    link.download = `finocurve-portfolio.${format === 'csv' ? 'csv' : 'txt'}`
     link.click()
     URL.revokeObjectURL(url)
     setShowExportModal(false)
   }
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
+    await window.electronAPI?.s3ClearCredentials?.()
+    await window.electronAPI?.localStorageClearPath?.()
     resetPreferences()
-    localStorage.removeItem('finocure-portfolio')
-    localStorage.removeItem('finocure-watchlist')
-    localStorage.removeItem('finocure-notifications')
+    localStorage.removeItem('finocurve-portfolio')
+    localStorage.removeItem('finocurve-watchlist')
+    localStorage.removeItem('finocurve-notifications')
     navigate('/', { replace: true })
   }
 
@@ -79,7 +84,7 @@ export default function SettingsScreen() {
 
       {/* Profile */}
       <GlassContainer padding="20px 24px" borderRadius={20} className="settings-profile" onClick={() => navigate('/settings/account')}>
-        <div className="settings-avatar">{initials}</div>
+        <UserAvatar src={prefs.profilePicturePath} initials={initials} size={52} className="settings-avatar" />
         <div className="settings-profile__info">
           <span className="settings-profile__name">{userName}</span>
           <span className="settings-profile__email">{userEmail}</span>
@@ -125,6 +130,9 @@ export default function SettingsScreen() {
           <SettingsRow icon={<Shield size={18} />} label="Price Alerts" value={prefs.priceAlerts ? 'On' : 'Off'}
             toggle toggled={prefs.priceAlerts}
             onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })} />
+          {typeof window !== 'undefined' && (window.electronAPI?.s3List || window.electronAPI?.localStorageChooseDirectory) && (
+            <SettingsRow icon={<Cloud size={18} />} label="Storage" value={prefs.s3Bucket ? 'S3 connected' : 'Configure'} onClick={() => navigate('/settings/cloud-storage')} />
+          )}
         </GlassContainer>
       </div>
 
