@@ -1,10 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import {
+  hasA2AAPI,
+  startA2AServer,
+  stopA2AServer,
+  getA2AServerStatus,
+  getA2ASettings,
+  updateA2ASettings,
+} from '../../services/a2a'
+import type { A2AServerStatus, A2ASettings } from '../../types/A2A'
 import './SettingsSubScreen.css'
 
 type AIProvider = 'ollama' | 'bedrock' | 'azure'
@@ -21,7 +30,6 @@ export default function AIConfigScreen() {
   const [azureEndpoint, setAzureEndpoint] = useState('')
   const [azureApiKey, setAzureApiKey] = useState('')
   const [azureDeployment, setAzureDeployment] = useState('')
-  const [a2aEnabled, setA2aEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,6 +38,15 @@ export default function AIConfigScreen() {
   const [connectionStatus, setConnectionStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [connectionTesting, setConnectionTesting] = useState(false)
   const [showAdvancedOllama, setShowAdvancedOllama] = useState(false)
+
+  // A2A state
+  const [a2aStatus, setA2aStatus] = useState<A2AServerStatus | null>(null)
+  const [a2aSettings, setA2aSettings] = useState<A2ASettings | null>(null)
+  const [a2aPort, setA2aPort] = useState('3847')
+  const [a2aAutoStart, setA2aAutoStart] = useState(false)
+  const [a2aLoading, setA2aLoading] = useState(false)
+  const [a2aHasChanges, setA2aHasChanges] = useState(false)
+  const [a2aSuccess, setA2aSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -47,13 +64,56 @@ export default function AIConfigScreen() {
         setAzureEndpoint(config.azureEndpoint || '')
         setAzureApiKey(config.azureApiKey || '')
         setAzureDeployment(config.azureDeployment || '')
-        setA2aEnabled(config.a2aEnabled ?? false)
       }).catch(() => setError('Failed to load config'))
         .finally(() => setLoading(false))
     } else {
       setLoading(false)
     }
   }, [])
+
+  // Load and poll A2A status
+  useEffect(() => {
+    if (hasA2AAPI()) {
+      loadA2AStatus()
+      loadA2ASettings()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasA2AAPI()) return
+    const interval = setInterval(loadA2AStatus, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Auto-dismiss A2A success
+  useEffect(() => {
+    if (a2aSuccess) {
+      const timer = setTimeout(() => setA2aSuccess(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [a2aSuccess])
+
+  const loadA2AStatus = async () => {
+    try {
+      const status = await getA2AServerStatus()
+      setA2aStatus(status)
+    } catch {
+      // Ignore polling errors
+    }
+  }
+
+  const loadA2ASettings = async () => {
+    try {
+      const settings = await getA2ASettings()
+      setA2aSettings(settings)
+      if (settings) {
+        setA2aPort(String(settings.port))
+        setA2aAutoStart(settings.autoStart)
+      }
+    } catch {
+      // Ignore errors
+    }
+  }
 
   const fetchOllamaModels = useCallback(async () => {
     if (!window.electronAPI?.aiOllamaListModels) return
@@ -114,7 +174,7 @@ export default function AIConfigScreen() {
         azureEndpoint: provider === 'azure' ? azureEndpoint.trim() : undefined,
         azureApiKey: provider === 'azure' ? azureApiKey : undefined,
         azureDeployment: provider === 'azure' ? azureDeployment.trim() : undefined,
-        a2aEnabled,
+        a2aEnabled: a2aStatus?.running ?? false,
       })
       navigate(-1)
     } catch (e) {
@@ -122,6 +182,83 @@ export default function AIConfigScreen() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // =============================================
+  // A2A Handlers
+  // =============================================
+
+  const handleA2AStart = async () => {
+    setA2aLoading(true)
+    setError(null)
+    try {
+      const result = await startA2AServer({ port: parseInt(a2aPort, 10) })
+      if (result.success) {
+        setA2aSuccess('A2A Server started!')
+        await loadA2AStatus()
+      } else {
+        setError(result.error || 'Failed to start A2A server')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start A2A server')
+    } finally {
+      setA2aLoading(false)
+    }
+  }
+
+  const handleA2AStop = async () => {
+    setA2aLoading(true)
+    setError(null)
+    try {
+      const result = await stopA2AServer()
+      if (result.success) {
+        setA2aSuccess('A2A Server stopped')
+        await loadA2AStatus()
+      } else {
+        setError(result.error || 'Failed to stop A2A server')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop A2A server')
+    } finally {
+      setA2aLoading(false)
+    }
+  }
+
+  const handleA2APortChange = (value: string) => {
+    setA2aPort(value)
+    setA2aHasChanges(
+      value !== String(a2aSettings?.port) || a2aAutoStart !== a2aSettings?.autoStart
+    )
+  }
+
+  const handleA2AAutoStartChange = () => {
+    const newVal = !a2aAutoStart
+    setA2aAutoStart(newVal)
+    setA2aHasChanges(
+      a2aPort !== String(a2aSettings?.port) || newVal !== a2aSettings?.autoStart
+    )
+  }
+
+  const handleA2ASaveSettings = async () => {
+    setError(null)
+    try {
+      const port = parseInt(a2aPort, 10)
+      if (isNaN(port) || port < 1024 || port > 65535) {
+        setError('Port must be between 1024 and 65535')
+        return
+      }
+      await updateA2ASettings({ port, autoStart: a2aAutoStart })
+      setA2aSettings({ port, autoStart: a2aAutoStart })
+      setA2aHasChanges(false)
+      setA2aSuccess('A2A settings saved!')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save A2A settings')
+    }
+  }
+
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url)
+    setA2aSuccess('URL copied to clipboard!')
   }
 
   const hasElectronAI = typeof window !== 'undefined' && window.electronAPI?.aiConfigGet
@@ -319,25 +456,158 @@ export default function AIConfigScreen() {
               )}
             </GlassContainer>
 
+            {/* A2A Protocol Control Panel */}
             <GlassContainer style={{ marginTop: 24 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Shield size={18} /> A2A Protocol
               </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                When enabled, external agents can connect to this AI via the Agent-to-Agent protocol on localhost. Default: off.
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+                When enabled, external agents can connect to this AI via the Agent-to-Agent protocol on localhost.
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div
-                  className={`settings-toggle ${a2aEnabled ? 'settings-toggle--on' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                  role="switch"
-                  aria-checked={a2aEnabled}
-                  onClick={() => setA2aEnabled(!a2aEnabled)}
-                >
-                  <div className="settings-toggle__thumb" />
+
+              {/* A2A Success Message */}
+              {a2aSuccess && (
+                <div className="a2a-success-banner" style={{ marginBottom: 16 }}>
+                  <CheckCircle size={16} />
+                  <span>{a2aSuccess}</span>
                 </div>
-                <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{a2aEnabled ? 'On' : 'Off'}</span>
-              </div>
+              )}
+
+              {hasA2AAPI() ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Server Status & Control */}
+                  <div className="a2a-status-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div className={`a2a-status-dot ${a2aStatus?.running ? 'a2a-status-dot--running' : ''}`} />
+                        <div>
+                          <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>
+                            {a2aStatus?.running ? 'Server Running' : 'Server Stopped'}
+                          </p>
+                          {a2aStatus?.running && (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>Port {a2aStatus.port}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`a2a-control-btn ${a2aStatus?.running ? 'a2a-control-btn--stop' : 'a2a-control-btn--start'}`}
+                        onClick={a2aStatus?.running ? handleA2AStop : handleA2AStart}
+                        disabled={a2aLoading}
+                      >
+                        {a2aLoading ? (
+                          <Loader2 size={16} className="a2a-spinner" />
+                        ) : a2aStatus?.running ? (
+                          <Square size={16} />
+                        ) : (
+                          <Play size={16} />
+                        )}
+                        {a2aStatus?.running ? 'Stop' : 'Start'}
+                      </button>
+                    </div>
+
+                    {/* URLs when running */}
+                    {a2aStatus?.running && a2aStatus.url && (
+                      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div className="a2a-url-row">
+                          <span className="a2a-url-label">Server:</span>
+                          <code className="a2a-url-value">{a2aStatus.url}</code>
+                          <button
+                            type="button"
+                            className="a2a-copy-btn"
+                            onClick={() => handleCopyUrl(a2aStatus.url!)}
+                            title="Copy URL"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        {a2aStatus.wellKnownUrl && (
+                          <div className="a2a-url-row">
+                            <span className="a2a-url-label">Agent Card:</span>
+                            <code className="a2a-url-value">{a2aStatus.wellKnownUrl}</code>
+                            <button
+                              type="button"
+                              className="a2a-copy-btn"
+                              onClick={() => handleCopyUrl(a2aStatus.wellKnownUrl!)}
+                              title="Copy well-known URL"
+                            >
+                              <Copy size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Port Configuration */}
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                      Server Port
+                    </label>
+                    <input
+                      type="number"
+                      className="a2a-port-input"
+                      value={a2aPort}
+                      onChange={(e) => handleA2APortChange(e.target.value)}
+                      min="1024"
+                      max="65535"
+                      disabled={a2aStatus?.running}
+                      placeholder="3847"
+                    />
+                    {a2aStatus?.running && (
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                        Stop server to change port
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Auto-start Toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto-start on launch</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>Start A2A server when app opens</p>
+                    </div>
+                    <div
+                      className={`settings-toggle ${a2aAutoStart ? 'settings-toggle--on' : ''}`}
+                      style={{ cursor: 'pointer' }}
+                      role="switch"
+                      aria-checked={a2aAutoStart}
+                      onClick={handleA2AAutoStartChange}
+                    >
+                      <div className="settings-toggle__thumb" />
+                    </div>
+                  </div>
+
+                  {/* Save A2A Settings Button */}
+                  {a2aHasChanges && (
+                    <GlassButton
+                      text="Save A2A Settings"
+                      onClick={handleA2ASaveSettings}
+                      isPrimary
+                      width="100%"
+                    />
+                  )}
+
+                  {/* Info */}
+                  <div className="a2a-info-box">
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <p>
+                      The A2A (Agent-to-Agent) protocol allows external AI agents to communicate with FinoCurve's AI capabilities via a local HTTP endpoint.{' '}
+                      <a href="https://github.com/a2aproject/a2a-js" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)' }}>
+                        Learn more →
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Fallback when not in Electron */
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Globe size={18} style={{ color: 'var(--text-tertiary)' }} />
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                    A2A server controls are available in the desktop app.
+                  </p>
+                </div>
+              )}
             </GlassContainer>
 
             {error && <p style={{ fontSize: 13, color: 'var(--status-error)', marginTop: 16 }}>{error}</p>}

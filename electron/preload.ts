@@ -49,3 +49,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>
     ipcRenderer.invoke('ai-chat-stream', payload),
 })
+
+// Expose A2A Server API for Agent-to-Agent protocol support
+contextBridge.exposeInMainWorld('a2aAPI', {
+  start: (options?: { port?: number }) => ipcRenderer.invoke('a2a:start', options),
+  stop: () => ipcRenderer.invoke('a2a:stop'),
+  getStatus: () => ipcRenderer.invoke('a2a:getStatus'),
+  getSettings: () => ipcRenderer.invoke('a2a:getSettings'),
+  updateSettings: (settings: { port?: number; autoStart?: boolean }) =>
+    ipcRenderer.invoke('a2a:updateSettings', settings),
+})

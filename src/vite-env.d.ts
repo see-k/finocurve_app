@@ -13,7 +13,7 @@ interface AIConfigFromMain {
   a2aEnabled: boolean
 }
 
-interface AIConfigPayload extends AIConfigFromMain {}
+interface AIConfigPayload extends AIConfigFromMain { }
 
 interface ElectronAPI {
   platform: string
@@ -54,4 +54,11 @@ interface ElectronAPI {
 
 interface Window {
   electronAPI: ElectronAPI
+  a2aAPI?: {
+    start: (options?: { port?: number }) => Promise<{ success: boolean; port?: number; url?: string; wellKnownUrl?: string; error?: string }>
+    stop: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; data?: { running: boolean; port: number; url: string | null; wellKnownUrl: string | null }; error?: string }>
+    getSettings: () => Promise<{ success: boolean; data?: { port: number; autoStart: boolean }; error?: string }>
+    updateSettings: (settings: { port?: number; autoStart?: boolean }) => Promise<{ success: boolean; error?: string }>
+  }
 }

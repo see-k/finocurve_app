@@ -3,7 +3,7 @@
  */
 
 import { ipcMain, app } from 'electron'
-import { startA2AServer, stopA2AServer } from './a2aServer'
+import { startA2AServer, stopA2AServer, getA2AServerStatus, DEFAULT_PORT } from './a2aServer'
 import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStorage'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -106,10 +106,9 @@ export function registerAIHandlers(): void {
     aiService = null
   }
 
-  const storedConfig = loadAIConfig()
-  if (storedConfig.a2aEnabled) {
-    startA2AServer(getService)
-  }
+  // =============================================
+  // AI Config IPC Handlers
+  // =============================================
 
   ipcMain.handle('ai-config-get', async () => {
     const config = loadAIConfig()
@@ -133,13 +132,6 @@ export function registerAIHandlers(): void {
     }
     saveAIConfig(toSave)
     resetService()
-
-    if (toSave.a2aEnabled) {
-      stopA2AServer()
-      startA2AServer(getService)
-    } else {
-      stopA2AServer()
-    }
     return { ok: true }
   })
 
@@ -215,4 +207,88 @@ export function registerAIHandlers(): void {
     }
     return { text: chunks.join('') }
   })
+
+  // =============================================
+  // A2A Server IPC Handlers
+  // =============================================
+
+  // Start A2A server
+  ipcMain.handle('a2a:start', async (_event, options?: { port?: number }) => {
+    try {
+      const config = loadAIConfig()
+      const port = options?.port ?? config.a2aPort ?? DEFAULT_PORT
+      const result = await startA2AServer(getService, { port })
+      return result
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to start A2A server' }
+    }
+  })
+
+  // Stop A2A server
+  ipcMain.handle('a2a:stop', async () => {
+    try {
+      const result = await stopA2AServer()
+      return result
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to stop A2A server' }
+    }
+  })
+
+  // Get A2A server status
+  ipcMain.handle('a2a:getStatus', async () => {
+    try {
+      const status = getA2AServerStatus()
+      return { success: true, data: status }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to get A2A status' }
+    }
+  })
+
+  // Get A2A settings (port, autoStart)
+  ipcMain.handle('a2a:getSettings', async () => {
+    try {
+      const config = loadAIConfig()
+      return {
+        success: true,
+        data: {
+          port: config.a2aPort ?? DEFAULT_PORT,
+          autoStart: config.a2aAutoStart ?? false,
+        },
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to get A2A settings' }
+    }
+  })
+
+  // Update A2A settings
+  ipcMain.handle('a2a:updateSettings', async (_event, settings: { port?: number; autoStart?: boolean }) => {
+    try {
+      const config = loadAIConfig()
+      if (settings.port !== undefined) {
+        config.a2aPort = settings.port
+      }
+      if (settings.autoStart !== undefined) {
+        config.a2aAutoStart = settings.autoStart
+      }
+      saveAIConfig(config)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to update A2A settings' }
+    }
+  })
+
+  // =============================================
+  // Auto-start A2A server if configured
+  // =============================================
+  const storedConfig = loadAIConfig()
+  if (storedConfig.a2aAutoStart || storedConfig.a2aEnabled) {
+    const port = storedConfig.a2aPort ?? DEFAULT_PORT
+    startA2AServer(getService, { port }).then((result) => {
+      if (result.success) {
+        console.log(`[A2A] Auto-started on port ${result.port}`)
+      } else {
+        console.error(`[A2A] Auto-start failed: ${result.error}`)
+      }
+    })
+  }
 }

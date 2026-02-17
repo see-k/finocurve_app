@@ -19,6 +19,8 @@ export interface StoredAIConfig {
   azureApiKey?: string
   azureDeployment?: string
   a2aEnabled: boolean
+  a2aPort?: number
+  a2aAutoStart?: boolean
 }
 
 const CONFIG_FILENAME = 'finocurve-ai-config.json'
@@ -28,6 +30,8 @@ const DEFAULT_CONFIG: StoredAIConfig = {
   model: 'llama3.2',
   ollamaBaseUrl: 'http://localhost:11434',
   a2aEnabled: false,
+  a2aPort: 3847,
+  a2aAutoStart: false,
 }
 
 function getConfigPath(): string {
