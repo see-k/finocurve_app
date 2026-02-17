@@ -1,5 +1,20 @@
 /// <reference types="vite/client" />
 
+interface AIConfigFromMain {
+  provider: 'ollama' | 'bedrock' | 'azure'
+  model: string
+  ollamaBaseUrl?: string
+  bedrockRegion?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  azureEndpoint?: string
+  azureApiKey?: string
+  azureDeployment?: string
+  a2aEnabled: boolean
+}
+
+interface AIConfigPayload extends AIConfigFromMain {}
+
 interface ElectronAPI {
   platform: string
   versions: {
@@ -27,6 +42,14 @@ interface ElectronAPI {
   localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
   localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  // AI
+  aiConfigGet?: () => Promise<AIConfigFromMain>
+  aiConfigSave?: (payload: AIConfigPayload) => Promise<{ ok: boolean }>
+  aiCheckOllama?: () => Promise<{ ok: boolean; error?: string }>
+  aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>
+  aiOllamaTestConnection?: (payload?: { baseUrl?: string; model?: string }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
+  aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
+  aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{ text: string }>
 }
 
 interface Window {

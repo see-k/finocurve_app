@@ -31,6 +31,85 @@
 }
 .settings-sub-title { font-size: 22px; font-weight: 700; color: var(--text-primary); }
 
+/* AI Config provider options */
+.settings-provider-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: left;
+}
+.settings-provider-option:hover {
+  background: var(--glass-bg-hover);
+}
+.settings-provider-option--active {
+  border-color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--brand-primary);
+}
+.settings-provider-option svg {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+/* AI Config select & advanced */
+.ai-config-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+.ai-config-select:focus {
+  border-color: var(--input-focus-border);
+}
+.ai-config-select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+.ai-config-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.ai-config-advanced-toggle:hover {
+  color: var(--text-secondary);
+}
+
+/* Toggle (for A2A etc.) */
+.settings-toggle {
+  width: 44px; height: 24px; border-radius: 12px;
+  background: var(--glass-border); position: relative;
+  cursor: pointer; transition: background 0.3s ease; flex-shrink: 0;
+}
+.settings-toggle--on { background: var(--brand-primary); }
+.settings-toggle__thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: white; position: absolute; top: 2px; left: 2px;
+  transition: transform 0.3s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.settings-toggle--on .settings-toggle__thumb { transform: translateX(20px); }
+
 /* FAQ */
 .faq-list { display: flex; flex-direction: column; gap: 8px; }
 .faq-item {

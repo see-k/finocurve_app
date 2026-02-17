@@ -39,4 +39,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   localStorageOpenFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-open-file', payload),
   localStorageReadFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-read-file', payload),
   localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
+  aiConfigGet: () => ipcRenderer.invoke('ai-config-get'),
+  aiConfigSave: (payload: unknown) => ipcRenderer.invoke('ai-config-save', payload),
+  aiCheckOllama: () => ipcRenderer.invoke('ai-check-ollama'),
+  aiOllamaListModels: (baseUrl?: string) => ipcRenderer.invoke('ai-ollama-list-models', baseUrl),
+  aiOllamaTestConnection: (payload?: { baseUrl?: string; model?: string }) => ipcRenderer.invoke('ai-ollama-test-connection', payload),
+  aiGenerateInsights: (payload: { documents: unknown[]; portfolioContext?: unknown }) =>
+    ipcRenderer.invoke('ai-generate-insights', payload),
+  aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>
+    ipcRenderer.invoke('ai-chat-stream', payload),
 })

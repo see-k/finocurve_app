@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import AIChatBubble from './components/ai/AIChatBubble'
 import SplashScreen from './screens/SplashScreen'
 import WelcomeScreen from './screens/WelcomeScreen'
 import LoginScreen from './screens/LoginScreen'
@@ -23,6 +24,7 @@ import NotificationsScreen from './screens/main/NotificationsScreen'
 import AccountScreen from './screens/settings/AccountScreen'
 import CurrencyPickerScreen from './screens/settings/CurrencyPickerScreen'
 import CloudStorageScreen from './screens/settings/CloudStorageScreen'
+import AIConfigScreen from './screens/settings/AIConfigScreen'
 import HelpFaqScreen from './screens/settings/HelpFaqScreen'
 import AboutScreen from './screens/settings/AboutScreen'
 
@@ -44,6 +46,7 @@ function NotificationsPage() {
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route path="/" element={<SplashScreen />} />
       <Route path="/welcome" element={<WelcomeScreen />} />
@@ -70,10 +73,13 @@ export default function App() {
       <Route path="/settings/account" element={<AccountScreen />} />
       <Route path="/settings/currency" element={<CurrencyPickerScreen />} />
       <Route path="/settings/cloud-storage" element={<CloudStorageScreen />} />
+      <Route path="/settings/ai-config" element={<AIConfigScreen />} />
       <Route path="/settings/help" element={<HelpFaqScreen />} />
       <Route path="/settings/about" element={<AboutScreen />} />
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <AIChatBubble />
+    </>
   )
 }

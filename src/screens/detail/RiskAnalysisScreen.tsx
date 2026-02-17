@@ -13,6 +13,7 @@ import {
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import { usePortfolio } from '../../store/usePortfolio'
+import { getSharedDocumentInsights } from '../../store/useDocumentInsights'
 import { analyzePortfolio } from '../../services/riskAnalysis'
 import { generateRiskReportPdf } from '../../services/riskReportPdf'
 import WorldMap from '../../components/WorldMap'
@@ -148,6 +149,7 @@ export default function RiskAnalysisScreen() {
         risk, assets, totalValue, totalGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
+        documentInsights: getSharedDocumentInsights(),
       })
     } finally {
       setGeneratingPdf(false)
@@ -163,6 +165,7 @@ export default function RiskAnalysisScreen() {
         risk, assets, totalValue, totalGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
+        documentInsights: getSharedDocumentInsights(),
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
@@ -191,6 +194,7 @@ export default function RiskAnalysisScreen() {
         risk, assets, totalValue, totalGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
+        documentInsights: getSharedDocumentInsights(),
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')

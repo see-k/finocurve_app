@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X, Sparkles } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import { useDocumentInsights, setSharedDocumentInsights } from '../../store/useDocumentInsights'
+import { usePortfolio } from '../../store/usePortfolio'
 import './ReportsScreen.css'
 
 const REPORTS_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -50,6 +52,8 @@ function mimeFromKey(key: string): string {
 export default function ReportsScreen() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { insights, setDocumentInsights, loading: aiLoading, setLoading: setAiLoading, error: aiError, setError: setAiError } = useDocumentInsights()
+  const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [subTab, setSubTab] = useState<'reports' | 'documents'>('reports')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'cloud' | 'local'>('all')
   const [s3Connected, setS3Connected] = useState<boolean | null>(null)
@@ -224,6 +228,47 @@ export default function ReportsScreen() {
     setViewError(null)
   }
 
+  const handleAnalyzeWithAI = async () => {
+    if (!window.electronAPI?.aiGenerateInsights || !window.electronAPI?.aiCheckOllama) {
+      setAiError('AI features require the desktop app with Ollama installed.')
+      return
+    }
+    const check = await window.electronAPI.aiCheckOllama()
+    if (!check.ok) {
+      setAiError(check.error ?? 'Ollama not available. Install Ollama and run: ollama pull llama3.2')
+      return
+    }
+    const docs = documents.map((d) => ({
+      key: d.key,
+      fileName: fileNameFromKey(d.key),
+      source: d.source,
+    }))
+    if (docs.length === 0) {
+      setAiError('No documents to analyze.')
+      return
+    }
+    setAiError(null)
+    setAiLoading(true)
+    try {
+      const portfolioContext = portfolio && totalValue > 0 ? {
+        portfolioName: portfolio.name || 'Portfolio',
+        totalValue,
+        totalGainLossPercent,
+        assetCount: portfolio.assets.length,
+      } : undefined
+      const { insights: newInsights } = await window.electronAPI.aiGenerateInsights({
+        documents: docs,
+        portfolioContext,
+      })
+      setDocumentInsights(newInsights)
+      setSharedDocumentInsights(newInsights)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'AI analysis failed')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   const handleDelete = async (item: FileItem) => {
     if (!confirm(`Delete ${fileNameFromKey(item.key)}?`)) return
     setError(null)
@@ -359,7 +404,7 @@ export default function ReportsScreen() {
           </div>
         )}
 
-        {error && <p className="reports-error">{error}</p>}
+        {(error || aiError) && <p className="reports-error">{error || aiError}</p>}
 
         {/* Reports sub-page */}
         {subTab === 'reports' && (
@@ -399,7 +444,7 @@ export default function ReportsScreen() {
           <div className="reports-section">
             <div className="reports-section__header">
               <h2 className="reports-section__title"><FileText size={18} /> Documents</h2>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -413,6 +458,13 @@ export default function ReportsScreen() {
                   icon={<Upload size={16} />}
                   isPrimary
                   disabled={uploading}
+                  width="auto"
+                />
+                <GlassButton
+                  text={aiLoading ? 'Analyzing...' : 'Analyze with AI'}
+                  onClick={handleAnalyzeWithAI}
+                  icon={<Sparkles size={16} />}
+                  disabled={aiLoading || filteredDocuments.length === 0}
                   width="auto"
                 />
                 <GlassButton text="Refresh" onClick={loadAll} disabled={loading} width="auto" />

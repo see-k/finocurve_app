@@ -12,6 +12,7 @@ FinoCurve is a sophisticated desktop application designed for modern investment 
 - **Risk Analysis**: In-depth tools to evaluate portfolio risk and make informed investment decisions.
 - **Asset & Loan Tracking**: Manage both your assets and liabilities (loans) in one unified interface.
 - **News & Notifications**: Stay informed with the latest financial news and personalized alerts.
+- **AI Assistant**: Local AI-powered document insights and chat (Ollama). Analyze documents for risk reports and chat via a global floating bubble.
 - **Global Settings**: Customize your experience with currency preferences and account management.
 
 ## 🛠️ Tech Stack
@@ -31,6 +32,7 @@ To get started with FinoCurve locally, follow these steps:
 
 - [Node.js](https://nodejs.org/) (Latest LTS recommended)
 - [npm](https://www.npmjs.com/)
+- **AI features** (optional): [Ollama](https://ollama.ai) with a model (e.g. `ollama pull llama3.2`)
 
 ### Installation
 
@@ -51,6 +53,17 @@ Run the application in development mode:
 ```bash
 npm run dev
 ```
+
+### AI Assistant (Optional)
+
+The AI assistant provides document analysis and chat. To use it:
+
+1. Install [Ollama](https://ollama.ai) and run `ollama pull llama3.2` (or another model).
+2. In Reports & Documents, upload PDFs or text files, then click **Analyze with AI**.
+3. Use the floating chat bubble (bottom-right) to ask questions about your portfolio.
+4. AI insights are included in generated risk reports when available.
+
+**A2A protocol**: Set `AI_ENABLE_A2A=true` to expose the AI on `http://127.0.0.1:3847` for external agent access.
 
 ### Building for Production
 
