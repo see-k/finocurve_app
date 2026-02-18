@@ -21,8 +21,7 @@ import { generateRiskReportPdf } from '../../services/riskReportPdf'
 import WorldMap from '../../components/WorldMap'
 import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority } from '../../types'
 import {
-  assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry,
-  portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS,
+  assetCurrentValue, SECTOR_LABELS, ASSET_TYPE_LABELS, isLoan,
 } from '../../types'
 import { RISK_LEVEL_META } from '../../constants/riskMeta'
 import './DetailScreen.css'
@@ -128,10 +127,28 @@ export default function RiskAnalysisScreen() {
   }, [])
 
   const assets: Asset[] = portfolio?.assets ?? []
-  const riskBase = useMemo(() => analyzePortfolio(assets, totalValue, totalGainLossPercent), [assets, totalValue, totalGainLossPercent])
+  const investableAssets = useMemo(() => assets.filter((a) => !isLoan(a)), [assets])
+  const totalInvestableValue = useMemo(
+    () => investableAssets.reduce((s, a) => s + assetCurrentValue(a), 0),
+    [investableAssets]
+  )
+  const totalInvestableCost = useMemo(
+    () => investableAssets.reduce((s, a) => s + a.costBasis, 0),
+    [investableAssets]
+  )
+  const totalInvestableGainLossPercent = useMemo(
+    () => (totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0),
+    [totalInvestableValue, totalInvestableCost]
+  )
+  const riskBase = useMemo(
+    () => (investableAssets.length > 0 && totalInvestableValue > 0)
+      ? analyzePortfolio(investableAssets, totalInvestableValue, totalInvestableGainLossPercent)
+      : null,
+    [investableAssets, totalInvestableValue, totalInvestableGainLossPercent]
+  )
   const changeSummary = useMemo(
-    () => riskBase ? computeChangeSummary(riskBase, assets, totalValue, lastSnapshot) : [],
-    [riskBase, assets, totalValue, lastSnapshot]
+    () => riskBase ? computeChangeSummary(riskBase, investableAssets, totalInvestableValue, lastSnapshot) : [],
+    [riskBase, investableAssets, totalInvestableValue, lastSnapshot]
   )
   const risk = useMemo(() => {
     if (!riskBase) return null
@@ -141,33 +158,51 @@ export default function RiskAnalysisScreen() {
 
   // Auto-record snapshot on each visit to build history for graphs (once per page load)
   useEffect(() => {
-    if (hasAutoRecordedRef.current || !risk || assets.length === 0) return
+    if (hasAutoRecordedRef.current || !risk || investableAssets.length === 0) return
     hasAutoRecordedRef.current = true
-    addSnapshot(risk, assets, totalValue)
-  }, [risk, assets, totalValue, addSnapshot])
+    addSnapshot(risk, investableAssets, totalInvestableValue)
+  }, [risk, investableAssets, totalInvestableValue, addSnapshot])
 
-  const sectorAlloc = useMemo(() => portfolio ? portfolioAllocationBySector(portfolio) : {}, [portfolio])
-  const countryAlloc = useMemo(() => portfolio ? portfolioAllocationByCountry(portfolio) : {}, [portfolio])
-  const typeAlloc = useMemo(() => portfolio ? portfolioAllocationByType(portfolio) : {}, [portfolio])
-
-  // Country allocation as percentage (for the world map)
+  const sectorAlloc = useMemo(() => {
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      const key = a.sector || 'other'
+      alloc[key] = (alloc[key] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  }, [investableAssets])
+  const countryAlloc = useMemo(() => {
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      const key = a.country || 'Unknown'
+      alloc[key] = (alloc[key] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  }, [investableAssets])
+  const typeAlloc = useMemo(() => {
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      alloc[a.type] = (alloc[a.type] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  }, [investableAssets])
   const countryPct = useMemo(() => {
     const result: Record<string, number> = {}
-    if (totalValue > 0) {
+    if (totalInvestableValue > 0) {
       for (const [k, v] of Object.entries(countryAlloc)) {
-        result[k] = (v / totalValue) * 100
+        result[k] = (v / totalInvestableValue) * 100
       }
     }
     return result
-  }, [countryAlloc, totalValue])
+  }, [countryAlloc, totalInvestableValue])
 
   const handleExportPdf = async () => {
     if (!risk || !portfolio) return
     setGeneratingPdf(true)
-    addSnapshot(risk, assets, totalValue)
+    addSnapshot(risk, investableAssets, totalInvestableValue)
     try {
       await generateRiskReportPdf({
-        risk, assets, totalValue, totalGainLossPercent,
+        risk, assets: investableAssets, totalValue: totalInvestableValue, totalGainLossPercent: totalInvestableGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
         documentInsights: getSharedDocumentInsights(),
@@ -180,11 +215,11 @@ export default function RiskAnalysisScreen() {
   const handleSaveToCloud = async () => {
     if (!risk || !portfolio || !window.electronAPI?.s3Upload) return
     setCloudMessage(null)
-    addSnapshot(risk, assets, totalValue)
+    addSnapshot(risk, investableAssets, totalInvestableValue)
     setSavingToCloud(true)
     try {
       const pdfBytes = await generateRiskReportPdf({
-        risk, assets, totalValue, totalGainLossPercent,
+        risk, assets: investableAssets, totalValue: totalInvestableValue, totalGainLossPercent: totalInvestableGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
         documentInsights: getSharedDocumentInsights(),
@@ -210,11 +245,11 @@ export default function RiskAnalysisScreen() {
   const handleSaveToDevice = async () => {
     if (!risk || !portfolio || !window.electronAPI?.localStorageSaveFile) return
     setCloudMessage(null)
-    addSnapshot(risk, assets, totalValue)
+    addSnapshot(risk, investableAssets, totalInvestableValue)
     setSavingToDevice(true)
     try {
       const pdfBytes = await generateRiskReportPdf({
-        risk, assets, totalValue, totalGainLossPercent,
+        risk, assets: investableAssets, totalValue: totalInvestableValue, totalGainLossPercent: totalInvestableGainLossPercent,
         portfolioName: portfolio.name || 'My Portfolio',
         sectorAlloc, countryAlloc, typeAlloc,
         documentInsights: getSharedDocumentInsights(),
@@ -398,7 +433,7 @@ export default function RiskAnalysisScreen() {
                     <div className="risk-metric-card__label">{m.label}</div>
                     <div className="risk-metric-card__value">{typeof m.value === 'number' ? m.value : m.value}</div>
                     <div className="risk-metric-card__sub" style={{ color: m.metricId === 'sharpeRatio' ? SHARPE_META[risk.sharpeRating]?.color : undefined }}>
-                      {m.metricId === 'sharpeRatio' ? SHARPE_META[risk.sharpeRating]?.label : m.metricId === 'maxDrawdown' ? fmt(risk.maxDrawdown) : m.metricId === 'liquidityScore' ? risk.liquidityLevel.replace('_', ' ') : `HHI: ${risk.concentrationIndex.toFixed(2)}`}
+                      {m.metricId === 'sharpeRatio' ? SHARPE_META[risk.sharpeRating]?.label : m.metricId === 'maxDrawdown' ? fmt(risk.maxDrawdown) : m.metricId === 'liquidityScore' ? risk.liquidityLevel.replace('_', ' ') : `HHI (0-1): ${risk.concentrationIndex.toFixed(2)}`}
                     </div>
                     {isExp && (
                       <div className="risk-metric-card__explain">
@@ -433,7 +468,7 @@ export default function RiskAnalysisScreen() {
                     <div className="risk-metric-card__icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><Layers size={20} /></div>
                     <div className="risk-metric-card__label">Diversification</div>
                     <div className="risk-metric-card__value">{risk.diversificationScore}/100</div>
-                    <div className="risk-metric-card__sub">HHI: {risk.concentrationIndex.toFixed(2)}</div>
+                    <div className="risk-metric-card__sub">HHI (0-1): {risk.concentrationIndex.toFixed(2)}</div>
                   </GlassContainer>
                 </>
               )}
@@ -676,7 +711,7 @@ export default function RiskAnalysisScreen() {
           <div className="risk-tab-content">
             <div className="risk-info-banner">
               <Info size={16} />
-              <span>Stress tests model how your portfolio might react to different economic scenarios based on historical asset-class behavior.</span>
+              <span>Stress tests model how your portfolio might react to different economic scenarios based on historical asset-class behavior. Positive impact (e.g. Market Crash showing green) can occur when bonds or cash dominate—they typically rally in risk-off environments. Negative impact in Crypto Winter reflects crypto exposure.</span>
             </div>
 
             {/* Bar Chart */}
@@ -730,7 +765,7 @@ export default function RiskAnalysisScreen() {
               </p>
               <WorldMap
                 countryExposure={countryPct}
-                totalValue={totalValue}
+                totalValue={totalInvestableValue}
                 onCountryClick={(name, pct) => setSelectedCountry({ name, pct })}
               />
               {selectedCountry && (
@@ -739,7 +774,7 @@ export default function RiskAnalysisScreen() {
                   <strong>{selectedCountry.name}</strong>
                   <span>{selectedCountry.pct.toFixed(1)}% of portfolio</span>
                   <span className="map-country-detail__val">
-                    {fmt((selectedCountry.pct / 100) * totalValue)}
+                    {fmt((selectedCountry.pct / 100) * totalInvestableValue)}
                   </span>
                   <button className="map-country-detail__close" onClick={() => setSelectedCountry(null)}>&times;</button>
                 </div>

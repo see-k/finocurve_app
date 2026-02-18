@@ -79,9 +79,16 @@ export default function DashboardScreen() {
       .slice(0, 6)
   }, [hasAssets, nonLoanAssets])
 
-  // Real risk analysis — same logic as Risk Analysis screen (all assets including loans)
-  const assets = portfolio?.assets ?? []
-  const riskResult = useMemo(() => hasAssets ? analyzePortfolio(assets, totalValue, totalGainLossPercent) : null, [hasAssets, assets, totalValue, totalGainLossPercent])
+  // Risk analysis uses investable assets only (excludes loans) to avoid negative weights when liabilities dominate
+  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
+  const totalInvestableCost = nonLoanAssets.reduce((s, a) => s + a.costBasis, 0)
+  const totalInvestableGainLossPercent = totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0
+  const riskResult = useMemo(
+    () => (nonLoanAssets.length > 0 && totalInvestableValue > 0)
+      ? analyzePortfolio(nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent)
+      : null,
+    [nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent]
+  )
   const riskScore = riskResult?.riskScore ?? 0
   const riskMeta = riskResult ? RISK_LEVEL_META[riskResult.riskLevel] : null
 

@@ -169,10 +169,13 @@ export function analyzePortfolio(assets: Asset[], totalValue: number, totalGainL
   }
   if (typeCount < 3) concentrationWarnings.push({ type: 'medium', message: `Low diversification - only ${typeCount} asset types`, asset: 'Portfolio', percentage: 0, explainable: concExplainable })
 
-  // HHI
-  let hhi = 0
-  for (const pct of Object.values(alloc)) hhi += (pct ** 2)
-  const concentrationIndex = +(hhi / 10000).toFixed(4)
+  // HHI (Herfindahl-Hirschman Index) on 0-1 scale: sum of squared allocation shares
+  let hhiRaw = 0
+  for (const pct of Object.values(alloc)) {
+    const share = pct / 100
+    hhiRaw += share * share
+  }
+  const concentrationIndex = +(Math.min(1, hhiRaw).toFixed(4))
 
   // 7. Liquidity
   const liquidityBreakdown: Record<LiquidityCategory, number> = { immediate: 0, short_term: 0, medium_term: 0, long_term: 0 }

@@ -158,9 +158,10 @@ export function portfolioAllocationBySector(p: Portfolio): Record<string, number
   return alloc
 }
 
-export function portfolioAllocationByCountry(p: Portfolio): Record<string, number> {
+export function portfolioAllocationByCountry(p: Portfolio, excludeLoans = false): Record<string, number> {
   const alloc: Record<string, number> = {}
-  for (const asset of p.assets) {
+  const assets = excludeLoans ? p.assets.filter((a) => !isLoan(a)) : p.assets
+  for (const asset of assets) {
     const key = asset.country || 'Unknown'
     const val = assetCurrentValue(asset)
     alloc[key] = (alloc[key] || 0) + val
