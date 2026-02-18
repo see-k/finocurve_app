@@ -42,8 +42,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiConfigGet: () => ipcRenderer.invoke('ai-config-get'),
   aiConfigSave: (payload: unknown) => ipcRenderer.invoke('ai-config-save', payload),
   aiCheckOllama: () => ipcRenderer.invoke('ai-check-ollama'),
+  aiCheckConnection: () => ipcRenderer.invoke('ai-check-connection'),
   aiOllamaListModels: (baseUrl?: string) => ipcRenderer.invoke('ai-ollama-list-models', baseUrl),
-  aiOllamaTestConnection: (payload?: { baseUrl?: string; model?: string }) => ipcRenderer.invoke('ai-ollama-test-connection', payload),
+  aiTestConnection: (payload: {
+    provider: 'ollama' | 'bedrock' | 'azure'
+    model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
+    azureDeployment?: string
+  }) => ipcRenderer.invoke('ai-test-connection', payload),
   aiGenerateInsights: (payload: { documents: unknown[]; portfolioContext?: unknown }) =>
     ipcRenderer.invoke('ai-generate-insights', payload),
   aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>

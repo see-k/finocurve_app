@@ -12,6 +12,14 @@ export interface AIConfig {
   model: string
   apiUrl?: string
   ollamaBaseUrl?: string
+  /** AWS Bedrock */
+  bedrockRegion?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  /** Azure OpenAI */
+  azureEndpoint?: string
+  azureApiKey?: string
+  azureDeployment?: string
 }
 
 export function getAIConfig(overrides?: Partial<AIConfig>): AIConfig {

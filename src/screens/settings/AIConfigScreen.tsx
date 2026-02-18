@@ -135,14 +135,22 @@ export default function AIConfigScreen() {
   }, [provider, fetchOllamaModels])
 
   const handleTestConnection = async () => {
-    if (!window.electronAPI?.aiOllamaTestConnection) return
+    if (!window.electronAPI?.aiTestConnection) return
     setConnectionStatus(null)
     setConnectionTesting(true)
     try {
-      const result = await window.electronAPI.aiOllamaTestConnection({
-        baseUrl: provider === 'ollama' ? ollamaBaseUrl : undefined,
-        model: provider === 'ollama' ? model : undefined,
-      })
+      const payload: Parameters<NonNullable<typeof window.electronAPI.aiTestConnection>>[0] = {
+        provider,
+        model: model.trim() || undefined,
+        ollamaBaseUrl: provider === 'ollama' ? ollamaBaseUrl.trim() : undefined,
+        bedrockRegion: provider === 'bedrock' ? bedrockRegion.trim() : undefined,
+        bedrockAccessKeyId: provider === 'bedrock' ? bedrockAccessKeyId.trim() : undefined,
+        bedrockSecretKey: provider === 'bedrock' ? bedrockSecretKey : undefined,
+        azureEndpoint: provider === 'azure' ? azureEndpoint.trim() : undefined,
+        azureApiKey: provider === 'azure' ? azureApiKey : undefined,
+        azureDeployment: provider === 'azure' ? azureDeployment.trim() : undefined,
+      }
+      const result = await window.electronAPI.aiTestConnection(payload)
       if (result.ok) {
         setConnectionStatus({
           ok: true,
@@ -371,29 +379,6 @@ export default function AIConfigScreen() {
                       />
                     </div>
                   </div>
-                  <div style={{ marginBottom: 16 }}>
-                    <GlassButton
-                      text={connectionTesting ? 'Testing...' : 'Test connection'}
-                      onClick={handleTestConnection}
-                      disabled={connectionTesting}
-                      width="auto"
-                    />
-                    {connectionStatus && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 13 }}>
-                        {connectionStatus.ok ? (
-                          <>
-                            <CheckCircle size={18} style={{ color: 'var(--status-success)' }} />
-                            <span style={{ color: 'var(--status-success)' }}>{connectionStatus.message}</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={18} style={{ color: 'var(--status-error)' }} />
-                            <span style={{ color: 'var(--status-error)' }}>{connectionStatus.message}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
                   <button
                     type="button"
                     className="ai-config-advanced-toggle"
@@ -418,10 +403,34 @@ export default function AIConfigScreen() {
                   <GlassTextField
                     value={model}
                     onChange={setModel}
-                    placeholder={provider === 'bedrock' ? 'anthropic.claude-3-sonnet-20240229-v1:0' : 'gpt-4'}
+                    placeholder={provider === 'bedrock' ? 'anthropic.claude-3-haiku-20240307-v1:0' : 'gpt-4'}
                   />
                 </div>
               )}
+
+              <div style={{ marginBottom: 16 }}>
+                <GlassButton
+                  text={connectionTesting ? 'Testing...' : 'Test connection'}
+                  onClick={handleTestConnection}
+                  disabled={connectionTesting}
+                  width="auto"
+                />
+                {connectionStatus && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 13 }}>
+                    {connectionStatus.ok ? (
+                      <>
+                        <CheckCircle size={18} style={{ color: 'var(--status-success)' }} />
+                        <span style={{ color: 'var(--status-success)' }}>{connectionStatus.message}</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={18} style={{ color: 'var(--status-error)' }} />
+                        <span style={{ color: 'var(--status-error)' }}>{connectionStatus.message}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {provider === 'bedrock' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

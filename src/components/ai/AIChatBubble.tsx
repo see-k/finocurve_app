@@ -95,7 +95,7 @@ export default function AIChatBubble() {
           <div className="ai-chat-messages">
             {messages.length === 0 && (
               <p className="ai-chat-placeholder">
-                Ask about your portfolio, risk metrics, or documents. Requires Ollama running locally.
+                Ask about your portfolio, risk metrics, or documents. Requires an AI provider (Ollama, Bedrock, or Azure) configured in Settings.
               </p>
             )}
             {messages.map((msg, i) => (

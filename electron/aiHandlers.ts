@@ -8,6 +8,8 @@ import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStora
 import path from 'node:path'
 import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
+import { createChatModel } from '../src/ai/createChatModel'
+import { HumanMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
@@ -82,6 +84,12 @@ function storedConfigToAIConfig(stored: StoredAIConfig) {
     providerType: stored.provider,
     model: stored.model,
     ollamaBaseUrl: stored.ollamaBaseUrl ?? 'http://localhost:11434',
+    bedrockRegion: stored.bedrockRegion,
+    bedrockAccessKeyId: stored.bedrockAccessKeyId,
+    bedrockSecretKey: stored.bedrockSecretKey,
+    azureEndpoint: stored.azureEndpoint,
+    azureApiKey: stored.azureApiKey,
+    azureDeployment: stored.azureDeployment,
   }
 }
 
@@ -135,16 +143,115 @@ export function registerAIHandlers(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('ai-check-ollama', async () => {
+  async function testConnection(config: {
+    provider: StoredAIConfig['provider']
+    model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
+    azureDeployment?: string
+  }): Promise<{ ok: boolean; error?: string; modelCount?: number }> {
+    const { provider } = config
     try {
-      const stored = loadAIConfig()
-      const baseUrl = stored.ollamaBaseUrl || 'http://localhost:11434'
-      const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/tags`)
-      if (!res.ok) throw new Error(`Ollama returned ${res.status}`)
-      return { ok: true }
+      if (provider === 'ollama') {
+        const baseUrl = (config.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
+        const res = await fetch(`${baseUrl}/api/tags`)
+        if (!res.ok) throw new Error(`Connection failed: ${res.status}`)
+        const data = (await res.json()) as { models?: { name: string }[] }
+        const modelNames = (data.models ?? []).map((m) => m.name)
+        const modelToCheck = config.model
+        if (modelToCheck && !modelNames.includes(modelToCheck)) {
+          return { ok: false, error: `Model '${modelToCheck}' not found. Run: ollama pull ${modelToCheck}` }
+        }
+        return { ok: true, modelCount: modelNames.length }
+      }
+      if (provider === 'bedrock') {
+        const aiConfig = storedConfigToAIConfig({
+          ...loadAIConfig(),
+          provider: 'bedrock',
+          model: config.model || 'anthropic.claude-3-haiku-20240307-v1:0',
+          bedrockRegion: config.bedrockRegion,
+          bedrockAccessKeyId: config.bedrockAccessKeyId,
+          bedrockSecretKey: config.bedrockSecretKey,
+        })
+        const model = createChatModel(aiConfig)
+        await model.invoke([new HumanMessage('Say OK')])
+        return { ok: true }
+      }
+      if (provider === 'azure') {
+        const aiConfig = storedConfigToAIConfig({
+          ...loadAIConfig(),
+          provider: 'azure',
+          model: config.model || 'gpt-4',
+          azureEndpoint: config.azureEndpoint,
+          azureApiKey: config.azureApiKey,
+          azureDeployment: config.azureDeployment,
+        })
+        const model = createChatModel(aiConfig)
+        await model.invoke([new HumanMessage('Say OK')])
+        return { ok: true }
+      }
+      return { ok: false, error: `Unknown provider: ${provider}` }
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'Ollama not available' }
+      return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
     }
+  }
+
+  ipcMain.handle('ai-check-ollama', async () => {
+    const stored = loadAIConfig()
+    if (stored.provider !== 'ollama') {
+      return testConnection({ ...stored, provider: stored.provider })
+    }
+    return testConnection({
+      provider: 'ollama',
+      model: stored.model,
+      ollamaBaseUrl: stored.ollamaBaseUrl,
+    })
+  })
+
+  ipcMain.handle('ai-check-connection', async () => {
+    const stored = loadAIConfig()
+    return testConnection({
+      provider: stored.provider,
+      model: stored.model,
+      ollamaBaseUrl: stored.ollamaBaseUrl,
+      bedrockRegion: stored.bedrockRegion,
+      bedrockAccessKeyId: stored.bedrockAccessKeyId,
+      bedrockSecretKey: stored.bedrockSecretKey,
+      azureEndpoint: stored.azureEndpoint,
+      azureApiKey: stored.azureApiKey,
+      azureDeployment: stored.azureDeployment,
+    })
+  })
+
+  ipcMain.handle('ai-test-connection', async (
+    _event,
+    payload: {
+      provider: StoredAIConfig['provider']
+      model?: string
+      ollamaBaseUrl?: string
+      bedrockRegion?: string
+      bedrockAccessKeyId?: string
+      bedrockSecretKey?: string
+      azureEndpoint?: string
+      azureApiKey?: string
+      azureDeployment?: string
+    }
+  ) => {
+    const existing = loadAIConfig()
+    const merged = {
+      ...payload,
+      bedrockSecretKey: payload.bedrockSecretKey && payload.bedrockSecretKey !== '••••••••'
+        ? payload.bedrockSecretKey
+        : existing.bedrockSecretKey,
+      azureApiKey: payload.azureApiKey && payload.azureApiKey !== '••••••••'
+        ? payload.azureApiKey
+        : existing.azureApiKey,
+    }
+    return testConnection(merged)
   })
 
   ipcMain.handle('ai-ollama-list-models', async (_event, baseUrl?: string) => {
@@ -157,24 +264,6 @@ export function registerAIHandlers(): void {
       return { models: names }
     } catch (err) {
       return { models: [], error: err instanceof Error ? err.message : 'Failed to fetch models' }
-    }
-  })
-
-  ipcMain.handle('ai-ollama-test-connection', async (_event, payload?: { baseUrl?: string; model?: string }) => {
-    try {
-      const stored = loadAIConfig()
-      const baseUrl = (payload?.baseUrl || stored.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
-      const res = await fetch(`${baseUrl}/api/tags`)
-      if (!res.ok) throw new Error(`Connection failed: ${res.status}`)
-      const data = (await res.json()) as { models?: { name: string }[] }
-      const modelNames = (data.models ?? []).map((m) => m.name)
-      const modelToCheck = payload?.model || stored.model
-      if (modelToCheck && !modelNames.includes(modelToCheck)) {
-        return { ok: false, error: `Model '${modelToCheck}' not found. Run: ollama pull ${modelToCheck}` }
-      }
-      return { ok: true, modelCount: modelNames.length }
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
     }
   })
 

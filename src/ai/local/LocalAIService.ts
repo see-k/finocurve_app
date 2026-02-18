@@ -1,9 +1,8 @@
 /**
- * Local AI Service - Ollama + LangChain implementation.
+ * Local AI Service - Multi-provider (Ollama, Bedrock, Azure) + LangChain implementation.
  * Runs in Electron main process. No React/Electron imports.
  */
 
-import { ChatOllama } from '@langchain/ollama'
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type {
   AIService,
@@ -15,6 +14,7 @@ import type {
   Tool,
 } from '../types'
 import { getAIConfig, type AIConfig } from '../config'
+import { createChatModel } from '../createChatModel'
 import { extractTextFromDocument } from './documentParser'
 
 export interface LocalAIServiceOptions {
@@ -26,16 +26,13 @@ export interface LocalAIServiceOptions {
 }
 
 export class LocalAIService implements AIService {
-  private model: ChatOllama
+  private model: ReturnType<typeof createChatModel>
   private options: LocalAIServiceOptions
 
   constructor(options: LocalAIServiceOptions) {
     const config = getAIConfig(options.config)
     this.options = options
-    this.model = new ChatOllama({
-      baseUrl: config.ollamaBaseUrl,
-      model: config.model,
-    })
+    this.model = createChatModel(config)
   }
 
   async generateDocumentInsights(

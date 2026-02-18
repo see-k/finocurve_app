@@ -229,13 +229,13 @@ export default function ReportsScreen() {
   }
 
   const handleAnalyzeWithAI = async () => {
-    if (!window.electronAPI?.aiGenerateInsights || !window.electronAPI?.aiCheckOllama) {
-      setAiError('AI features require the desktop app with Ollama installed.')
+    if (!window.electronAPI?.aiGenerateInsights || !window.electronAPI?.aiCheckConnection) {
+      setAiError('AI features require the desktop app with an AI provider configured.')
       return
     }
-    const check = await window.electronAPI.aiCheckOllama()
+    const check = await window.electronAPI.aiCheckConnection()
     if (!check.ok) {
-      setAiError(check.error ?? 'Ollama not available. Install Ollama and run: ollama pull llama3.2')
+      setAiError(check.error ?? 'AI not available. Configure Ollama, AWS Bedrock, or Azure in Settings.')
       return
     }
     const docs = documents.map((d) => ({

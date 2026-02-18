@@ -46,8 +46,19 @@ interface ElectronAPI {
   aiConfigGet?: () => Promise<AIConfigFromMain>
   aiConfigSave?: (payload: AIConfigPayload) => Promise<{ ok: boolean }>
   aiCheckOllama?: () => Promise<{ ok: boolean; error?: string }>
+  aiCheckConnection?: () => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>
-  aiOllamaTestConnection?: (payload?: { baseUrl?: string; model?: string }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
+  aiTestConnection?: (payload: {
+    provider: 'ollama' | 'bedrock' | 'azure'
+    model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
+    azureDeployment?: string
+  }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
   aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{ text: string }>
 }
