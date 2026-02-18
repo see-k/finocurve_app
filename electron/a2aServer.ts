@@ -77,6 +77,7 @@ function buildAgentCard(port: number) {
   return {
     name: 'FinoCurve AI',
     description: 'Financial risk and document analysis assistant',
+    protocolVersion: '0.3.0',
     url: `http://127.0.0.1:${port}/`,
     version: '1.0.0',
     capabilities: {
@@ -135,8 +136,9 @@ export function startA2AServer(
         return
       }
 
-      // GET /.well-known/agent.json — A2A discovery endpoint
-      if (req.method === 'GET' && req.url === '/.well-known/agent.json') {
+      // GET /.well-known/agent.json or agent-card.json — A2A discovery endpoint
+      const isAgentCard = req.method === 'GET' && (req.url === '/.well-known/agent.json' || req.url === '/.well-known/agent-card.json')
+      if (isAgentCard) {
         const agentCard = buildAgentCard(port)
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(agentCard, null, 2))
@@ -229,46 +231,20 @@ export function startA2AServer(
               responseText = 'I apologize, but I was unable to generate a response. Please try again.'
             }
 
-            // Build A2A Task response
-            const taskId = randomUUID()
+            // A2A spec: JSON-RPC result must be the Message or Task object DIRECTLY, not wrapped.
+            // Clients expect result.parts (Message) or result.artifacts (Task) at top level.
+            // Using direct Message format (like synexura) for immediate sync responses.
             const contextId = params.message?.contextId || randomUUID()
-
-            // The A2A SDK expects 'message/send' to return a SendMessageResponse, 
-            // which wraps the task in a 'task' property.
-            // Client sends 'parts', SDK specs say 'content', so we send both just to be safe.
-            // We also add back 'kind' fields to ensure maximum compatibility.
-            const responsePart = { kind: 'text', text: responseText }
-
-            const task: A2ATask = {
-              id: taskId,
+            const responseMessage = {
+              kind: 'message' as const,
+              messageId: randomUUID(),
               contextId,
-              status: {
-                state: 'TASK_STATE_COMPLETED',
-                message: {
-                  messageId: randomUUID(),
-                  role: 'ROLE_AGENT',
-                  kind: 'message',
-                  content: [responsePart],
-                  parts: [responsePart]
-                },
-              },
-              artifacts: [
-                {
-                  parts: [responsePart],
-                },
-              ],
+              parts: [{ kind: 'text' as const, text: responseText }],
+              metadata: {},
             }
 
-            // Store for later retrieval
-            taskStore.set(taskId, task)
-
-            // Wrap in { task: ... }
-            const response = {
-              task: task
-            }
-
-            console.log('[A2A] Sending message/send response:', JSON.stringify(response, null, 2))
-            sendJson(response)
+            console.log('[A2A] Sending message/send response:', JSON.stringify(responseMessage, null, 2))
+            sendJson(responseMessage)
             return
           }
 
