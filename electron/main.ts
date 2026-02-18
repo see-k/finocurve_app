@@ -3,6 +3,7 @@ import path from 'node:path'
 import { registerS3Handlers } from './s3Handlers'
 import { registerLocalStorageHandlers } from './localStorageHandlers'
 import { registerAIHandlers } from './aiHandlers'
+import { registerPriceHandlers } from './priceHandlers'
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged
@@ -59,5 +60,6 @@ app.whenReady().then(() => {
   registerS3Handlers()
   registerLocalStorageHandlers()
   registerAIHandlers()
+  registerPriceHandlers()
   createWindow()
 })

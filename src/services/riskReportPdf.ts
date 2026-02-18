@@ -72,12 +72,14 @@ interface ReportOptions {
   typeAlloc: Record<string, number>
   /** AI-generated insights from user documents */
   documentInsights?: DocumentInsight[]
+  /** Professional advanced analysis sections (no AI wording) */
+  advancedAnalysis?: { sections: { title: string; content: string }[] }
   /** When true, returns PDF as Uint8Array instead of triggering download */
   returnBlob?: boolean
 }
 
 export async function generateRiskReportPdf(opts: ReportOptions) {
-  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc, documentInsights } = opts
+  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc, documentInsights, advancedAnalysis } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()
   const ph = doc.internal.pageSize.getHeight()
@@ -639,6 +641,31 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     doc.text(`${pct.toFixed(1)}%`, margin + 130, y)
     y += 7
   })
+
+  // ────────────────────────────────────
+  // Advanced Analysis (professional analysis sections)
+  // ────────────────────────────────────
+  if (advancedAnalysis && advancedAnalysis.sections.length > 0) {
+    checkSpace(30)
+    newPage()
+    sectionTitle('Advanced Analysis')
+
+    advancedAnalysis.sections.forEach((sec) => {
+      checkSpace(25)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text(sec.title, margin, y)
+      y += 6
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      const lines = doc.splitTextToSize(sec.content, cw)
+      doc.text(lines, margin, y)
+      y += lines.length * 4 + 8
+    })
+  }
 
   // ────────────────────────────────────
   // AI Document Insights (when available)

@@ -125,6 +125,12 @@
 .period-btn:hover { color: var(--text-primary); }
 .period-btn--active { background: var(--brand-primary); color: white; }
 .dashboard-chart { width: 100%; }
+.performance-chart-disclaimer {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: -8px 0 12px 0;
+  line-height: 1.4;
+}
 
 /* Bottom row */
 .dashboard-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }

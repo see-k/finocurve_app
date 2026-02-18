@@ -3,8 +3,52 @@
  * Persists to localStorage for defensible, explainable risk intelligence.
  */
 import { useState, useCallback } from 'react'
-import type { RiskSnapshot, RiskAnalysisResult, Asset } from '../types'
+import type { RiskSnapshot, RiskAnalysisResult, Asset, VolatilityLevel, SharpeRating, LiquidityLevel, LiquidityCategory } from '../types'
 import { assetCurrentValue } from '../types'
+
+/** Build a minimal RiskAnalysisResult from a snapshot for historical view (limited data) */
+export function snapshotToMinimalRisk(s: RiskSnapshot): RiskAnalysisResult {
+  const volLevel: VolatilityLevel = s.annualizedVolatility < 10 ? 'low' : s.annualizedVolatility < 20 ? 'moderate' : s.annualizedVolatility < 30 ? 'high' : 'very_high'
+  const sharpeRating: SharpeRating = s.sharpeRatio < 0 ? 'poor' : s.sharpeRatio < 0.3 ? 'below_average' : s.sharpeRatio < 0.7 ? 'average' : s.sharpeRatio < 1.2 ? 'good' : 'excellent'
+  const liqLevel: LiquidityLevel = s.liquidityScore >= 70 ? 'high' : s.liquidityScore >= 40 ? 'moderate' : s.liquidityScore >= 20 ? 'low' : 'illiquid'
+  const liqBreakdown: Record<LiquidityCategory, number> = { immediate: 0, short_term: 0, medium_term: 0, long_term: 0 }
+  const maxDrawdown = (s.portfolioValue * s.maxDrawdownPercent) / 100
+  return {
+    riskScore: s.riskScore,
+    riskLevel: s.riskLevel,
+    volatility: s.annualizedVolatility,
+    annualizedVolatility: s.annualizedVolatility,
+    volatilityLevel: volLevel,
+    sharpeRatio: s.sharpeRatio,
+    sharpeRating,
+    maxDrawdown,
+    maxDrawdownPercent: s.maxDrawdownPercent,
+    concentrationWarnings: [],
+    concentrationIndex: 0,
+    liquidityScore: s.liquidityScore,
+    liquidityLevel: liqLevel,
+    liquidityBreakdown: liqBreakdown,
+    diversificationScore: s.diversificationScore,
+    highCorrelations: [],
+    scenarioAnalysis: [],
+    riskContributionByType: s.allocationByType,
+    benchmarkComparison: {
+      benchmarkName: 'S&P 500',
+      benchmarkReturn: 10,
+      benchmarkVolatility: 16,
+      benchmarkSharpe: 0.5,
+      portfolioReturn: 0,
+      portfolioVolatility: s.annualizedVolatility,
+      portfolioSharpe: s.sharpeRatio,
+      returnDiff: 0,
+      riskDiff: 0,
+      verdict: 'Historical snapshot — full benchmark comparison not available.',
+    },
+    topRiskContributors: [],
+    rebalancingSuggestions: [],
+    changeSummary: [],
+  }
+}
 
 const STORAGE_KEY = 'finocurve-risk-snapshots'
 const MAX_SNAPSHOTS = 20

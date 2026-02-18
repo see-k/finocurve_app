@@ -101,6 +101,33 @@ export class LocalAIService implements AIService {
     return insights
   }
 
+  async generateAdvancedAnalysis(payload: {
+    riskSummary: string
+    portfolioSummary: string
+    documentContent?: { fileName: string; text: string }
+  }): Promise<{ sections: { title: string; content: string }[] }> {
+    const systemPrompt = `You are a seasoned financial consultant preparing a professional risk analysis report. Write in a clear, authoritative tone. Do not mention AI, models, automation, or any technology. Write as if you are a human analyst delivering the report to a client. Be specific and actionable. Output valid JSON only, no markdown.`
+
+    let userPrompt = `Portfolio:\n${payload.portfolioSummary}\n\nRisk Analysis:\n${payload.riskSummary}`
+    if (payload.documentContent?.text) {
+      userPrompt += `\n\nSupporting document (${payload.documentContent.fileName}):\n${payload.documentContent.text.slice(0, 8000)}`
+    }
+    userPrompt += `\n\nProduce a professional analysis. Output JSON with exactly these keys:
+- executiveSummary: string (2-3 paragraphs)
+- keyFindings: string[] (5-7 bullet points)
+- recommendations: string[] (4-6 actionable items)
+- riskObservations: string (1 paragraph on risk profile)
+- allocationNotes: string (1 paragraph on allocation)`
+
+    const response = await this.model.invoke([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(userPrompt),
+    ])
+    const raw = typeof response.content === 'string' ? response.content : String(response.content ?? '')
+    const parsed = parseAdvancedAnalysisResponse(raw)
+    return parsed
+  }
+
   async *chat(
     messages: ChatMessage[],
     context: ChatContext
@@ -229,4 +256,33 @@ function parseInsightResponse(
     riskRelevantPoints: [],
     recommendations: [],
   }
+}
+
+function parseAdvancedAnalysisResponse(raw: string): { sections: { title: string; content: string }[] } {
+  const sections: { title: string; content: string }[] = []
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const obj = JSON.parse(jsonMatch[0]) as {
+        executiveSummary?: string
+        keyFindings?: string[]
+        recommendations?: string[]
+        riskObservations?: string
+        allocationNotes?: string
+      }
+      if (obj.executiveSummary) sections.push({ title: 'Executive Summary', content: obj.executiveSummary })
+      if (Array.isArray(obj.keyFindings) && obj.keyFindings.length > 0) {
+        sections.push({ title: 'Key Findings', content: obj.keyFindings.map((f) => `• ${f}`).join('\n') })
+      }
+      if (obj.riskObservations) sections.push({ title: 'Risk Observations', content: obj.riskObservations })
+      if (obj.allocationNotes) sections.push({ title: 'Allocation Notes', content: obj.allocationNotes })
+      if (Array.isArray(obj.recommendations) && obj.recommendations.length > 0) {
+        sections.push({ title: 'Recommendations', content: obj.recommendations.map((r) => `• ${r}`).join('\n') })
+      }
+    }
+  } catch {
+    sections.push({ title: 'Analysis', content: raw.slice(0, 2000) || 'Analysis could not be generated.' })
+  }
+  if (sections.length === 0) sections.push({ title: 'Analysis', content: 'No analysis content was produced.' })
+  return { sections }
 }

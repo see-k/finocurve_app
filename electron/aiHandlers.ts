@@ -8,8 +8,9 @@ import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStora
 import path from 'node:path'
 import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
+import { extractTextFromDocument } from '../src/ai/local/documentParser'
 import { createChatModel } from '../src/ai/createChatModel'
-import { HumanMessage } from '@langchain/core/messages'
+import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
@@ -363,6 +364,32 @@ export function registerAIHandlers(): void {
       chunks.push(chunk)
     }
     return { text: chunks.join('') }
+  })
+
+  ipcMain.handle('ai-generate-advanced-analysis', async (
+    _event,
+    payload: {
+      riskSummary: string
+      portfolioSummary: string
+      document?: { key: string; fileName: string; source: 'cloud' | 'local' }
+    }
+  ) => {
+    const service = getService()
+    let documentContent: { fileName: string; text: string } | undefined
+    if (payload.document) {
+      const content = await getDocumentContent(payload.document.key, payload.document.source)
+      if (content) {
+        const text = await extractTextFromDocument(content.buffer, content.mimeType, payload.document.fileName)
+        if (text && text.trim().length > 10) {
+          documentContent = { fileName: payload.document.fileName, text }
+        }
+      }
+    }
+    return service.generateAdvancedAnalysis({
+      riskSummary: payload.riskSummary,
+      portfolioSummary: payload.portfolioSummary,
+      documentContent,
+    })
   })
 
   // =============================================

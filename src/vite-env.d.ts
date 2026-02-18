@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+declare module '*.json' {
+  const value: unknown
+  export default value
+}
+
 interface AIConfigFromMain {
   provider: 'ollama' | 'bedrock' | 'azure'
   model: string
@@ -31,6 +36,7 @@ interface ElectronAPI {
   s3Upload?: (payload: { key: string; buffer: number[]; contentType?: string }) => Promise<{ ok: boolean }>
   s3List?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
   s3GetDownloadUrl?: (payload: { key: string }) => Promise<{ url: string }>
+  s3GetFileBuffer?: (payload: { key: string }) => Promise<{ buffer: number[]; contentType?: string }>
   s3Delete?: (payload: { key: string }) => Promise<{ ok: boolean }>
   // Local storage (device directory)
   localStorageChooseDirectory?: () => Promise<{ path: string | null }>
@@ -63,6 +69,16 @@ interface ElectronAPI {
   }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
   aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{ text: string }>
+  aiGenerateAdvancedAnalysis?: (payload: {
+    riskSummary: string
+    portfolioSummary: string
+    document?: { key: string; fileName: string; source: 'cloud' | 'local' }
+  }) => Promise<{ sections: { title: string; content: string }[] }>
+  priceHistorical?: (payload: {
+    assets: { symbol: string; quantity: number; type: string; currentValue: number }[]
+    period: '1D' | '1W' | '1M' | '1Y'
+    otherAssetsValue: number
+  }) => Promise<{ data: { date: string; value: number }[]; error: string | null }>
 }
 
 interface Window {

@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('s3-upload', payload),
   s3List: (payload: { prefix: string }) => ipcRenderer.invoke('s3-list', payload),
   s3GetDownloadUrl: (payload: { key: string }) => ipcRenderer.invoke('s3-get-download-url', payload),
+  s3GetFileBuffer: (payload: { key: string }) => ipcRenderer.invoke('s3-get-file-buffer', payload),
   s3Delete: (payload: { key: string }) => ipcRenderer.invoke('s3-delete', payload),
   // Local storage (device directory)
   localStorageChooseDirectory: () => ipcRenderer.invoke('local-storage-choose-directory'),
@@ -61,6 +62,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('ai-generate-insights', payload),
   aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>
     ipcRenderer.invoke('ai-chat-stream', payload),
+  aiGenerateAdvancedAnalysis: (payload: {
+    riskSummary: string
+    portfolioSummary: string
+    document?: { key: string; fileName: string; source: 'cloud' | 'local' }
+  }) => ipcRenderer.invoke('ai-generate-advanced-analysis', payload),
+  priceHistorical: (payload: {
+    assets: { symbol: string; quantity: number; type: string; currentValue: number }[]
+    period: '1D' | '1W' | '1M' | '1Y'
+    otherAssetsValue: number
+  }) => ipcRenderer.invoke('price-historical', payload),
 })
 
 // Expose A2A Server API for Agent-to-Agent protocol support

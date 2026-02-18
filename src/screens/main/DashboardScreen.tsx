@@ -16,8 +16,11 @@ import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import { usePortfolio } from '../../store/usePortfolio'
+import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
+import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
+import { getPerformanceChartData } from '../../utils/performanceChartData'
 import type { PerformancePeriod, Asset } from '../../types'
 import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
 import './DashboardScreen.css'
@@ -50,15 +53,17 @@ export default function DashboardScreen() {
   const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
   const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
 
-  const chartData = useMemo(() => {
-    if (!hasAssets) return []
-    const days = selectedPeriod === '1D' ? 24 : selectedPeriod === '1W' ? 7 : selectedPeriod === '1M' ? 30 : 365
-    const base = totalValue * 0.92
-    return Array.from({ length: days }, (_, i) => ({
-      name: `${i + 1}`,
-      value: +(base + (Math.sin(i * 0.3) * totalValue * 0.04) + (i / days) * (totalValue - base)).toFixed(2),
-    }))
-  }, [hasAssets, totalValue, selectedPeriod])
+  const { history } = usePortfolioValueHistory(totalValue, !!hasAssets)
+  const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
+    portfolio?.assets ?? [],
+    selectedPeriod,
+    totalValue,
+    !!hasAssets && !!window.electronAPI?.priceHistorical
+  )
+  const { data: chartData, hasRealData } = useMemo(
+    () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
+    [history, totalValue, selectedPeriod, historicalApiData]
+  )
 
   const allocationData = useMemo(() => {
     if (!hasAssets) return []
@@ -184,21 +189,43 @@ export default function DashboardScreen() {
             ))}
           </div>
         </div>
+        {!hasRealData && !historicalLoading && (
+          <p className="performance-chart-disclaimer">History builds as you use the app. Add stocks or ETFs with symbols to see live historical performance.</p>
+        )}
         <div className="dashboard-chart">
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
               <defs>
                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="var(--brand-primary)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis hide />
+              <XAxis
+                dataKey="dateLabel"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--glass-border)' }}
+                tickLine={{ stroke: 'var(--glass-border)' }}
+                interval="preserveStartEnd"
+                label={{ value: 'Date', position: 'insideBottom', offset: -8, fill: 'var(--text-tertiary)', fontSize: 11 }}
+              />
+              <YAxis
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--glass-border)' }}
+                tickLine={{ stroke: 'var(--glass-border)' }}
+                tickFormatter={(v) => (v >= 0 ? `$${(v / 1000).toFixed(0)}k` : `-$${(Math.abs(v) / 1000).toFixed(0)}k`)}
+                width={56}
+                tickCount={5}
+                domain={([dataMin, dataMax]) => {
+                  const pad = Math.max(Math.abs(dataMin) * 0.1, Math.abs(dataMax) * 0.1, 10000)
+                  return [dataMin - pad, dataMax + pad]
+                }}
+                label={{ value: 'Portfolio Value ($)', angle: -90, position: 'insideLeft', fill: 'var(--text-tertiary)', fontSize: 11 }}
+              />
               <Tooltip
                 contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
-                labelFormatter={() => ''}
+                formatter={(value: number) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Value']}
+                labelFormatter={(label) => `Date: ${label}`}
               />
               <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#chartGradient)" />
             </AreaChart>
