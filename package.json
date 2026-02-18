@@ -38,6 +38,7 @@
     "@langchain/core": "^1.1.25",
     "@langchain/ollama": "^1.2.2",
     "@langchain/openai": "^1.2.8",
+    "country-list": "^2.4.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
@@ -47,12 +48,14 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.1.0",
+    "react-select": "^5.10.2",
     "react-simple-maps": "^3.0.0",
     "react-tooltip": "^5.30.0",
     "recharts": "^2.15.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/country-list": "^2.1.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/react-simple-maps": "^3.0.6",

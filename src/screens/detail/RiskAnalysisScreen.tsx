@@ -24,18 +24,12 @@ import {
   assetCurrentValue, portfolioAllocationBySector, portfolioAllocationByCountry,
   portfolioAllocationByType, SECTOR_LABELS, ASSET_TYPE_LABELS,
 } from '../../types'
+import { RISK_LEVEL_META } from '../../constants/riskMeta'
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
 const RISK_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#64748b', '#84cc16']
-
-const RISK_LEVEL_META: Record<string, { color: string; label: string; desc: string }> = {
-  conservative: { color: '#10b981', label: 'Conservative', desc: 'Low risk tolerance with focus on capital preservation' },
-  moderate:     { color: '#6366f1', label: 'Moderate',     desc: 'Balanced approach between growth and stability' },
-  growth:       { color: '#f59e0b', label: 'Growth',       desc: 'Higher risk tolerance for potential growth' },
-  aggressive:   { color: '#ef4444', label: 'Aggressive',   desc: 'High risk tolerance with focus on maximum returns' },
-}
 
 const VOL_LEVEL_META: Record<string, { color: string; label: string }> = {
   low: { color: '#10b981', label: 'Low' }, moderate: { color: '#6366f1', label: 'Moderate' },
