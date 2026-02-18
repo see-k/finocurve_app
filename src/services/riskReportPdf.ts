@@ -642,6 +642,83 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   }
 
   // ────────────────────────────────────
+  // Explainability: What Changed & Data Sources
+  // ────────────────────────────────────
+  if ((risk.changeSummary && risk.changeSummary.length > 0) || (risk.explainableMetrics && risk.explainableMetrics.length > 0)) {
+    checkSpace(40)
+    newPage()
+    sectionTitle('Explainability & Methodology')
+
+    if (risk.changeSummary && risk.changeSummary.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('What Changed Since Last Report', margin, y)
+      y += 6
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      risk.changeSummary.forEach((c) => {
+        checkSpace(8)
+        const lines = doc.splitTextToSize(`• ${c}`, cw - 4)
+        doc.text(lines, margin + 4, y)
+        y += lines.length * 4 + 2
+      })
+      y += 10
+    }
+
+    if (risk.explainableMetrics && risk.explainableMetrics.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('Data Sources & Assumptions', margin, y)
+      y += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.muted)
+      doc.text('Each metric includes its data source, key assumptions, and confidence level for defensible decision-making.', margin, y)
+      y += 8
+
+      risk.explainableMetrics.slice(0, 6).forEach((m) => {
+        checkSpace(28)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...C.dark)
+        doc.text(`${m.label} (${typeof m.value === 'number' ? m.value : m.value})`, margin, y)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...C.brand)
+        doc.text(`Confidence: ${m.explainable.confidence}`, margin + 120, y)
+        y += 5
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...C.muted)
+        doc.text(`Source: ${m.explainable.dataSource}`, margin, y)
+        y += 4
+        m.explainable.assumptions.slice(0, 2).forEach((a) => {
+          const lines = doc.splitTextToSize(`• ${a}`, cw - 8)
+          doc.text(lines, margin + 4, y)
+          y += lines.length * 3.5 + 1
+        })
+        y += 4
+      })
+    }
+
+    if (risk.rebalancingSuggestions.length > 0 && risk.rebalancingSuggestions[0].explainable) {
+      checkSpace(20)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('Rebalancing Recommendation Sources', margin, y)
+      y += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.muted)
+      doc.text('Recommendations use balanced portfolio targets (40% stocks, 20% bonds, etc.) with thresholds: >15% deviation = high priority, >5% = medium/low.', margin, y)
+      y += 8
+    }
+  }
+
+  // ────────────────────────────────────
   // PAGE 7: Methodology & Disclaimers
   // ────────────────────────────────────
   newPage()

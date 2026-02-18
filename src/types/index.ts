@@ -245,7 +245,21 @@ export type LiquidityCategory = 'immediate' | 'short_term' | 'medium_term' | 'lo
 export type ScenarioSeverity = 'mild' | 'moderate' | 'severe' | 'extreme'
 export type SuggestionPriority = 'high' | 'medium' | 'low'
 
-export interface ConcentrationWarning { type: 'high' | 'medium'; message: string; asset: string; percentage: number }
+/** Explainability metadata for defensible, source-backed recommendations */
+export type ConfidenceLevel = 'high' | 'medium' | 'low'
+
+export interface ExplainableMetadata {
+  /** Where the data/rule comes from */
+  dataSource: string
+  /** Assumptions made in the calculation */
+  assumptions: string[]
+  /** Confidence in the recommendation (high/medium/low) */
+  confidence: ConfidenceLevel
+  /** What changed since last report (if previous snapshot available) */
+  changeSinceLastReport?: string
+}
+
+export interface ConcentrationWarning { type: 'high' | 'medium'; message: string; asset: string; percentage: number; explainable?: ExplainableMetadata }
 export interface CorrelationPair { asset1: string; asset2: string; correlation: number }
 export interface BenchmarkComparison {
   benchmarkName: string; benchmarkReturn: number; benchmarkVolatility: number; benchmarkSharpe: number
@@ -256,10 +270,20 @@ export interface AssetRiskContribution { assetName: string; symbol?: string; typ
 export interface RebalancingSuggestion {
   action: 'buy' | 'sell' | 'review'; assetType: string; currentPercent: number; targetPercent: number
   changeAmount: number; reason: string; priority: SuggestionPriority
+  /** Source-backed reasoning for explainability */
+  explainable: ExplainableMetadata
 }
 
 export interface ScenarioResult {
   name: string; description: string; impactPercent: number; impactAmount: number; severity: ScenarioSeverity
+}
+
+/** Explainable metric with source, assumptions, and confidence */
+export interface ExplainableMetric {
+  metricId: string
+  label: string
+  value: string | number
+  explainable: ExplainableMetadata
 }
 
 export interface RiskAnalysisResult {
@@ -275,6 +299,26 @@ export interface RiskAnalysisResult {
   benchmarkComparison: BenchmarkComparison
   topRiskContributors: AssetRiskContribution[]
   rebalancingSuggestions: RebalancingSuggestion[]
+  /** Explainable metrics for key risk indicators */
+  explainableMetrics?: ExplainableMetric[]
+  /** Summary of what changed since last report */
+  changeSummary?: string[]
+}
+
+/** Stored risk snapshot for outcome tracking and change comparison */
+export interface RiskSnapshot {
+  id: string
+  timestamp: string
+  portfolioValue: number
+  assetCount: number
+  riskScore: number
+  riskLevel: RiskLevel
+  sharpeRatio: number
+  annualizedVolatility: number
+  maxDrawdownPercent: number
+  diversificationScore: number
+  liquidityScore: number
+  allocationByType: Record<string, number>
 }
 
 // ============================================

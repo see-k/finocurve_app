@@ -1,19 +1,21 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
   Droplets, BarChart3, Target, ArrowUpRight, ArrowDownRight,
   Layers, Globe, PieChart as PieIcon, RefreshCw, Info, FileDown, MapPin, CloudUpload, HardDrive,
+  ChevronDown, ChevronUp, BookOpen, History,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, Tooltip, BarChart, Bar, RadarChart, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, Radar,
+  PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, CartesianGrid,
 } from 'recharts'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import { usePortfolio } from '../../store/usePortfolio'
 import { getSharedDocumentInsights } from '../../store/useDocumentInsights'
+import { useRiskSnapshots, computeChangeSummary } from '../../store/useRiskSnapshots'
 import { analyzePortfolio } from '../../services/riskAnalysis'
 import { generateRiskReportPdf } from '../../services/riskReportPdf'
 import WorldMap from '../../components/WorldMap'
@@ -102,11 +104,19 @@ function countryFlag(name: string): string {
   return iso2.split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 }
 
+const CONFIDENCE_META: Record<string, { color: string; label: string }> = {
+  high:   { color: '#10b981', label: 'High confidence' },
+  medium: { color: '#f59e0b', label: 'Medium confidence' },
+  low:    { color: '#64748b', label: 'Low confidence' },
+}
+
 export default function RiskAnalysisScreen() {
   const navigate = useNavigate()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
+  const { snapshots, lastSnapshot, addSnapshot } = useRiskSnapshots()
+  const hasAutoRecordedRef = useRef(false)
   const [visible, setVisible] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'volatility' | 'scenarios' | 'exposure'>('overview')
+  const [tab, setTab] = useState<'overview' | 'volatility' | 'scenarios' | 'exposure' | 'history'>('overview')
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [savingToCloud, setSavingToCloud] = useState(false)
   const [cloudMessage, setCloudMessage] = useState<string | null>(null)
@@ -114,6 +124,7 @@ export default function RiskAnalysisScreen() {
   const [localConnected, setLocalConnected] = useState<boolean | null>(null)
   const [savingToDevice, setSavingToDevice] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<{ name: string; pct: number } | null>(null)
+  const [expandedExplainable, setExpandedExplainable] = useState<string | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
@@ -123,8 +134,23 @@ export default function RiskAnalysisScreen() {
   }, [])
 
   const assets: Asset[] = portfolio?.assets ?? []
-  const risk = useMemo(() => analyzePortfolio(assets, totalValue, totalGainLossPercent), [assets, totalValue, totalGainLossPercent])
+  const riskBase = useMemo(() => analyzePortfolio(assets, totalValue, totalGainLossPercent), [assets, totalValue, totalGainLossPercent])
+  const changeSummary = useMemo(
+    () => riskBase ? computeChangeSummary(riskBase, assets, totalValue, lastSnapshot) : [],
+    [riskBase, assets, totalValue, lastSnapshot]
+  )
+  const risk = useMemo(() => {
+    if (!riskBase) return null
+    return { ...riskBase, changeSummary: changeSummary.length > 0 ? changeSummary : undefined }
+  }, [riskBase, changeSummary])
   const volHistory = useMemo(() => risk ? generateVolHistory(risk.annualizedVolatility) : [], [risk])
+
+  // Auto-record snapshot on each visit to build history for graphs (once per page load)
+  useEffect(() => {
+    if (hasAutoRecordedRef.current || !risk || assets.length === 0) return
+    hasAutoRecordedRef.current = true
+    addSnapshot(risk, assets, totalValue)
+  }, [risk, assets, totalValue, addSnapshot])
 
   const sectorAlloc = useMemo(() => portfolio ? portfolioAllocationBySector(portfolio) : {}, [portfolio])
   const countryAlloc = useMemo(() => portfolio ? portfolioAllocationByCountry(portfolio) : {}, [portfolio])
@@ -144,6 +170,7 @@ export default function RiskAnalysisScreen() {
   const handleExportPdf = async () => {
     if (!risk || !portfolio) return
     setGeneratingPdf(true)
+    addSnapshot(risk, assets, totalValue)
     try {
       await generateRiskReportPdf({
         risk, assets, totalValue, totalGainLossPercent,
@@ -159,6 +186,7 @@ export default function RiskAnalysisScreen() {
   const handleSaveToCloud = async () => {
     if (!risk || !portfolio || !window.electronAPI?.s3Upload) return
     setCloudMessage(null)
+    addSnapshot(risk, assets, totalValue)
     setSavingToCloud(true)
     try {
       const pdfBytes = await generateRiskReportPdf({
@@ -188,6 +216,7 @@ export default function RiskAnalysisScreen() {
   const handleSaveToDevice = async () => {
     if (!risk || !portfolio || !window.electronAPI?.localStorageSaveFile) return
     setCloudMessage(null)
+    addSnapshot(risk, assets, totalValue)
     setSavingToDevice(true)
     try {
       const pdfBytes = await generateRiskReportPdf({
@@ -319,12 +348,13 @@ export default function RiskAnalysisScreen() {
 
         {/* Tabs */}
         <div className="risk-tabs">
-          {(['overview', 'volatility', 'scenarios', 'exposure'] as const).map(t => (
+          {(['overview', 'volatility', 'scenarios', 'exposure', 'history'] as const).map(t => (
             <button key={t} className={`risk-tab ${tab === t ? 'risk-tab--active' : ''}`} onClick={() => setTab(t)}>
               {t === 'overview' && <BarChart3 size={15} />}
               {t === 'volatility' && <TrendingUp size={15} />}
               {t === 'scenarios' && <AlertTriangle size={15} />}
               {t === 'exposure' && <Globe size={15} />}
+              {t === 'history' && <History size={15} />}
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -339,32 +369,80 @@ export default function RiskAnalysisScreen() {
               <span>Risk metrics are calculated based on asset-class historical data and your portfolio composition. They are indicative and not investment advice.</span>
             </div>
 
-            {/* Key Metrics Grid */}
+            {/* What changed since last report — always visible */}
+            <GlassContainer padding="16px 20px" borderRadius={16} className="risk-change-banner">
+              <h3 className="risk-section-title"><RefreshCw size={16} /> What Changed Since Last Report</h3>
+              {risk.changeSummary && risk.changeSummary.length > 0 ? (
+                <ul className="risk-change-list">
+                  {risk.changeSummary.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              ) : lastSnapshot ? (
+                <p className="risk-change-empty">No significant changes since your last snapshot ({new Date(lastSnapshot.timestamp).toLocaleDateString()}).</p>
+              ) : (
+                <p className="risk-change-empty">No previous snapshot to compare. Visit this page again or save a report to build history and enable change tracking. See the <strong>History</strong> tab for trend graphs.</p>
+              )}
+            </GlassContainer>
+
+            {/* Key Metrics Grid (with explainability) */}
             <div className="risk-metrics-grid">
-              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
-                <div className="risk-metric-card__icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}><Target size={20} /></div>
-                <div className="risk-metric-card__label">Sharpe Ratio</div>
-                <div className="risk-metric-card__value">{risk.sharpeRatio}</div>
-                <div className="risk-metric-card__sub" style={{ color: SHARPE_META[risk.sharpeRating].color }}>{SHARPE_META[risk.sharpeRating].label}</div>
-              </GlassContainer>
-              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
-                <div className="risk-metric-card__icon" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><TrendingDown size={20} /></div>
-                <div className="risk-metric-card__label">Max Drawdown</div>
-                <div className="risk-metric-card__value">-{risk.maxDrawdownPercent}%</div>
-                <div className="risk-metric-card__sub">{fmt(risk.maxDrawdown)}</div>
-              </GlassContainer>
-              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
-                <div className="risk-metric-card__icon" style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}><Droplets size={20} /></div>
-                <div className="risk-metric-card__label">Liquidity Score</div>
-                <div className="risk-metric-card__value">{risk.liquidityScore}/100</div>
-                <div className="risk-metric-card__sub">{risk.liquidityLevel.replace('_', ' ')}</div>
-              </GlassContainer>
-              <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
-                <div className="risk-metric-card__icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><Layers size={20} /></div>
-                <div className="risk-metric-card__label">Diversification</div>
-                <div className="risk-metric-card__value">{risk.diversificationScore}/100</div>
-                <div className="risk-metric-card__sub">HHI: {risk.concentrationIndex.toFixed(2)}</div>
-              </GlassContainer>
+              {risk.explainableMetrics?.filter(m => ['sharpeRatio', 'maxDrawdown', 'liquidityScore', 'diversificationScore'].includes(m.metricId)).map((m) => {
+                const isExp = expandedExplainable === m.metricId
+                const conf = CONFIDENCE_META[m.explainable.confidence] || CONFIDENCE_META.medium
+                return (
+                  <GlassContainer key={m.metricId} padding="20px" borderRadius={16} className="risk-metric-card risk-metric-card--explainable">
+                    <div className="risk-metric-card__head">
+                      <div className="risk-metric-card__icon" style={{ background: m.metricId === 'sharpeRatio' ? 'rgba(99,102,241,0.15)' : m.metricId === 'maxDrawdown' ? 'rgba(239,68,68,0.15)' : m.metricId === 'liquidityScore' ? 'rgba(6,182,212,0.15)' : 'rgba(16,185,129,0.15)', color: m.metricId === 'sharpeRatio' ? '#6366f1' : m.metricId === 'maxDrawdown' ? '#ef4444' : m.metricId === 'liquidityScore' ? '#06b6d4' : '#10b981' }}>
+                        {m.metricId === 'sharpeRatio' ? <Target size={20} /> : m.metricId === 'maxDrawdown' ? <TrendingDown size={20} /> : m.metricId === 'liquidityScore' ? <Droplets size={20} /> : <Layers size={20} />}
+                      </div>
+                      <button type="button" className="risk-metric-card__explain-btn" onClick={() => setExpandedExplainable(isExp ? null : m.metricId)} title="Show source & assumptions">
+                        <BookOpen size={14} />
+                        {isExp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
+                    <div className="risk-metric-card__label">{m.label}</div>
+                    <div className="risk-metric-card__value">{typeof m.value === 'number' ? m.value : m.value}</div>
+                    <div className="risk-metric-card__sub" style={{ color: m.metricId === 'sharpeRatio' ? SHARPE_META[risk.sharpeRating]?.color : undefined }}>
+                      {m.metricId === 'sharpeRatio' ? SHARPE_META[risk.sharpeRating]?.label : m.metricId === 'maxDrawdown' ? fmt(risk.maxDrawdown) : m.metricId === 'liquidityScore' ? risk.liquidityLevel.replace('_', ' ') : `HHI: ${risk.concentrationIndex.toFixed(2)}`}
+                    </div>
+                    {isExp && (
+                      <div className="risk-metric-card__explain">
+                        <div className="risk-explain__source"><strong>Source:</strong> {m.explainable.dataSource}</div>
+                        <div className="risk-explain__assumptions"><strong>Assumptions:</strong><ul>{m.explainable.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul></div>
+                        <span className="risk-explain__confidence" style={{ color: conf.color }}>{conf.label}</span>
+                      </div>
+                    )}
+                  </GlassContainer>
+                )
+              }) ?? (
+                <>
+                  <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                    <div className="risk-metric-card__icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}><Target size={20} /></div>
+                    <div className="risk-metric-card__label">Sharpe Ratio</div>
+                    <div className="risk-metric-card__value">{risk.sharpeRatio}</div>
+                    <div className="risk-metric-card__sub" style={{ color: SHARPE_META[risk.sharpeRating].color }}>{SHARPE_META[risk.sharpeRating].label}</div>
+                  </GlassContainer>
+                  <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                    <div className="risk-metric-card__icon" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><TrendingDown size={20} /></div>
+                    <div className="risk-metric-card__label">Max Drawdown</div>
+                    <div className="risk-metric-card__value">-{risk.maxDrawdownPercent}%</div>
+                    <div className="risk-metric-card__sub">{fmt(risk.maxDrawdown)}</div>
+                  </GlassContainer>
+                  <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                    <div className="risk-metric-card__icon" style={{ background: 'rgba(6,182,212,0.15)', color: '#06b6d4' }}><Droplets size={20} /></div>
+                    <div className="risk-metric-card__label">Liquidity Score</div>
+                    <div className="risk-metric-card__value">{risk.liquidityScore}/100</div>
+                    <div className="risk-metric-card__sub">{risk.liquidityLevel.replace('_', ' ')}</div>
+                  </GlassContainer>
+                  <GlassContainer padding="20px" borderRadius={16} className="risk-metric-card">
+                    <div className="risk-metric-card__icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><Layers size={20} /></div>
+                    <div className="risk-metric-card__label">Diversification</div>
+                    <div className="risk-metric-card__value">{risk.diversificationScore}/100</div>
+                    <div className="risk-metric-card__sub">HHI: {risk.concentrationIndex.toFixed(2)}</div>
+                  </GlassContainer>
+                </>
+              )}
             </div>
 
             {/* Concentration Warnings */}
@@ -455,25 +533,45 @@ export default function RiskAnalysisScreen() {
               </div>
             </GlassContainer>
 
-            {/* Rebalancing Suggestions */}
+            {/* Rebalancing Suggestions (with explainability) */}
             {risk.rebalancingSuggestions.length > 0 && (
               <GlassContainer padding="20px" borderRadius={16}>
                 <h3 className="risk-section-title"><RefreshCw size={16} /> Rebalancing Suggestions</h3>
                 <div className="risk-suggestions">
-                  {risk.rebalancingSuggestions.map((s, i) => (
-                    <div key={i} className="risk-suggestion">
-                      <div className="risk-suggestion__action" style={{ background: s.action === 'buy' ? 'rgba(16,185,129,0.15)' : s.action === 'sell' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', color: s.action === 'buy' ? '#10b981' : s.action === 'sell' ? '#ef4444' : '#6366f1' }}>
-                        {s.action === 'buy' ? <ArrowUpRight size={14} /> : s.action === 'sell' ? <ArrowDownRight size={14} /> : <RefreshCw size={14} />}
-                        {s.action.toUpperCase()}
+                  {risk.rebalancingSuggestions.map((s, i) => {
+                    const expKey = `suggestion-${i}`
+                    const isExp = expandedExplainable === expKey
+                    const conf = s.explainable ? (CONFIDENCE_META[s.explainable.confidence] ?? CONFIDENCE_META.medium) : null
+                    return (
+                      <div key={i} className="risk-suggestion risk-suggestion--explainable">
+                        <div className="risk-suggestion__main">
+                          <div className="risk-suggestion__action" style={{ background: s.action === 'buy' ? 'rgba(16,185,129,0.15)' : s.action === 'sell' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', color: s.action === 'buy' ? '#10b981' : s.action === 'sell' ? '#ef4444' : '#6366f1' }}>
+                            {s.action === 'buy' ? <ArrowUpRight size={14} /> : s.action === 'sell' ? <ArrowDownRight size={14} /> : <RefreshCw size={14} />}
+                            {s.action.toUpperCase()}
+                          </div>
+                          <div className="risk-suggestion__info">
+                            <strong>{s.assetType}</strong>
+                            <span>{s.currentPercent}% → {s.targetPercent}%</span>
+                          </div>
+                          <div className="risk-suggestion__reason">{s.reason}</div>
+                          <span className="risk-suggestion__badge" style={{ background: PRIORITY_META[s.priority].bg, color: PRIORITY_META[s.priority].color }}>{s.priority}</span>
+                          {s.explainable && (
+                            <button type="button" className="risk-suggestion__why-btn" onClick={() => setExpandedExplainable(isExp ? null : expKey)}>
+                              <BookOpen size={12} /> Why? {isExp ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                          )}
+                        </div>
+                        {s.explainable && isExp && (
+                          <div className="risk-suggestion__explain">
+                            <div className="risk-explain__source"><strong>Source:</strong> {s.explainable.dataSource}</div>
+                            <div className="risk-explain__assumptions"><strong>Assumptions:</strong><ul>{s.explainable.assumptions.map((a, j) => <li key={j}>{a}</li>)}</ul></div>
+                            {conf && <span className="risk-explain__confidence" style={{ color: conf.color }}>{conf.label}</span>}
+                            {s.explainable.changeSinceLastReport && <div className="risk-explain__change">{s.explainable.changeSinceLastReport}</div>}
+                          </div>
+                        )}
                       </div>
-                      <div className="risk-suggestion__info">
-                        <strong>{s.assetType}</strong>
-                        <span>{s.currentPercent}% → {s.targetPercent}%</span>
-                      </div>
-                      <div className="risk-suggestion__reason">{s.reason}</div>
-                      <span className="risk-suggestion__badge" style={{ background: PRIORITY_META[s.priority].bg, color: PRIORITY_META[s.priority].color }}>{s.priority}</span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </GlassContainer>
             )}
@@ -704,6 +802,109 @@ export default function RiskAnalysisScreen() {
                 </div>
               </GlassContainer>
             ))}
+          </div>
+        )}
+
+        {/* ═══════ HISTORY TAB ═══════ */}
+        {tab === 'history' && (
+          <div className="risk-tab-content">
+            <div className="risk-info-banner">
+              <Info size={16} />
+              <span>Risk metrics are recorded each time you visit this page or save a report. Up to 20 snapshots are kept for trend analysis.</span>
+            </div>
+
+            {snapshots.length < 2 ? (
+              <GlassContainer padding="32px" borderRadius={16} className="risk-history-empty">
+                <History size={40} style={{ color: 'var(--text-tertiary)', marginBottom: 16 }} />
+                <h3 className="risk-section-title">Not enough history yet</h3>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Visit this page again or save a report to build your risk history. Once you have 2+ snapshots, trend graphs will appear here.
+                </p>
+              </GlassContainer>
+            ) : (
+              <>
+                {/* Chart data: oldest first for time axis */}
+                {(() => {
+                  const chartData = [...snapshots].reverse().map((s) => ({
+                    date: new Date(s.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
+                    riskScore: s.riskScore,
+                    sharpe: s.sharpeRatio,
+                    volatility: s.annualizedVolatility,
+                    maxDD: s.maxDrawdownPercent,
+                    diversification: s.diversificationScore,
+                    liquidity: s.liquidityScore,
+                    value: s.portfolioValue,
+                  }))
+                  return (
+                    <>
+                      <GlassContainer padding="24px" borderRadius={16}>
+                        <h3 className="risk-section-title"><TrendingUp size={16} /> Risk Score Over Time</h3>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={28} />
+                            <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Line type="monotone" dataKey="riskScore" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="Risk Score" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </GlassContainer>
+
+                      <div className="risk-history-grid">
+                        <GlassContainer padding="24px" borderRadius={16}>
+                          <h3 className="risk-section-title">Sharpe Ratio</h3>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={32} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
+                              <Line type="monotone" dataKey="sharpe" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3, fill: '#06b6d4' }} name="Sharpe" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </GlassContainer>
+                        <GlassContainer padding="24px" borderRadius={16}>
+                          <h3 className="risk-section-title">Volatility %</h3>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={32} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
+                              <Line type="monotone" dataKey="volatility" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} name="Volatility %" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </GlassContainer>
+                        <GlassContainer padding="24px" borderRadius={16}>
+                          <h3 className="risk-section-title">Max Drawdown %</h3>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={32} tickFormatter={(v) => `-${v}%`} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`-${v}%`, 'Max DD']} />
+                              <Line type="monotone" dataKey="maxDD" stroke="#ef4444" strokeWidth={2} dot={{ r: 3, fill: '#ef4444' }} name="Max DD %" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </GlassContainer>
+                        <GlassContainer padding="24px" borderRadius={16}>
+                          <h3 className="risk-section-title">Portfolio Value</h3>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={48} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [fmt(v), 'Value']} />
+                              <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Portfolio Value" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </GlassContainer>
+                      </div>
+                    </>
+                  )
+                })()}
+              </>
+            )}
           </div>
         )}
       </div>

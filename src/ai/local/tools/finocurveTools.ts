@@ -24,7 +24,8 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
         return 'No portfolio data available. The user has not set up a portfolio yet.'
       }
       const topHoldings = 'Top holdings not available in current context.'
-      return `Portfolio: ${portfolio.portfolioName}
+      return `[Source: Portfolio data - ${portfolio.portfolioName}]
+Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
 Total gain/loss: ${portfolio.totalGainLossPercent.toFixed(1)}%
 Asset count: ${portfolio.assetCount}
@@ -57,18 +58,19 @@ ${topHoldings}`
   const getDocumentContent = tool(
     async ({ key, source }: { key: string; source: 'cloud' | 'local' }) => {
       const content = await ctx.getDocumentContent(key, source)
+      const fileName = key.split('/').pop() ?? key
       if (!content) {
         return `Could not read document with key: ${key}`
       }
       const text = await ctx.extractTextFromDocument(
         content.buffer,
         content.mimeType,
-        key.split('/').pop()
+        fileName
       )
       if (!text || text.trim().length < 10) {
         return 'Document has little or no extractable text.'
       }
-      return text.slice(0, 15000)
+      return `[Source: Document "${fileName}" from ${source}]\n\n${text.slice(0, 15000)}`
     },
     {
       name: 'get_document_content',
@@ -99,18 +101,19 @@ ${topHoldings}`
   const getReportContent = tool(
     async ({ key, source }: { key: string; source: 'cloud' | 'local' }) => {
       const content = await ctx.getDocumentContent(key, source)
+      const fileName = key.split('/').pop() ?? key
       if (!content) {
         return `Could not read report with key: ${key}`
       }
       const text = await ctx.extractTextFromDocument(
         content.buffer,
         content.mimeType,
-        key.split('/').pop()
+        fileName
       )
       if (!text || text.trim().length < 10) {
         return 'Report has little or no extractable text.'
       }
-      return text.slice(0, 15000)
+      return `[Source: Risk report "${fileName}" from ${source}]\n\n${text.slice(0, 15000)}`
     },
     {
       name: 'get_report_content',
@@ -125,7 +128,8 @@ ${topHoldings}`
   const getRiskMetrics = tool(
     async () => {
       const metrics = await ctx.getRiskMetrics()
-      return metrics || 'Risk metrics are not available. The user may need to run a risk analysis first.'
+      const content = metrics || 'Risk metrics are not available. The user may need to run a risk analysis first.'
+      return `[Source: Risk analysis]\n\n${content}`
     },
     {
       name: 'get_risk_metrics',

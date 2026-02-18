@@ -33,6 +33,15 @@
   flex-direction: column;
 }
 
+.ai-chat-bubble--large .ai-chat-panel {
+  width: 520px;
+  max-height: 700px;
+}
+
+.ai-chat-bubble--large .ai-chat-messages {
+  max-height: 480px;
+}
+
 .ai-chat-header {
   display: flex;
   align-items: center;
@@ -40,12 +49,13 @@
   margin-bottom: 12px;
 }
 
-.ai-chat-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
+.ai-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
+.ai-chat-header-btn,
 .ai-chat-close {
   background: none;
   border: none;
@@ -55,9 +65,16 @@
   border-radius: var(--radius-sm);
 }
 
+.ai-chat-header-btn:hover,
 .ai-chat-close:hover {
   color: var(--text-primary);
   background: var(--glass-bg-hover);
+}
+
+.ai-chat-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .ai-chat-messages {
@@ -76,19 +93,39 @@
   line-height: 1.5;
 }
 
+.ai-chat-msg-wrap {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.ai-chat-msg-wrap--user {
+  flex-direction: row-reverse;
+}
+
+.ai-chat-msg-avatar {
+  flex-shrink: 0;
+}
+
+.ai-chat-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .ai-chat-msg {
   font-size: 13px;
   line-height: 1.5;
   padding: 8px 12px;
   border-radius: var(--radius-md);
-  margin-bottom: 8px;
-  max-width: 90%;
+  max-width: calc(100% - 42px);
 }
 
 .ai-chat-msg--user {
   background: var(--primary-alpha-20);
   color: var(--text-primary);
-  margin-left: auto;
 }
 
 .ai-chat-msg--assistant {
@@ -190,18 +227,24 @@
 .ai-chat-input-row {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .ai-chat-input {
   flex: 1;
+  min-height: 40px;
+  max-height: 160px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--input-border);
   background: var(--input-bg);
   color: var(--text-primary);
   font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
   outline: none;
+  resize: none;
+  overflow-y: auto;
 }
 
 .ai-chat-input:focus {
@@ -214,6 +257,7 @@
 
 .ai-chat-send {
   width: 40px;
+  min-height: 40px;
   height: 40px;
   border-radius: var(--radius-md);
   background: var(--brand-primary);

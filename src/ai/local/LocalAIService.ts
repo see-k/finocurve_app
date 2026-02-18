@@ -107,6 +107,7 @@ export class LocalAIService implements AIService {
   ): AsyncGenerator<string, void, unknown> {
     const systemParts: string[] = [
       'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, and risk metrics. Use the available tools when you need current data.',
+      'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on the risk report (FinoCurve_Risk_Report_2026-02-16.pdf)...", "From your document [filename]...". Be specific about document or report names when citing.',
     ]
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
