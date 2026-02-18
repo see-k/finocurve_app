@@ -449,7 +449,7 @@ export default function ReportsScreen() {
                   ref={fileInputRef}
                   type="file"
                   style={{ display: 'none' }}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt"
                   onChange={handleUpload}
                 />
                 <GlassButton

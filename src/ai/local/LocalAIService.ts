@@ -24,6 +24,7 @@ export interface LocalAIServiceOptions {
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getPortfolioContext: () => Promise<PortfolioContext | null>
   getDocumentList: () => Promise<DocumentRef[]>
+  getReportList: () => Promise<DocumentRef[]>
   getRiskMetrics?: () => Promise<string>
   config?: Partial<AIConfig>
 }
@@ -116,6 +117,7 @@ export class LocalAIService implements AIService {
           ? async () => context.portfolioContext ?? null
           : this.options.getPortfolioContext,
       getDocumentList: this.options.getDocumentList,
+      getReportList: this.options.getReportList,
       getDocumentContent: this.options.getDocumentContent,
       getRiskMetrics:
         context.riskMetrics !== undefined
@@ -187,6 +189,8 @@ export class LocalAIService implements AIService {
       { name: 'get_portfolio_summary', description: 'Get portfolio value, risk score, top holdings' },
       { name: 'get_document_list', description: 'List documents in finocurve/documents/' },
       { name: 'get_document_content', description: 'Fetch text from a document by key' },
+      { name: 'get_report_list', description: 'List risk reports in finocurve/reports/' },
+      { name: 'get_report_content', description: 'Fetch text from a report by key' },
       { name: 'get_risk_metrics', description: 'Get current risk analysis result' },
     ]
   }

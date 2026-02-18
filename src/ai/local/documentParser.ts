@@ -30,6 +30,10 @@ export async function extractTextFromDocument(
     return new TextDecoder('utf-8', { fatal: false }).decode(buffer)
   }
 
+  if (ext === '.csv' || mime.includes('text/csv') || mime.includes('application/csv')) {
+    return new TextDecoder('utf-8', { fatal: false }).decode(buffer)
+  }
+
   return ''
 }
 

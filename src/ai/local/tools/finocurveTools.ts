@@ -10,6 +10,7 @@ import type { DocumentRef, PortfolioContext } from '../../types'
 export interface FinocurveToolContext {
   getPortfolioContext: () => Promise<PortfolioContext | null>
   getDocumentList: () => Promise<DocumentRef[]>
+  getReportList: () => Promise<DocumentRef[]>
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getRiskMetrics: () => Promise<string>
   extractTextFromDocument: (buffer: Uint8Array, mimeType?: string, fileName?: string) => Promise<string>
@@ -79,6 +80,48 @@ ${topHoldings}`
     }
   )
 
+  const getReportList = tool(
+    async () => {
+      const reports = await ctx.getReportList()
+      if (reports.length === 0) {
+        return 'No reports found. The user has not generated any risk reports in finocurve/reports/.'
+      }
+      return reports
+        .map((r) => `- ${r.fileName} (key: ${r.key}, source: ${r.source})`)
+        .join('\n')
+    },
+    {
+      name: 'get_report_list',
+      description: 'List all risk reports the user has generated. Returns file names and keys. Use this when the user asks about their reports, risk reports, or before fetching a specific report.',
+    }
+  )
+
+  const getReportContent = tool(
+    async ({ key, source }: { key: string; source: 'cloud' | 'local' }) => {
+      const content = await ctx.getDocumentContent(key, source)
+      if (!content) {
+        return `Could not read report with key: ${key}`
+      }
+      const text = await ctx.extractTextFromDocument(
+        content.buffer,
+        content.mimeType,
+        key.split('/').pop()
+      )
+      if (!text || text.trim().length < 10) {
+        return 'Report has little or no extractable text.'
+      }
+      return text.slice(0, 15000)
+    },
+    {
+      name: 'get_report_content',
+      description: 'Fetch the text content of a risk report by its key. Use get_report_list first to get report keys. The key is the full path like finocurve/reports/Report.pdf. Source is either "cloud" or "local".',
+      schema: z.object({
+        key: z.string().describe('The report key, e.g. finocurve/reports/Report.pdf'),
+        source: z.enum(['cloud', 'local']).describe('Where the report is stored'),
+      }),
+    }
+  )
+
   const getRiskMetrics = tool(
     async () => {
       const metrics = await ctx.getRiskMetrics()
@@ -90,5 +133,5 @@ ${topHoldings}`
     }
   )
 
-  return [getPortfolioSummary, getDocumentList, getDocumentContent, getRiskMetrics]
+  return [getPortfolioSummary, getDocumentList, getDocumentContent, getReportList, getReportContent, getRiskMetrics]
 }

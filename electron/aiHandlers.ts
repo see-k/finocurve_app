@@ -14,6 +14,7 @@ import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentI
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
+const REPORTS_PREFIX = 'finocurve/reports/'
 const PORTFOLIO_CACHE_FILENAME = 'finocurve-portfolio-cache.json'
 
 interface LocalStorageConfig {
@@ -127,6 +128,22 @@ function listDocumentsFromLocal(): DocumentRef[] {
   return items
 }
 
+function listReportsFromLocal(): DocumentRef[] {
+  const config = getLocalStorageConfig()
+  if (!config) return []
+  const baseDir = path.join(config.directoryPath, REPORTS_PREFIX)
+  if (!fs.existsSync(baseDir)) return []
+  const items: DocumentRef[] = []
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true })
+  for (const ent of entries) {
+    if (ent.isFile()) {
+      const key = REPORTS_PREFIX + ent.name
+      items.push({ key, fileName: ent.name, source: 'local' })
+    }
+  }
+  return items
+}
+
 
 function storedConfigToAIConfig(stored: StoredAIConfig) {
   return {
@@ -153,6 +170,7 @@ export function registerAIHandlers(): void {
         getDocumentContent,
         getPortfolioContext: async () => loadPortfolioCache(),
         getDocumentList: async () => listDocumentsFromLocal(),
+        getReportList: async () => listReportsFromLocal(),
         getRiskMetrics: async () => 'Not available',
         config: storedConfigToAIConfig(stored),
       })
