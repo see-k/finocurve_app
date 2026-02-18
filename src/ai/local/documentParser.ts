@@ -1,9 +1,22 @@
 /**
  * Document parser - extracts text from PDF and other formats.
  * Uses pdf-parse for PDF; plain text for .txt.
+ * Worker configured for Electron (see vite.config.ts externals).
  */
 
+import { getPath, getData } from 'pdf-parse/worker'
 import { PDFParse } from 'pdf-parse'
+
+// Configure worker for Electron - avoids "missing PDF worker module" error
+try {
+  PDFParse.setWorker(getData())
+} catch {
+  try {
+    PDFParse.setWorker(getPath())
+  } catch {
+    /* fallback */
+  }
+}
 
 function getExtension(fileName: string): string {
   const idx = fileName.lastIndexOf('.')
