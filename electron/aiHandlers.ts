@@ -14,9 +14,59 @@ import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentI
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
+const PORTFOLIO_CACHE_FILENAME = 'finocurve-portfolio-cache.json'
 
 interface LocalStorageConfig {
   directoryPath: string
+}
+
+// Portfolio cache for A2A and other main-process consumers (synced from renderer)
+let portfolioContextCache: PortfolioContext | null = null
+
+function getPortfolioCachePath(): string {
+  return path.join(app.getPath('userData'), PORTFOLIO_CACHE_FILENAME)
+}
+
+function loadPortfolioCache(): PortfolioContext | null {
+  if (portfolioContextCache) return portfolioContextCache
+  try {
+    const p = getPortfolioCachePath()
+    if (!fs.existsSync(p)) return null
+    const raw = fs.readFileSync(p, 'utf-8')
+    const parsed = JSON.parse(raw) as PortfolioContext
+    portfolioContextCache = parsed
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function savePortfolioCache(ctx: PortfolioContext | null): void {
+  portfolioContextCache = ctx
+  try {
+    const p = getPortfolioCachePath()
+    if (ctx) {
+      fs.writeFileSync(p, JSON.stringify(ctx), 'utf-8')
+    } else if (fs.existsSync(p)) {
+      fs.unlinkSync(p)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Build ChatContext from main-process-available data (for A2A) */
+function getAIContextForA2A(): ChatContext {
+  const portfolio = loadPortfolioCache()
+  const docs = listDocumentsFromLocal()
+  return {
+    portfolioSummary: portfolio
+      ? `Portfolio: ${portfolio.portfolioName}, ~$${portfolio.totalValue.toLocaleString()}`
+      : undefined,
+    documentCount: docs.length,
+    portfolioContext: portfolio ?? undefined,
+    riskMetrics: undefined,
+  }
 }
 
 function getLocalStorageConfig(): LocalStorageConfig | null {
@@ -101,7 +151,7 @@ export function registerAIHandlers(): void {
       const stored = loadAIConfig()
       aiService = new LocalAIService({
         getDocumentContent,
-        getPortfolioContext: async () => null,
+        getPortfolioContext: async () => loadPortfolioCache(),
         getDocumentList: async () => listDocumentsFromLocal(),
         getRiskMetrics: async () => 'Not available',
         config: storedConfigToAIConfig(stored),
@@ -305,12 +355,22 @@ export function registerAIHandlers(): void {
     BrowserWindow.getAllWindows()[0]?.webContents?.send('a2a:verbose', event)
   }
 
+  // Portfolio sync from renderer (for A2A and main-process tool context)
+  ipcMain.handle('portfolio-sync', async (_event, payload: PortfolioContext | null) => {
+    savePortfolioCache(payload)
+    return { ok: true }
+  })
+
   // Start A2A server
   ipcMain.handle('a2a:start', async (_event, options?: { port?: number }) => {
     try {
       const config = loadAIConfig()
       const port = options?.port ?? config.a2aPort ?? DEFAULT_PORT
-      const result = await startA2AServer(getService, { port, onVerbose: getA2AVerboseCallback() })
+      const result = await startA2AServer(getService, {
+        port,
+        onVerbose: getA2AVerboseCallback(),
+        getAIContext: getAIContextForA2A,
+      })
       return result
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Failed to start A2A server' }
@@ -376,6 +436,10 @@ export function registerAIHandlers(): void {
   const storedConfig = loadAIConfig()
   if (storedConfig.a2aAutoStart || storedConfig.a2aEnabled) {
     const port = storedConfig.a2aPort ?? DEFAULT_PORT
-    startA2AServer(getService, { port, onVerbose: getA2AVerboseCallback() })
+    startA2AServer(getService, {
+      port,
+      onVerbose: getA2AVerboseCallback(),
+      getAIContext: getAIContextForA2A,
+    })
   }
 }

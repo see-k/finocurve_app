@@ -20,7 +20,7 @@ interface ChatMessage {
 
 export default function AIChatBubble() {
   const location = useLocation()
-  const { portfolio, totalValue } = usePortfolio()
+  const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -57,12 +57,23 @@ export default function AIChatBubble() {
         content: m.content,
       }))
 
+      const portfolioContext = portfolio && totalValue >= 0
+        ? {
+            portfolioName: portfolio.name || 'Portfolio',
+            totalValue,
+            totalGainLossPercent: totalGainLossPercent ?? 0,
+            assetCount: portfolio.assets?.length ?? 0,
+          }
+        : undefined
+
       const { text: response } = await window.electronAPI.aiChatStream({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
           portfolioSummary,
           documentCount: undefined,
+          portfolioContext,
+          riskMetrics: undefined,
         },
       })
 

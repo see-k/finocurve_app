@@ -1,9 +1,11 @@
 /**
  * Local AI Service - Multi-provider (Ollama, Bedrock, Azure) + LangChain implementation.
  * Runs in Electron main process. No React/Electron imports.
+ * Supports tool-calling for portfolio, documents, and risk metrics.
  */
 
-import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
+import type { BaseMessage } from '@langchain/core/messages'
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
 import type {
   AIService,
   DocumentRef,
@@ -16,6 +18,7 @@ import type {
 import { getAIConfig, type AIConfig } from '../config'
 import { createChatModel } from '../createChatModel'
 import { extractTextFromDocument } from './documentParser'
+import { createFinocurveTools } from './tools'
 
 export interface LocalAIServiceOptions {
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
@@ -102,10 +105,30 @@ export class LocalAIService implements AIService {
     context: ChatContext
   ): AsyncGenerator<string, void, unknown> {
     const systemParts: string[] = [
-      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, and risk metrics. Use the available tools when needed.',
+      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, and risk metrics. Use the available tools when you need current data.',
     ]
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
+
+    const toolContext = {
+      getPortfolioContext:
+        context.portfolioContext !== undefined
+          ? async () => context.portfolioContext ?? null
+          : this.options.getPortfolioContext,
+      getDocumentList: this.options.getDocumentList,
+      getDocumentContent: this.options.getDocumentContent,
+      getRiskMetrics:
+        context.riskMetrics !== undefined
+          ? async () => (context.riskMetrics ?? 'Not available')
+          : (this.options.getRiskMetrics ?? (async () => 'Not available')),
+      extractTextFromDocument,
+    }
+
+    const tools = createFinocurveTools(toolContext)
+    const modelWithTools =
+      typeof this.model.bindTools === 'function'
+        ? this.model.bindTools(tools)
+        : null
 
     const langchainMessages = [
       new SystemMessage(systemParts.join('\n')),
@@ -118,12 +141,45 @@ export class LocalAIService implements AIService {
       ),
     ]
 
-    const stream = await this.model.stream(langchainMessages)
+    const MAX_TOOL_ROUNDS = 5
+    let round = 0
+    let currentMessages: BaseMessage[] = langchainMessages
+    const modelToUse = modelWithTools ?? this.model
 
-    for await (const chunk of stream) {
-      const text = typeof chunk.content === 'string' ? chunk.content : String(chunk.content ?? '')
-      if (text) yield text
+    while (round < MAX_TOOL_ROUNDS) {
+      const response = await modelToUse.invoke(currentMessages)
+      const aiMessage = AIMessage.isInstance(response) ? response : new AIMessage({ content: response })
+
+      const toolCalls = aiMessage.tool_calls
+      if (!toolCalls || toolCalls.length === 0) {
+        const content = typeof aiMessage.content === 'string' ? aiMessage.content : String(aiMessage.content ?? '')
+        if (content) yield content
+        return
+      }
+
+      const toolMessages: ToolMessage[] = []
+      const toolMap = new Map(tools.map((t) => [t.name, t]))
+
+      for (const tc of toolCalls) {
+        const tool = toolMap.get(tc.name)
+        const id = tc.id ?? `call_${tc.name}_${round}`
+        try {
+          const result = tool
+            ? await (tool as { invoke: (args: unknown) => Promise<unknown> }).invoke(tc.args ?? {})
+            : `Tool ${tc.name} not found`
+          const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
+          toolMessages.push(new ToolMessage({ content: resultStr, tool_call_id: id }))
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Tool execution failed'
+          toolMessages.push(new ToolMessage({ content: `Error: ${errMsg}`, tool_call_id: id, status: 'error' }))
+        }
+      }
+
+      currentMessages = [...currentMessages, aiMessage, ...toolMessages]
+      round++
     }
+
+    yield 'I reached the maximum number of tool calls. Please try a simpler question.'
   }
 
   getTools(): Tool[] {

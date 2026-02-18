@@ -91,6 +91,24 @@ export function usePortfolio() {
     savePortfolio(portfolio)
   }, [portfolio])
 
+  // Sync portfolio to main process for A2A and AI tools (Electron only)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.portfolioSync) return
+    if (!portfolio) {
+      window.electronAPI.portfolioSync(null)
+      return
+    }
+    const totalVal = portfolioTotalValue(portfolio)
+    const totalCostVal = portfolioTotalCost(portfolio)
+    const gainLossPct = totalCostVal > 0 ? ((totalVal - totalCostVal) / totalCostVal) * 100 : 0
+    window.electronAPI.portfolioSync({
+      portfolioName: portfolio.name || 'Portfolio',
+      totalValue: totalVal,
+      totalGainLossPercent: gainLossPct,
+      assetCount: portfolio.assets?.length ?? 0,
+    })
+  }, [portfolio])
+
   const createPortfolio = useCallback((name: string, currency: string) => {
     const now = new Date().toISOString()
     const p: Portfolio = {

@@ -35,6 +35,10 @@ export interface ChatContext {
   currentRoute?: string
   portfolioSummary?: string
   documentCount?: number
+  /** Full portfolio context for tool use (passed from renderer) */
+  portfolioContext?: PortfolioContext | null
+  /** Risk metrics summary for tool use (passed from renderer) */
+  riskMetrics?: string
 }
 
 export interface Tool {

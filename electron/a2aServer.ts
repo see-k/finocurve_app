@@ -28,6 +28,8 @@ export type A2AVerboseCallback = (event: {
 export interface A2AStartOptions {
   port?: number
   onVerbose?: A2AVerboseCallback
+  /** Build ChatContext for tool use (portfolio, documents, etc.). Uses same context as in-app chat. */
+  getAIContext?: () => { portfolioSummary?: string; documentCount?: number; portfolioContext?: unknown; riskMetrics?: string }
 }
 
 export interface A2AStartResult {
@@ -129,6 +131,7 @@ export function startA2AServer(
 
     const port = options?.port ?? DEFAULT_PORT
     const onVerbose = options?.onVerbose
+    const getAIContext = options?.getAIContext
     currentPort = port
 
     const emit = (type: Parameters<NonNullable<typeof onVerbose>>[0]['type'], data: Record<string, unknown>) => {
@@ -222,9 +225,10 @@ export function startA2AServer(
 
             emit('a2a_llm_start', {})
             let responseText: string
+            const chatContext = getAIContext?.() ?? {}
             try {
               const chunks: string[] = []
-              for await (const chunk of service.chat(chatMessages, {})) {
+              for await (const chunk of service.chat(chatMessages, chatContext)) {
                 chunks.push(chunk)
               }
               responseText = chunks.join('')
