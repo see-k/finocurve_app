@@ -217,7 +217,10 @@ export default function DashboardScreen() {
                 width={56}
                 tickCount={5}
                 domain={([dataMin, dataMax]) => {
-                  const pad = Math.max(Math.abs(dataMin) * 0.1, Math.abs(dataMax) * 0.1, 10000)
+                  const range = dataMax - dataMin
+                  const pad = range > 0
+                    ? Math.max(range * 0.15, Math.abs(dataMin + dataMax) / 2 * 0.005, 50)
+                    : Math.max(Math.abs(dataMin) * 0.02, 100)
                   return [dataMin - pad, dataMax + pad]
                 }}
                 label={{ value: 'Portfolio Value ($)', angle: -90, position: 'insideLeft', fill: 'var(--text-tertiary)', fontSize: 11 }}

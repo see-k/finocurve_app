@@ -36,7 +36,7 @@ export function useHistoricalPrices(
     const loanAssets = assets.filter(isLoan)
     const otherValue =
       otherAssets.reduce((s, a) => s + assetCurrentValue(a), 0) -
-      loanAssets.reduce((s, a) => s + Math.abs(a.currentPrice), 0)
+      loanAssets.reduce((s, a) => s + Math.abs(assetCurrentValue(a)), 0)
 
     if (tickerAssets.length === 0) {
       setData([])

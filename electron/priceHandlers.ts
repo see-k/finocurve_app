@@ -21,16 +21,34 @@ interface ChartQuote {
   low?: number | null
 }
 
-function getDateRange(period: Period): { period1: Date; period2: Date; interval: '1d' | '1wk' | '1mo' } {
+interface AssetSeries {
+  quantity: number
+  currentValue: number
+  quotesByBucket: Map<string, number>
+  firstPrice: number | null
+}
+
+function toBucket(date: Date, interval: '1h' | '1d' | '1wk'): string {
+  const iso = date.toISOString()
+  if (interval === '1h') return iso.slice(0, 13) // YYYY-MM-DDTHH
+  return iso.slice(0, 10) // YYYY-MM-DD
+}
+
+function bucketToIso(bucket: string, interval: '1h' | '1d' | '1wk'): string {
+  if (interval === '1h') return `${bucket}:00:00.000Z`
+  return `${bucket}T00:00:00.000Z`
+}
+
+function getDateRange(period: Period): { period1: Date; period2: Date; interval: '1h' | '1d' | '1wk' } {
   const now = new Date()
   const period2 = new Date(now)
   let period1: Date
-  let interval: '1d' | '1wk' | '1mo' = '1d'
+  let interval: '1h' | '1d' | '1wk' = '1d'
 
   switch (period) {
     case '1D':
       period1 = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      interval = '1d'
+      interval = '1h'
       break
     case '1W':
       period1 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -80,35 +98,88 @@ export function registerPriceHandlers(): void {
             return {
               symbol: asset.symbol,
               quantity: asset.quantity,
+              currentValue: asset.currentValue,
               quotes: quotes
                 .filter((q) => q.close != null)
                 .map((q) => ({
-                  date: q.date.getTime(),
+                  date: q.date,
                   price: q.close as number,
                 })),
             }
           })
         )
 
-        // Build date -> total value map
-        const valueByDate = new Map<number, number>()
+        const allBuckets = new Set<string>()
+        const series: AssetSeries[] = []
+        let staticOffset = otherAssetsValue
 
-        for (const settled of results) {
-          if (settled.status === 'rejected') continue
-          const { quantity, quotes } = settled.value
-          for (const { date, price } of quotes) {
-            const prev = valueByDate.get(date) ?? 0
-            valueByDate.set(date, prev + quantity * price)
+        for (let i = 0; i < results.length; i++) {
+          const settled = results[i]
+          const fallbackValue = assets[i]?.currentValue ?? 0
+          if (settled.status === 'rejected') {
+            staticOffset += fallbackValue
+            continue
           }
+
+          const sortedQuotes = [...settled.value.quotes].sort((a, b) => a.date.getTime() - b.date.getTime())
+          if (sortedQuotes.length === 0) {
+            staticOffset += fallbackValue
+            continue
+          }
+
+          const quotesByBucket = new Map<string, number>()
+          for (const quote of sortedQuotes) {
+            const bucket = toBucket(quote.date, interval)
+            quotesByBucket.set(bucket, quote.price)
+            allBuckets.add(bucket)
+          }
+
+          series.push({
+            quantity: settled.value.quantity,
+            currentValue: settled.value.currentValue,
+            quotesByBucket,
+            firstPrice: sortedQuotes[0]?.price ?? null,
+          })
         }
 
-        // Add otherAssetsValue to each point and sort by date
-        const data = Array.from(valueByDate.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([timestamp, value]) => ({
-            date: new Date(timestamp).toISOString(),
-            value: value + otherAssetsValue,
-          }))
+        if (series.length === 0 || allBuckets.size === 0) {
+          return { data: [], error: null }
+        }
+
+        const sortedBuckets = Array.from(allBuckets).sort()
+        const cursor = series.map((s) => ({
+          ...s,
+          lastPrice: s.firstPrice,
+        }))
+
+        const data = sortedBuckets.map((bucket) => {
+          let bucketValue = staticOffset
+          for (const item of cursor) {
+            const priceForBucket = item.quotesByBucket.get(bucket)
+            if (priceForBucket != null) {
+              item.lastPrice = priceForBucket
+            }
+            if (item.lastPrice != null) {
+              bucketValue += item.quantity * item.lastPrice
+            } else {
+              bucketValue += item.currentValue
+            }
+          }
+          return {
+            date: new Date(bucketToIso(bucket, interval)).toISOString(),
+            value: bucketValue,
+          }
+        })
+
+        // Anchor only the latest point to the current portfolio value so the chart's
+        // rightmost point matches the UI totals without distorting all historical points.
+        const latestPoint = data[data.length - 1]
+        if (latestPoint) {
+          const currentTotal = assets.reduce((sum, a) => sum + a.currentValue, 0) + otherAssetsValue
+          if (Number.isFinite(currentTotal)) {
+            latestPoint.value = currentTotal
+          }
+        }
 
         return { data, error: null }
       } catch (err) {
