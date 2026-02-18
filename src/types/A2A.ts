@@ -56,3 +56,15 @@ export interface A2AUpdateSettingsResponse {
     success: boolean
     error?: string
 }
+
+/** A2A verbose event - debug logs from A2A server */
+export interface A2AVerboseEvent {
+    type: 'a2a_request' | 'a2a_llm_start' | 'a2a_llm_end' | 'a2a_llm_error' | 'a2a_response'
+    timestamp: string
+    data: {
+        userText?: string
+        responseLength?: number
+        responsePreview?: string
+        error?: string
+    }
+}

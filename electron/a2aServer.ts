@@ -19,8 +19,15 @@ let isRunning = false
 // Task store — keeps completed tasks so clients can query them
 const taskStore = new Map<string, A2ATask>()
 
+export type A2AVerboseCallback = (event: {
+  type: 'a2a_request' | 'a2a_llm_start' | 'a2a_llm_end' | 'a2a_llm_error' | 'a2a_response'
+  timestamp: string
+  data: { userText?: string; responseLength?: number; responsePreview?: string; error?: string }
+}) => void
+
 export interface A2AStartOptions {
   port?: number
+  onVerbose?: A2AVerboseCallback
 }
 
 export interface A2AStartResult {
@@ -121,7 +128,12 @@ export function startA2AServer(
     }
 
     const port = options?.port ?? DEFAULT_PORT
+    const onVerbose = options?.onVerbose
     currentPort = port
+
+    const emit = (type: Parameters<NonNullable<typeof onVerbose>>[0]['type'], data: Record<string, unknown>) => {
+      onVerbose?.({ type, timestamp: new Date().toISOString(), data })
+    }
 
     const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
       // CORS headers — must be set on every response including preflight
@@ -188,30 +200,27 @@ export function startA2AServer(
           case 'message/send': {
             const params = parsed.params ?? {}
             const userMessage: A2AMessage = params.message
-            console.log('[A2A] Received message/send:', JSON.stringify(userMessage, null, 2))
 
             if (!userMessage || !userMessage.parts) {
-              console.error('[A2A] Invalid message: no parts found')
               sendError(-32602, 'Invalid params: message with parts is required')
               return
             }
 
             const userText = extractTextFromParts(userMessage.parts)
-            console.log('[A2A] Extracted text:', userText)
 
             if (!userText.trim()) {
-              console.error('[A2A] No text content in message parts')
               sendError(-32602, 'No text content found in message parts')
               return
             }
+
+            emit('a2a_request', { userText })
 
             // Build chat messages for the AI service
             const chatMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [
               { role: 'user', content: userText },
             ]
 
-            // Stream response from AI
-            console.log('[A2A] Calling AI service.chat()...')
+            emit('a2a_llm_start', {})
             let responseText: string
             try {
               const chunks: string[] = []
@@ -219,15 +228,18 @@ export function startA2AServer(
                 chunks.push(chunk)
               }
               responseText = chunks.join('')
-              console.log('[A2A] AI response received, length:', responseText.length)
+              emit('a2a_llm_end', {
+                responseLength: responseText.length,
+                responsePreview: responseText.slice(0, 200) + (responseText.length > 200 ? '...' : ''),
+              })
             } catch (chatErr) {
-              console.error('[A2A] AI service.chat() failed:', chatErr)
-              sendError(-32603, `AI service error: ${chatErr instanceof Error ? chatErr.message : 'Unknown error'}`)
+              const errMsg = chatErr instanceof Error ? chatErr.message : 'Unknown error'
+              emit('a2a_llm_error', { error: errMsg })
+              sendError(-32603, `AI service error: ${errMsg}`)
               return
             }
 
             if (!responseText) {
-              console.warn('[A2A] AI returned empty response')
               responseText = 'I apologize, but I was unable to generate a response. Please try again.'
             }
 
@@ -243,7 +255,7 @@ export function startA2AServer(
               metadata: {},
             }
 
-            console.log('[A2A] Sending message/send response:', JSON.stringify(responseMessage, null, 2))
+            emit('a2a_response', { responseLength: responseText.length })
             sendJson(responseMessage)
             return
           }
@@ -300,7 +312,7 @@ export function startA2AServer(
             sendError(-32601, `Method not found: ${parsed.method}`)
         }
       } catch (err) {
-        console.error('[A2A] Request error:', err)
+        emit('a2a_llm_error', { error: err instanceof Error ? err.message : 'Internal error' })
         sendError(-32603, err instanceof Error ? err.message : 'Internal error')
       }
     })
@@ -308,7 +320,6 @@ export function startA2AServer(
     server.listen(port, '127.0.0.1', () => {
       isRunning = true
       serverInstance = server
-      console.log(`[A2A] Server listening on http://127.0.0.1:${port}`)
       resolve({
         success: true,
         port,
@@ -346,7 +357,6 @@ export function stopA2AServer(): Promise<A2AStopResult> {
         isRunning = false
         serverInstance = null
         taskStore.clear()
-        console.log('[A2A] Server stopped')
         resolve({ success: true })
       }
     })

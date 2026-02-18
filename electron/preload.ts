@@ -58,4 +58,9 @@ contextBridge.exposeInMainWorld('a2aAPI', {
   getSettings: () => ipcRenderer.invoke('a2a:getSettings'),
   updateSettings: (settings: { port?: number; autoStart?: boolean }) =>
     ipcRenderer.invoke('a2a:updateSettings', settings),
+  onVerbose: (callback: (event: unknown) => void) => {
+    const handler = (_: unknown, data: unknown) => callback(data)
+    ipcRenderer.on('a2a:verbose', handler)
+    return () => ipcRenderer.removeListener('a2a:verbose', handler)
+  },
 })

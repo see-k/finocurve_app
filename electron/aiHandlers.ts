@@ -2,7 +2,7 @@
  * AI IPC handlers - run AI in main process, expose to renderer via IPC.
  */
 
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, BrowserWindow } from 'electron'
 import { startA2AServer, stopA2AServer, getA2AServerStatus, DEFAULT_PORT } from './a2aServer'
 import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStorage'
 import path from 'node:path'
@@ -212,12 +212,16 @@ export function registerAIHandlers(): void {
   // A2A Server IPC Handlers
   // =============================================
 
+  const getA2AVerboseCallback = () => (event: { type: string; timestamp: string; data: Record<string, unknown> }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents?.send('a2a:verbose', event)
+  }
+
   // Start A2A server
   ipcMain.handle('a2a:start', async (_event, options?: { port?: number }) => {
     try {
       const config = loadAIConfig()
       const port = options?.port ?? config.a2aPort ?? DEFAULT_PORT
-      const result = await startA2AServer(getService, { port })
+      const result = await startA2AServer(getService, { port, onVerbose: getA2AVerboseCallback() })
       return result
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Failed to start A2A server' }
@@ -283,12 +287,6 @@ export function registerAIHandlers(): void {
   const storedConfig = loadAIConfig()
   if (storedConfig.a2aAutoStart || storedConfig.a2aEnabled) {
     const port = storedConfig.a2aPort ?? DEFAULT_PORT
-    startA2AServer(getService, { port }).then((result) => {
-      if (result.success) {
-        console.log(`[A2A] Auto-started on port ${result.port}`)
-      } else {
-        console.error(`[A2A] Auto-start failed: ${result.error}`)
-      }
-    })
+    startA2AServer(getService, { port, onVerbose: getA2AVerboseCallback() })
   }
 }

@@ -77,7 +77,6 @@ export async function getA2AServerStatus(): Promise<A2AServerStatus | null> {
         }
         return response.data || null
     } catch (error) {
-        console.error('[A2A] Failed to get status:', error)
         throw error
     }
 }
@@ -95,7 +94,6 @@ export async function getA2ASettings(): Promise<A2ASettings | null> {
         }
         return response.data || null
     } catch (error) {
-        console.error('[A2A] Failed to get settings:', error)
         throw error
     }
 }
@@ -115,7 +113,6 @@ export async function updateA2ASettings(settings: Partial<A2ASettings>): Promise
         }
         return true
     } catch (error) {
-        console.error('[A2A] Failed to update settings:', error)
         throw error
     }
 }
@@ -134,6 +131,18 @@ export async function isA2AServerRunning(): Promise<boolean> {
     } catch {
         return false
     }
+}
+
+/**
+ * Subscribe to A2A verbose log events (request, LLM start/end, response)
+ * @param callback - Function to call when a verbose event occurs
+ * @returns Unsubscribe function
+ */
+export function subscribeToVerbose(callback: (event: import('../types/A2A').A2AVerboseEvent) => void): () => void {
+    if (!hasA2AAPI() || !(window as any).a2aAPI?.onVerbose) {
+        return () => {}
+    }
+    return (window as any).a2aAPI.onVerbose(callback)
 }
 
 /**

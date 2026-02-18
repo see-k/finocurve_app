@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info } from 'lucide-react'
+import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -14,6 +14,7 @@ import {
   updateA2ASettings,
 } from '../../services/a2a'
 import type { A2AServerStatus, A2ASettings } from '../../types/A2A'
+import AgentTerminal from '../../components/ai/AgentTerminal'
 import './SettingsSubScreen.css'
 
 type AIProvider = 'ollama' | 'bedrock' | 'azure'
@@ -47,6 +48,7 @@ export default function AIConfigScreen() {
   const [a2aLoading, setA2aLoading] = useState(false)
   const [a2aHasChanges, setA2aHasChanges] = useState(false)
   const [a2aSuccess, setA2aSuccess] = useState<string | null>(null)
+  const [showLogsModal, setShowLogsModal] = useState(false)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -489,21 +491,43 @@ export default function AIConfigScreen() {
                           )}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className={`a2a-control-btn ${a2aStatus?.running ? 'a2a-control-btn--stop' : 'a2a-control-btn--start'}`}
-                        onClick={a2aStatus?.running ? handleA2AStop : handleA2AStart}
-                        disabled={a2aLoading}
-                      >
-                        {a2aLoading ? (
-                          <Loader2 size={16} className="a2a-spinner" />
-                        ) : a2aStatus?.running ? (
-                          <Square size={16} />
-                        ) : (
-                          <Play size={16} />
-                        )}
-                        {a2aStatus?.running ? 'Stop' : 'Start'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowLogsModal(true)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                          }}
+                          title="View A2A logs"
+                        >
+                          <Terminal size={16} />
+                          Logs
+                        </button>
+                        <button
+                          type="button"
+                          className={`a2a-control-btn ${a2aStatus?.running ? 'a2a-control-btn--stop' : 'a2a-control-btn--start'}`}
+                          onClick={a2aStatus?.running ? handleA2AStop : handleA2AStart}
+                          disabled={a2aLoading}
+                        >
+                          {a2aLoading ? (
+                            <Loader2 size={16} className="a2a-spinner" />
+                          ) : a2aStatus?.running ? (
+                            <Square size={16} />
+                          ) : (
+                            <Play size={16} />
+                          )}
+                          {a2aStatus?.running ? 'Stop' : 'Start'}
+                        </button>
+                      </div>
                     </div>
 
                     {/* URLs when running */}
@@ -611,6 +635,8 @@ export default function AIConfigScreen() {
             </GlassContainer>
 
             {error && <p style={{ fontSize: 13, color: 'var(--status-error)', marginTop: 16 }}>{error}</p>}
+
+            <AgentTerminal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
 
             <div style={{ marginTop: 24 }}>
               <GlassButton
