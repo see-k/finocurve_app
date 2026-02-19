@@ -305,30 +305,32 @@ export default function DashboardScreen() {
         </GlassContainer>
       </div>
 
-      {/* Top Movers (centered) */}
+      {/* Top Movers — ticker tape */}
       <div className="dash-section dash-section--centered">
         <h2 className="section-title" style={{ textAlign: 'center' }}>Top Movers</h2>
-        <div className="dash-movers-scroll">
-          {topMovers.map(({ asset, pct }) => {
-            const pos = pct >= 0
-            return (
-              <GlassContainer
-                key={asset.id}
-                className="dash-mover-card"
-                padding="16px"
-                borderRadius={16}
-                onClick={() => navigate(`/asset/${asset.id}`)}
-              >
-                <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={36} borderRadius={10} />
-                <div className="dash-mover-card__symbol">{asset.symbol || asset.name.slice(0, 4)}</div>
-                <div className="dash-mover-card__price">${asset.currentPrice.toLocaleString()}</div>
-                <div className={`dash-mover-card__change ${pos ? 'dash-mover-card__change--up' : 'dash-mover-card__change--down'}`}>
-                  {pos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                  {pos ? '+' : ''}{pct.toFixed(2)}%
-                </div>
-              </GlassContainer>
-            )
-          })}
+        <div className="dash-movers-ticker">
+          <div className="dash-movers-ticker__track" aria-hidden="true">
+            {[...topMovers, ...topMovers].map(({ asset, pct }, idx) => {
+              const pos = pct >= 0
+              return (
+                <GlassContainer
+                  key={`${asset.id}-${idx}`}
+                  className="dash-mover-card"
+                  padding="8px 12px"
+                  borderRadius={10}
+                  onClick={() => navigate(`/asset/${asset.id}`)}
+                >
+                  <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={24} borderRadius={6} />
+                  <div className="dash-mover-card__symbol">{asset.symbol || asset.name.slice(0, 4)}</div>
+                  <div className="dash-mover-card__price">${asset.currentPrice.toLocaleString()}</div>
+                  <div className={`dash-mover-card__change ${pos ? 'dash-mover-card__change--up' : 'dash-mover-card__change--down'}`}>
+                    {pos ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                    {pos ? '+' : ''}{pct.toFixed(2)}%
+                  </div>
+                </GlassContainer>
+              )
+            })}
+          </div>
         </div>
       </div>
 

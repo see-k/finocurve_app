@@ -244,31 +244,67 @@
   margin-top: 8px;
 }
 
-/* Movers horizontal scroll */
-.dash-movers-scroll {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 8px 0 12px;
-  scrollbar-width: thin;
-  justify-content: center;
+/* Top Movers — ticker tape */
+.dash-movers-ticker {
+  position: relative;
   width: 100%;
+  overflow: hidden;
+  padding: 6px 0 8px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+.dash-movers-ticker__track {
+  display: flex;
+  gap: 10px;
+  width: max-content;
+  animation: dash-movers-ticker 35s linear infinite;
+}
+.dash-movers-ticker:hover .dash-movers-ticker__track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-movers-ticker__track {
+    animation: none;
+    justify-content: center;
+    width: 100%;
+  }
+  .dash-movers-ticker__track .dash-mover-card:nth-child(n+7) {
+    display: none;
+  }
+  .dash-movers-ticker {
+    mask-image: none;
+  }
+}
+@keyframes dash-movers-ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .dash-mover-card {
-  min-width: 130px;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   transition: transform 0.2s ease;
-  text-align: center;
+  flex-shrink: 0;
 }
-.dash-mover-card:hover { transform: translateY(-4px); }
-.dash-mover-card__icon { font-size: 24px; }
-.dash-mover-card__symbol { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.dash-mover-card__price { font-size: 13px; color: var(--text-secondary); }
-.dash-mover-card__change { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+.dash-mover-card:hover { transform: translateY(-2px); }
+.dash-mover-card__symbol { font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.dash-mover-card__price { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.dash-mover-card__change { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
 .dash-mover-card__change--up { color: var(--status-success); }
 .dash-mover-card__change--down { color: var(--status-error); }
 
