@@ -70,7 +70,116 @@ function getDateRange(period: Period): { period1: Date; period2: Date; interval:
   return { period1, period2, interval }
 }
 
+type AssetType = 'stock' | 'etf' | 'crypto' | 'other'
+type AssetSector = string
+
+function mapQuoteTypeToAssetType(quoteType: string): AssetType {
+  switch (quoteType) {
+    case 'EQUITY':
+      return 'stock'
+    case 'ETF':
+    case 'MUTUALFUND':
+      return 'etf'
+    case 'CRYPTOCURRENCY':
+      return 'crypto'
+    default:
+      return 'other'
+  }
+}
+
+function mapSector(sector?: string): AssetSector {
+  if (!sector) return 'other'
+  const s = sector.toLowerCase()
+  const map: Record<string, AssetSector> = {
+    technology: 'technology',
+    tech: 'technology',
+    healthcare: 'healthcare',
+    financial: 'financials',
+    financials: 'financials',
+    'consumer cyclical': 'consumer_discretionary',
+    'consumer defensive': 'consumer_staples',
+    industrials: 'industrials',
+    energy: 'energy',
+    utilities: 'utilities',
+    'basic materials': 'materials',
+    materials: 'materials',
+    'real estate': 'real_estate',
+    'communication services': 'communication',
+    crypto: 'crypto',
+    diversified: 'diversified',
+  }
+  return map[s] ?? 'other'
+}
+
 export function registerPriceHandlers(): void {
+  ipcMain.handle(
+    'price-search',
+    async (
+      _event,
+      payload: { query: string }
+    ): Promise<{
+      results: Array<{ symbol: string; name: string; type: AssetType; price: number; sector: AssetSector }>
+      error: string | null
+    }> => {
+      try {
+        const { query } = payload
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+          return { results: [], error: null }
+        }
+
+        const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
+        const searchResult = await yahooFinance.search(query.trim(), { quotesCount: 15 })
+
+        const quotes = (searchResult.quotes ?? []) as Array<{
+          symbol?: string
+          quoteType?: string
+          longname?: string
+          shortname?: string
+          sector?: string
+          sectorDisp?: string
+          isYahooFinance?: boolean
+        }>
+        const yahooQuotes = quotes.filter((q) => q.isYahooFinance === true && typeof q.symbol === 'string')
+        if (yahooQuotes.length === 0) {
+          return { results: [], error: null }
+        }
+
+        const symbols = yahooQuotes.map((q) => q.symbol as string)
+        const quoteResults = await yahooFinance.quote(symbols)
+        const quoteArray = Array.isArray(quoteResults) ? quoteResults : [quoteResults]
+        const quoteBySymbol = new Map<string, { regularMarketPrice?: number }>()
+        quoteArray.forEach((q, i) => {
+          const raw = q as { symbol?: string; regularMarketPrice?: number }
+          const sym = raw?.symbol ?? symbols[i]
+          if (sym) quoteBySymbol.set(sym, raw)
+        })
+
+        const results: Array<{ symbol: string; name: string; type: AssetType; price: number; sector: AssetSector }> = []
+        for (const q of yahooQuotes) {
+          const quote = quoteBySymbol.get(q.symbol)
+          const price = quote?.regularMarketPrice
+          if (price == null || !Number.isFinite(price)) continue
+
+          const assetType = mapQuoteTypeToAssetType(q.quoteType ?? '')
+          if (assetType === 'other') continue
+
+          const name = q.longname ?? q.shortname ?? q.symbol
+          const sector = mapSector(q.sector ?? q.sectorDisp)
+          if (assetType === 'etf') {
+            results.push({ symbol: q.symbol, name, type: 'etf', price, sector: sector === 'other' ? 'diversified' : sector })
+          } else {
+            results.push({ symbol: q.symbol, name, type: assetType, price, sector })
+          }
+        }
+
+        return { results, error: null }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { results: [], error: message }
+      }
+    }
+  )
+
   ipcMain.handle(
     'price-historical',
     async (
@@ -84,7 +193,7 @@ export function registerPriceHandlers(): void {
         }
 
         const { period1, period2, interval } = getDateRange(period)
-        const yahooFinance = new YahooFinance()
+        const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
 
         // Fetch chart data for each asset in parallel
         const results = await Promise.allSettled(

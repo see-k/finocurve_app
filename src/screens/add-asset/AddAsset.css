@@ -115,6 +115,35 @@
   flex: 1;
 }
 
+@keyframes add-asset-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.search-results .spin {
+  animation: add-asset-spin 1s linear infinite;
+}
+.search-results-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.search-results-error {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--status-error, #ef4444);
+  font-size: 13px;
+}
+.search-results-fallback {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 /* Search results */
 .search-results {
   display: flex;

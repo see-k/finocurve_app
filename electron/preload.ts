@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     period: '1D' | '1W' | '1M' | '1Y'
     otherAssetsValue: number
   }) => ipcRenderer.invoke('price-historical', payload),
+  priceSearch: (payload: { query: string }) =>
+    ipcRenderer.invoke('price-search', payload),
 })
 
 // Expose A2A Server API for Agent-to-Agent protocol support

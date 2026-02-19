@@ -9,7 +9,7 @@ import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
 import './AIChatBubble.css'
 
-const AI_AVATAR = '/images/finocurve-icon.png'
+import aiAvatar from '/images/finocurve-icon.png'
 
 const AUTHENTICATED_PATHS = ['/main', '/asset/', '/loan/', '/risk-analysis', '/news', '/notifications', '/settings/']
 
@@ -142,7 +142,7 @@ export default function AIChatBubble() {
               <div key={i} className={`ai-chat-msg-wrap ai-chat-msg-wrap--${msg.role}`}>
                 <div className="ai-chat-msg-avatar">
                   {msg.role === 'assistant' ? (
-                    <img src={AI_AVATAR} alt="AI" className="ai-chat-avatar-img" />
+                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
                   ) : (
                     <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
                   )}
@@ -163,7 +163,7 @@ export default function AIChatBubble() {
             {loading && (
               <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
                 <div className="ai-chat-msg-avatar">
-                  <img src={AI_AVATAR} alt="AI" className="ai-chat-avatar-img" />
+                  <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
                 </div>
                 <div className="ai-chat-msg ai-chat-msg--assistant ai-chat-msg--loading">
                   Thinking...

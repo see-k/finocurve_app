@@ -79,6 +79,10 @@ interface ElectronAPI {
     period: '1D' | '1W' | '1M' | '1Y'
     otherAssetsValue: number
   }) => Promise<{ data: { date: string; value: number }[]; error: string | null }>
+  priceSearch?: (payload: { query: string }) => Promise<{
+    results: Array<{ symbol: string; name: string; type: string; price: number; sector: string }>
+    error: string | null
+  }>
 }
 
 interface Window {
