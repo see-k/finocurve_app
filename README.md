@@ -67,10 +67,36 @@ The AI assistant provides document analysis and chat. To use it:
 
 ### Building for Production
 
-To build the application for distribution:
+Build a production distributable for macOS:
 ```bash
-npm run build
+npm run dist
 ```
+
+Build for a specific CPU architecture:
+```bash
+npm run dist:arm    # Apple Silicon (arm64)
+npm run dist:intel  # Intel (x64)
+```
+
+Release artifacts (`.dmg`, `.zip`, blockmaps) are written to:
+```bash
+release/
+```
+
+If you are preparing a new release, bump `version` in `package.json` before building.
+
+### Updating From a New DMG (Data Persistence)
+
+Installing a newer `.dmg` and choosing **Replace** for `FinoCurve.app` should not erase user data.
+
+User data is stored outside the app bundle:
+- Renderer data in browser storage (`localStorage`)
+- Main-process config/cache in Electron `userData` (macOS: `~/Library/Application Support/finocurve-app`)
+
+You usually only lose data if:
+- You explicitly clear it in-app (for example via Delete Account/Sign Out flows)
+- The `~/Library/Application Support/finocurve-app` folder is manually removed
+- App identity/storage path is changed between releases
 
 ## 📸 Screenshots
 
