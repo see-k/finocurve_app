@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Maximize2, Minimize2 } from 'lucide-react'
+import { MessageCircle, X, Send, Maximize2, Minimize2, MessageSquarePlus } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import GlassContainer from '../glass/GlassContainer'
@@ -60,6 +60,12 @@ export default function AIChatBubble() {
     ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
     : undefined
 
+  const handleNewChat = () => {
+    setMessages([])
+    setInput('')
+    setError(null)
+  }
+
   const handleSend = async () => {
     const text = input.trim()
     if (!text || loading || !window.electronAPI?.aiChatStream) return
@@ -115,6 +121,13 @@ export default function AIChatBubble() {
           <div className="ai-chat-header">
             <span className="ai-chat-title">AI Assistant</span>
             <div className="ai-chat-header-actions">
+              <button
+                className="ai-chat-header-btn"
+                onClick={handleNewChat}
+                aria-label="New chat"
+              >
+                <MessageSquarePlus size={18} />
+              </button>
               <button
                 className="ai-chat-header-btn"
                 onClick={() => setLarge(!large)}
