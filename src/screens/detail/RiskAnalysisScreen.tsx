@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, AlertTriangle, TrendingUp, TrendingDown,
@@ -599,8 +600,8 @@ export default function RiskAnalysisScreen() {
           </div>
         </div>
 
-        {/* Load Report Modal */}
-        {loadReportModal && (
+        {/* Load Report Modal - rendered via portal to avoid transform/scroll containment */}
+        {loadReportModal && createPortal(
           <div className="risk-advanced-modal-overlay" onClick={() => setLoadReportModal(false)}>
             <div className="risk-advanced-modal risk-load-report-modal" onClick={(e) => e.stopPropagation()}>
               <div className="risk-advanced-modal__header">
@@ -663,11 +664,12 @@ export default function RiskAnalysisScreen() {
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
-        {/* Advanced Analysis Modal */}
-        {advancedAnalysisModal && !advancedAnalysisRunning && (
+        {/* Advanced Analysis Modal - rendered via portal to avoid transform/scroll containment */}
+        {advancedAnalysisModal && !advancedAnalysisRunning && createPortal(
           <div className="risk-advanced-modal-overlay" onClick={() => setAdvancedAnalysisModal(false)}>
             <div className="risk-advanced-modal" onClick={(e) => e.stopPropagation()}>
               <div className="risk-advanced-modal__header">
@@ -698,11 +700,12 @@ export default function RiskAnalysisScreen() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
-        {/* Advanced Analysis Progress Overlay */}
-        {advancedAnalysisRunning && (
+        {/* Advanced Analysis Progress Overlay - rendered via portal to avoid transform/scroll containment */}
+        {advancedAnalysisRunning && createPortal(
           <div className="risk-advanced-progress-overlay">
             <div className="risk-advanced-progress">
               <BarChart2 size={24} />
@@ -714,7 +717,8 @@ export default function RiskAnalysisScreen() {
                 Cancel
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {loadedAnalysis && (
