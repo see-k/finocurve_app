@@ -14,6 +14,14 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist-electron',
+            rollupOptions: {
+              external: [
+                'pdf-parse',
+                'pdf-parse/worker',
+                '@napi-rs/canvas',
+                /^@napi-rs\/canvas-.*/,
+              ],
+            },
           },
         },
       },

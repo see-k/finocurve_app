@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search } from 'lucide-react'
+import { ArrowLeft, Search, Loader2 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -38,16 +38,55 @@ export default function SearchPublicAssetScreen() {
   const [selected, setSelected] = useState<PublicAsset | null>(null)
   const [quantity, setQuantity] = useState('')
   const [costBasis, setCostBasis] = useState('')
+  const [searchResults, setSearchResults] = useState<PublicAsset[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
+  const hasLiveSearch = typeof window !== 'undefined' && !!window.electronAPI?.priceSearch
+
+  const fetchSearch = useCallback(async (q: string) => {
+    if (!q.trim() || !hasLiveSearch) return
+    setSearchLoading(true)
+    setSearchError(null)
+    try {
+      const { results, error } = await window.electronAPI!.priceSearch!({ query: q.trim() })
+      if (error) {
+        setSearchError(error)
+        setSearchResults([])
+      } else {
+        setSearchResults(results as PublicAsset[])
+      }
+    } catch {
+      setSearchError('Search failed')
+      setSearchResults([])
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [hasLiveSearch])
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setSearchResults([])
+      setSearchError(null)
+      return
+    }
+    const timer = setTimeout(() => fetchSearch(query), 350)
+    return () => clearTimeout(timer)
+  }, [query, fetchSearch])
+
   const results = useMemo(() => {
     if (!query.trim()) return SAMPLE_PUBLIC_ASSETS.slice(0, 8)
+    if (hasLiveSearch && !searchError) {
+      if (searchLoading && searchResults.length === 0) return []
+      if (searchResults.length > 0) return searchResults
+    }
     const q = query.toLowerCase()
     return SAMPLE_PUBLIC_ASSETS.filter(
       a => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
     )
-  }, [query])
+  }, [query, hasLiveSearch, searchResults, searchLoading, searchError])
 
   const handleAdd = () => {
     if (!selected || !quantity) return
@@ -92,6 +131,18 @@ export default function SearchPublicAssetScreen() {
 
           {!selected ? (
             <div className="search-results">
+              {searchLoading && (
+                <div className="search-results-loading">
+                  <Loader2 size={24} className="spin" />
+                  <span>Searching Yahoo Finance…</span>
+                </div>
+              )}
+              {!searchLoading && searchError && query.trim() && (
+                <div className="search-results-error">
+                  {searchError}
+                  <span className="search-results-fallback">Showing sample list below.</span>
+                </div>
+              )}
               {results.map(a => (
                 <div
                   key={a.symbol}

@@ -1,4 +1,5 @@
 .detail-screen {
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -6,6 +7,8 @@
   padding: 40px;
   position: relative;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .detail-bg-glow {
   position: fixed;

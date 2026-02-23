@@ -5,6 +5,7 @@ import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import CountrySelect from '../../components/CountrySelect'
 import type { Asset, AssetType, AssetSector } from '../../types'
 import {
   ASSET_TYPE_LABELS, SECTOR_LABELS, BROKERAGES, CURRENCIES,
@@ -128,7 +129,7 @@ export default function AddManualAssetScreen() {
 
             <div>
               <label className="add-asset-label">Country</label>
-              <GlassTextField value={country} onChange={setCountry} placeholder="e.g. US" />
+              <CountrySelect value={country} onChange={setCountry} placeholder="Select country..." />
             </div>
 
             <div>

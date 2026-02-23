@@ -125,6 +125,12 @@
 .period-btn:hover { color: var(--text-primary); }
 .period-btn--active { background: var(--brand-primary); color: white; }
 .dashboard-chart { width: 100%; }
+.performance-chart-disclaimer {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: -8px 0 12px 0;
+  line-height: 1.4;
+}
 
 /* Bottom row */
 .dashboard-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -132,6 +138,74 @@
 /* Risk card */
 .dash-risk-card { cursor: pointer; transition: transform 0.2s ease; }
 .dash-risk-card:hover { transform: translateY(-2px); }
+.dash-risk-card__content {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.dash-risk-card__ring {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+.dash-risk-card__score {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.dash-risk-card__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.dash-risk-card__badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+.dash-risk-card__desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+.dash-risk-card__mini-stats {
+  display: flex;
+  gap: 20px;
+}
+.dash-risk-card__mini-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-risk-card__mini-stats span {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dash-risk-card__mini-stats strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.dash-risk-card__cta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
 
 /* Allocation */
 .dashboard-allocation { display: flex; flex-direction: column; }
@@ -170,31 +244,67 @@
   margin-top: 8px;
 }
 
-/* Movers horizontal scroll */
-.dash-movers-scroll {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 8px 0 12px;
-  scrollbar-width: thin;
-  justify-content: center;
+/* Top Movers — ticker tape */
+.dash-movers-ticker {
+  position: relative;
   width: 100%;
+  overflow: hidden;
+  padding: 6px 0 8px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+.dash-movers-ticker__track {
+  display: flex;
+  gap: 10px;
+  width: max-content;
+  animation: dash-movers-ticker 35s linear infinite;
+}
+.dash-movers-ticker:hover .dash-movers-ticker__track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-movers-ticker__track {
+    animation: none;
+    justify-content: center;
+    width: 100%;
+  }
+  .dash-movers-ticker__track .dash-mover-card:nth-child(n+7) {
+    display: none;
+  }
+  .dash-movers-ticker {
+    mask-image: none;
+  }
+}
+@keyframes dash-movers-ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .dash-mover-card {
-  min-width: 130px;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   transition: transform 0.2s ease;
-  text-align: center;
+  flex-shrink: 0;
 }
-.dash-mover-card:hover { transform: translateY(-4px); }
-.dash-mover-card__icon { font-size: 24px; }
-.dash-mover-card__symbol { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.dash-mover-card__price { font-size: 13px; color: var(--text-secondary); }
-.dash-mover-card__change { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+.dash-mover-card:hover { transform: translateY(-2px); }
+.dash-mover-card__symbol { font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.dash-mover-card__price { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.dash-mover-card__change { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
 .dash-mover-card__change--up { color: var(--status-success); }
 .dash-mover-card__change--down { color: var(--status-error); }
 

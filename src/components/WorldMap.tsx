@@ -8,11 +8,12 @@ import {
   ComposableMap,
   Geographies,
   Geography,
-  ZoomableGroup,
-} from 'react-simple-maps'
+} from '@vnedyalk0v/react19-simple-maps'
 import { Tooltip as ReactTooltip } from 'react-tooltip'
+import geographyData from '@/data/countries-110m.json'
 
-const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+// TopoJSON object - avoids URL validation issues in Electron
+const GEO_DATA = geographyData as { type: string; objects: Record<string, unknown>; arcs: unknown[] }
 
 // ISO 3166 numeric → name mapping for major countries
 const COUNTRY_NUM_TO_NAME: Record<string, string> = {
@@ -132,64 +133,63 @@ export default function WorldMap({ countryExposure, totalValue, onCountryClick }
   return (
     <div className="world-map-container">
       <ComposableMap
-        projectionConfig={{ rotate: [-10, 0, 0], scale: 147 }}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- library branded type quirk
+        projectionConfig={{ rotate: [-10, 0, 0], scale: 147 } as any}
         width={800}
         height={400}
         style={{ width: '100%', height: 'auto' }}
       >
-        <ZoomableGroup center={[0, 20]} zoom={1}>
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const numId = geo.id || geo.properties?.['ISO_A3_EH']
-                const entry = numericExposure[numId]
-                const pct = entry?.pct ?? 0
-                const countryName = geo.properties?.name || entry?.name || 'Unknown'
-                const isHovered = hovered === numId
+        <Geographies geography={GEO_DATA}>
+          {({ geographies }) =>
+            geographies.map((geo) => {
+              const numId = geo.id || geo.properties?.['ISO_A3_EH']
+              const entry = numericExposure[numId]
+              const pct = entry?.pct ?? 0
+              const countryName = geo.properties?.name || entry?.name || 'Unknown'
+              const isHovered = hovered === numId
 
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    data-tooltip-id="map-tooltip"
-                    data-tooltip-content={
-                      pct > 0
-                        ? `${countryName}: ${pct.toFixed(1)}% ($${((pct / 100) * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })})`
-                        : countryName
-                    }
-                    onMouseEnter={() => { setHovered(numId); setTooltipContent(countryName) }}
-                    onMouseLeave={() => { setHovered(null); setTooltipContent('') }}
-                    onClick={() => pct > 0 && onCountryClick?.(entry?.name || countryName, pct)}
-                    style={{
-                      default: {
-                        fill: getExposureColor(pct, isDark),
-                        stroke: isDark ? '#334155' : '#cbd5e1',
-                        strokeWidth: 0.5,
-                        outline: 'none',
-                        transition: 'fill 0.2s ease',
-                      },
-                      hover: {
-                        fill: pct > 0
-                          ? getExposureColor(Math.min(pct + 15, 100), isDark)
-                          : isDark ? '#334155' : '#cbd5e1',
-                        stroke: '#6366f1',
-                        strokeWidth: 1,
-                        outline: 'none',
-                        cursor: pct > 0 ? 'pointer' : 'default',
-                      },
-                      pressed: {
-                        fill: '#6366f1',
-                        stroke: '#6366f1',
-                        strokeWidth: 1,
-                        outline: 'none',
-                      },
-                    }}
-                  />
-                )
-              })
-            }
-          </Geographies>
-        </ZoomableGroup>
+              return (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  data-tooltip-id="map-tooltip"
+                  data-tooltip-content={
+                    pct > 0
+                      ? `${countryName}: ${pct.toFixed(1)}% ($${((pct / 100) * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })})`
+                      : countryName
+                  }
+                  onMouseEnter={() => { setHovered(numId); setTooltipContent(countryName) }}
+                  onMouseLeave={() => { setHovered(null); setTooltipContent('') }}
+                  onClick={() => pct > 0 && onCountryClick?.(entry?.name || countryName, pct)}
+                  style={{
+                    default: {
+                      fill: getExposureColor(pct, isDark),
+                      stroke: isDark ? '#334155' : '#cbd5e1',
+                      strokeWidth: 0.5,
+                      outline: 'none',
+                      transition: 'fill 0.2s ease',
+                    },
+                    hover: {
+                      fill: pct > 0
+                        ? getExposureColor(Math.min(pct + 15, 100), isDark)
+                        : isDark ? '#334155' : '#cbd5e1',
+                      stroke: '#6366f1',
+                      strokeWidth: 1,
+                      outline: 'none',
+                      cursor: pct > 0 ? 'pointer' : 'default',
+                    },
+                    pressed: {
+                      fill: '#6366f1',
+                      stroke: '#6366f1',
+                      strokeWidth: 1,
+                      outline: 'none',
+                    },
+                  }}
+                />
+              )
+            })
+          }
+        </Geographies>
       </ComposableMap>
       <ReactTooltip
         id="map-tooltip"

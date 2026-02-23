@@ -10,13 +10,17 @@ import {
   Newspaper, ChevronRight,
 } from 'lucide-react'
 import { analyzePortfolio } from '../../services/riskAnalysis'
+import { RISK_LEVEL_META } from '../../constants/riskMeta'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import { usePortfolio } from '../../store/usePortfolio'
+import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
+import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
+import { getPerformanceChartData } from '../../utils/performanceChartData'
 import type { PerformancePeriod, Asset } from '../../types'
 import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
 import './DashboardScreen.css'
@@ -49,15 +53,17 @@ export default function DashboardScreen() {
   const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
   const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
 
-  const chartData = useMemo(() => {
-    if (!hasAssets) return []
-    const days = selectedPeriod === '1D' ? 24 : selectedPeriod === '1W' ? 7 : selectedPeriod === '1M' ? 30 : 365
-    const base = totalValue * 0.92
-    return Array.from({ length: days }, (_, i) => ({
-      name: `${i + 1}`,
-      value: +(base + (Math.sin(i * 0.3) * totalValue * 0.04) + (i / days) * (totalValue - base)).toFixed(2),
-    }))
-  }, [hasAssets, totalValue, selectedPeriod])
+  const { history } = usePortfolioValueHistory(totalValue, !!hasAssets)
+  const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
+    portfolio?.assets ?? [],
+    selectedPeriod,
+    totalValue,
+    !!hasAssets && !!window.electronAPI?.priceHistorical
+  )
+  const { data: chartData, hasRealData } = useMemo(
+    () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
+    [history, totalValue, selectedPeriod, historicalApiData]
+  )
 
   const allocationData = useMemo(() => {
     if (!hasAssets) return []
@@ -78,11 +84,18 @@ export default function DashboardScreen() {
       .slice(0, 6)
   }, [hasAssets, nonLoanAssets])
 
-  // Real risk analysis
-  const riskResult = useMemo(() => hasAssets ? analyzePortfolio(nonLoanAssets, totalValue, totalGainLossPercent) : null, [hasAssets, nonLoanAssets, totalValue, totalGainLossPercent])
+  // Risk analysis uses investable assets only (excludes loans) to avoid negative weights when liabilities dominate
+  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
+  const totalInvestableCost = nonLoanAssets.reduce((s, a) => s + a.costBasis, 0)
+  const totalInvestableGainLossPercent = totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0
+  const riskResult = useMemo(
+    () => (nonLoanAssets.length > 0 && totalInvestableValue > 0)
+      ? analyzePortfolio(nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent)
+      : null,
+    [nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent]
+  )
   const riskScore = riskResult?.riskScore ?? 0
-  const riskLevelLabel = riskResult ? ({ conservative: 'Conservative', moderate: 'Moderate', growth: 'Growth', aggressive: 'Aggressive' }[riskResult.riskLevel]) : 'N/A'
-  const riskColor = riskResult ? ({ conservative: 'var(--status-success)', moderate: 'var(--brand-primary)', growth: 'var(--status-warning)', aggressive: 'var(--status-error)' }[riskResult.riskLevel]) : 'var(--text-tertiary)'
+  const riskMeta = riskResult ? RISK_LEVEL_META[riskResult.riskLevel] : null
 
   if (!hasAssets) {
     return (
@@ -176,21 +189,46 @@ export default function DashboardScreen() {
             ))}
           </div>
         </div>
+        {!hasRealData && !historicalLoading && (
+          <p className="performance-chart-disclaimer">History builds as you use the app. Add stocks or ETFs with symbols to see live historical performance.</p>
+        )}
         <div className="dashboard-chart">
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
               <defs>
                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="var(--brand-primary)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis hide />
+              <XAxis
+                dataKey="dateLabel"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--glass-border)' }}
+                tickLine={{ stroke: 'var(--glass-border)' }}
+                interval="preserveStartEnd"
+                label={{ value: 'Date', position: 'insideBottom', offset: -8, fill: 'var(--text-tertiary)', fontSize: 11 }}
+              />
+              <YAxis
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--glass-border)' }}
+                tickLine={{ stroke: 'var(--glass-border)' }}
+                tickFormatter={(v) => (v >= 0 ? `$${(v / 1000).toFixed(0)}k` : `-$${(Math.abs(v) / 1000).toFixed(0)}k`)}
+                width={56}
+                tickCount={5}
+                domain={([dataMin, dataMax]) => {
+                  const range = dataMax - dataMin
+                  const pad = range > 0
+                    ? Math.max(range * 0.15, Math.abs(dataMin + dataMax) / 2 * 0.005, 50)
+                    : Math.max(Math.abs(dataMin) * 0.02, 100)
+                  return [dataMin - pad, dataMax + pad]
+                }}
+                label={{ value: 'Portfolio Value ($)', angle: -90, position: 'insideLeft', fill: 'var(--text-tertiary)', fontSize: 11 }}
+              />
               <Tooltip
                 contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
-                labelFormatter={() => ''}
+                formatter={(value: number) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Value']}
+                labelFormatter={(label) => `Date: ${label}`}
               />
               <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#chartGradient)" />
             </AreaChart>
@@ -206,12 +244,12 @@ export default function DashboardScreen() {
             <h2 className="section-title"><Shield size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />Risk Score</h2>
             <ChevronRight size={18} style={{ color: 'var(--text-tertiary)' }} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div style={{ position: 'relative', width: 100, height: 100 }}>
+          <div className="dash-risk-card__content">
+            <div className="dash-risk-card__ring">
               <svg width="100" height="100" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="var(--glass-border)" strokeWidth="8" />
                 <circle cx="50" cy="50" r="42" fill="none"
-                  stroke={riskColor}
+                  stroke={riskMeta?.color ?? 'var(--text-tertiary)'}
                   strokeWidth="8" strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 42}
                   strokeDashoffset={2 * Math.PI * 42 * (1 - riskScore / 100)}
@@ -219,15 +257,23 @@ export default function DashboardScreen() {
                   style={{ transition: 'stroke-dashoffset 1s ease' }}
                 />
               </svg>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{riskScore}</span>
-              </div>
+              <span className="dash-risk-card__score">{riskScore}</span>
             </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: riskColor, textTransform: 'capitalize', marginBottom: 8 }}>
-                {riskLevelLabel}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>View full analysis</div>
+            <div className="dash-risk-card__summary">
+              {riskMeta && (
+                <>
+                  <span className="dash-risk-card__badge" style={{ background: riskMeta.color }}>{riskMeta.label}</span>
+                  <p className="dash-risk-card__desc">{riskMeta.desc}</p>
+                </>
+              )}
+              {riskResult && (
+                <div className="dash-risk-card__mini-stats">
+                  <div><span>Sharpe</span><strong>{riskResult.sharpeRatio}</strong></div>
+                  <div><span>Volatility</span><strong>{riskResult.annualizedVolatility}%</strong></div>
+                  <div><span>Max DD</span><strong>-{riskResult.maxDrawdownPercent}%</strong></div>
+                </div>
+              )}
+              <div className="dash-risk-card__cta">View full analysis</div>
             </div>
           </div>
         </GlassContainer>
@@ -259,30 +305,32 @@ export default function DashboardScreen() {
         </GlassContainer>
       </div>
 
-      {/* Top Movers (centered) */}
+      {/* Top Movers — ticker tape */}
       <div className="dash-section dash-section--centered">
         <h2 className="section-title" style={{ textAlign: 'center' }}>Top Movers</h2>
-        <div className="dash-movers-scroll">
-          {topMovers.map(({ asset, pct }) => {
-            const pos = pct >= 0
-            return (
-              <GlassContainer
-                key={asset.id}
-                className="dash-mover-card"
-                padding="16px"
-                borderRadius={16}
-                onClick={() => navigate(`/asset/${asset.id}`)}
-              >
-                <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={36} borderRadius={10} />
-                <div className="dash-mover-card__symbol">{asset.symbol || asset.name.slice(0, 4)}</div>
-                <div className="dash-mover-card__price">${asset.currentPrice.toLocaleString()}</div>
-                <div className={`dash-mover-card__change ${pos ? 'dash-mover-card__change--up' : 'dash-mover-card__change--down'}`}>
-                  {pos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                  {pos ? '+' : ''}{pct.toFixed(2)}%
-                </div>
-              </GlassContainer>
-            )
-          })}
+        <div className="dash-movers-ticker">
+          <div className="dash-movers-ticker__track" aria-hidden="true">
+            {[...topMovers, ...topMovers].map(({ asset, pct }, idx) => {
+              const pos = pct >= 0
+              return (
+                <GlassContainer
+                  key={`${asset.id}-${idx}`}
+                  className="dash-mover-card"
+                  padding="8px 12px"
+                  borderRadius={10}
+                  onClick={() => navigate(`/asset/${asset.id}`)}
+                >
+                  <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={24} borderRadius={6} />
+                  <div className="dash-mover-card__symbol">{asset.symbol || asset.name.slice(0, 4)}</div>
+                  <div className="dash-mover-card__price">${asset.currentPrice.toLocaleString()}</div>
+                  <div className={`dash-mover-card__change ${pos ? 'dash-mover-card__change--up' : 'dash-mover-card__change--down'}`}>
+                    {pos ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                    {pos ? '+' : ''}{pct.toFixed(2)}%
+                  </div>
+                </GlassContainer>
+              )
+            })}
+          </div>
         </div>
       </div>
 

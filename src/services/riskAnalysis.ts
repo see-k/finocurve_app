@@ -6,7 +6,7 @@ import type {
   Asset, AssetType, RiskAnalysisResult, RiskLevel, VolatilityLevel,
   SharpeRating, LiquidityLevel, LiquidityCategory, ScenarioResult, ScenarioSeverity,
   ConcentrationWarning, CorrelationPair, BenchmarkComparison, AssetRiskContribution,
-  RebalancingSuggestion, SuggestionPriority,
+  RebalancingSuggestion, SuggestionPriority, ExplainableMetadata, ExplainableMetric, ConfidenceLevel,
 } from '../types'
 import { assetCurrentValue, ASSET_TYPE_LABELS } from '../types'
 
@@ -78,6 +78,27 @@ const TARGET_ALLOCATION: Record<string, number> = {
   stock: 40, etf: 20, bond: 20, real_estate: 10, cash: 5, crypto: 5,
 }
 
+// ── Data source labels for explainability ──
+const DATA_SOURCES = {
+  allocation: 'Portfolio allocation (current holdings)',
+  typeWeights: 'Asset-class risk weights (historical volatility by type)',
+  benchmark: 'S&P 500 benchmark (10% return, 16% vol, 0.5 Sharpe)',
+  targetAlloc: 'Balanced portfolio target (40% stocks, 20% bonds, etc.)',
+  scenarioModel: 'Scenario model (2008 crisis, recession, rate hike, etc.)',
+  liquidityModel: 'Asset-type liquidity categories (immediate/short/medium/long)',
+  hhi: 'Herfindahl-Hirschman Index (concentration)',
+  correlation: 'Asset-class correlation matrix (stocks/ETFs, crypto, bonds/cash)',
+} as const
+
+function explainable(
+  dataSource: string,
+  assumptions: string[],
+  confidence: ConfidenceLevel,
+  changeSinceLast?: string
+): ExplainableMetadata {
+  return { dataSource, assumptions, confidence, changeSinceLastReport: changeSinceLast }
+}
+
 // ──────────────────────────────────────
 // Main analysis function
 // ──────────────────────────────────────
@@ -130,23 +151,31 @@ export function analyzePortfolio(assets: Asset[], totalValue: number, totalGainL
   const maxDrawdownPercent = +maxDDPct.toFixed(2)
   const maxDrawdown = +(totalValue * maxDDPct / 100).toFixed(2)
 
-  // 6. Concentration warnings
+  // 6. Concentration warnings (with explainable metadata)
   const concentrationWarnings: ConcentrationWarning[] = []
+  const concExplainable: ExplainableMetadata = explainable(
+    DATA_SOURCES.allocation,
+    ['Concentration thresholds: >50% high, >30% medium, >25% single-asset', 'Based on portfolio weight by type and by individual asset'],
+    'high'
+  )
   for (const [type, pct] of Object.entries(alloc)) {
     const label = ASSET_TYPE_LABELS[type as AssetType] || type
-    if (pct > 50) concentrationWarnings.push({ type: 'high', message: `${label} represents ${pct.toFixed(0)}% of your portfolio`, asset: label, percentage: pct })
-    else if (pct > 30) concentrationWarnings.push({ type: 'medium', message: `Consider diversifying ${label} (${pct.toFixed(0)}%)`, asset: label, percentage: pct })
+    if (pct > 50) concentrationWarnings.push({ type: 'high', message: `${label} represents ${pct.toFixed(0)}% of your portfolio`, asset: label, percentage: pct, explainable: concExplainable })
+    else if (pct > 30) concentrationWarnings.push({ type: 'medium', message: `Consider diversifying ${label} (${pct.toFixed(0)}%)`, asset: label, percentage: pct, explainable: concExplainable })
   }
   for (const a of assets) {
     const pct = (assetCurrentValue(a) / totalValue) * 100
-    if (pct > 25) concentrationWarnings.push({ type: 'high', message: `${a.name} is ${pct.toFixed(0)}% of portfolio`, asset: a.name, percentage: pct })
+    if (pct > 25) concentrationWarnings.push({ type: 'high', message: `${a.name} is ${pct.toFixed(0)}% of portfolio`, asset: a.name, percentage: pct, explainable: concExplainable })
   }
-  if (typeCount < 3) concentrationWarnings.push({ type: 'medium', message: `Low diversification - only ${typeCount} asset types`, asset: 'Portfolio', percentage: 0 })
+  if (typeCount < 3) concentrationWarnings.push({ type: 'medium', message: `Low diversification - only ${typeCount} asset types`, asset: 'Portfolio', percentage: 0, explainable: concExplainable })
 
-  // HHI
-  let hhi = 0
-  for (const pct of Object.values(alloc)) hhi += (pct ** 2)
-  const concentrationIndex = +(hhi / 10000).toFixed(4)
+  // HHI (Herfindahl-Hirschman Index) on 0-1 scale: sum of squared allocation shares
+  let hhiRaw = 0
+  for (const pct of Object.values(alloc)) {
+    const share = pct / 100
+    hhiRaw += share * share
+  }
+  const concentrationIndex = +(Math.min(1, hhiRaw).toFixed(4))
 
   // 7. Liquidity
   const liquidityBreakdown: Record<LiquidityCategory, number> = { immediate: 0, short_term: 0, medium_term: 0, long_term: 0 }
@@ -230,25 +259,99 @@ export function analyzePortfolio(assets: Asset[], totalValue: number, totalGainL
     .sort((a, b) => b.riskContribution - a.riskContribution)
     .slice(0, 5)
 
-  // 13. Rebalancing suggestions
+  // 13. Rebalancing suggestions (with explainable metadata)
   const rebalancingSuggestions: RebalancingSuggestion[] = []
   for (const [type, target] of Object.entries(TARGET_ALLOCATION)) {
     const current = alloc[type] ?? 0
     const diff = current - target
     const changeAmount = totalValue * Math.abs(diff) / 100
     const label = ASSET_TYPE_LABELS[type as AssetType] || type
-    if (diff > 15) rebalancingSuggestions.push({ action: 'sell', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Significantly overweight - consider taking profits', priority: 'high' })
-    else if (diff > 5) rebalancingSuggestions.push({ action: 'sell', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Slightly overweight - monitor closely', priority: 'medium' })
-    else if (diff < -15) rebalancingSuggestions.push({ action: 'buy', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Significantly underweight - consider adding exposure', priority: 'high' })
-    else if (diff < -5) rebalancingSuggestions.push({ action: 'buy', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Slightly underweight - opportunity to add', priority: 'low' })
+    const exp: ExplainableMetadata = explainable(
+      DATA_SOURCES.targetAlloc,
+      [`Target: ${target}% ${label}`, 'Thresholds: >15% deviation = high priority, >5% = medium/low', 'Balanced portfolio targets from standard allocation models'],
+      diff > 15 || diff < -15 ? 'high' : diff > 5 || diff < -5 ? 'medium' : 'low'
+    )
+    if (diff > 15) rebalancingSuggestions.push({ action: 'sell', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Significantly overweight - consider taking profits', priority: 'high', explainable: exp })
+    else if (diff > 5) rebalancingSuggestions.push({ action: 'sell', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Slightly overweight - monitor closely', priority: 'medium', explainable: exp })
+    else if (diff < -15) rebalancingSuggestions.push({ action: 'buy', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Significantly underweight - consider adding exposure', priority: 'high', explainable: exp })
+    else if (diff < -5) rebalancingSuggestions.push({ action: 'buy', assetType: label, currentPercent: +current.toFixed(1), targetPercent: target, changeAmount, reason: 'Slightly underweight - opportunity to add', priority: 'low', explainable: exp })
   }
   // Non-target types
   for (const [type, pct] of Object.entries(alloc)) {
     if (!(type in TARGET_ALLOCATION) && pct > 10) {
-      rebalancingSuggestions.push({ action: 'review', assetType: ASSET_TYPE_LABELS[type as AssetType] || type, currentPercent: +pct.toFixed(1), targetPercent: 5, changeAmount: totalValue * (pct - 5) / 100, reason: 'Alternative asset - ensure it fits your risk profile', priority: 'medium' })
+      const exp: ExplainableMetadata = explainable(
+        DATA_SOURCES.targetAlloc,
+        ['Alternative assets (commodities, private equity, etc.) typically capped at 5–10% in balanced portfolios', 'Review ensures alignment with risk profile'],
+        'medium'
+      )
+      rebalancingSuggestions.push({ action: 'review', assetType: ASSET_TYPE_LABELS[type as AssetType] || type, currentPercent: +pct.toFixed(1), targetPercent: 5, changeAmount: totalValue * (pct - 5) / 100, reason: 'Alternative asset - ensure it fits your risk profile', priority: 'medium', explainable: exp })
     }
   }
   rebalancingSuggestions.sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority]) - ({ high: 0, medium: 1, low: 2 }[b.priority]))
+
+  // 14. Explainable metrics for key risk indicators
+  const explainableMetrics: ExplainableMetric[] = [
+    {
+      metricId: 'riskScore',
+      label: 'Risk Score',
+      value: riskScore,
+      explainable: explainable(
+        DATA_SOURCES.typeWeights,
+        ['Base 50 + type weights (crypto +0.8, stock +0.3, bond -0.3, cash -0.5)', 'Concentration penalty: +0.3 per % above 50% max allocation', 'Diversification bonus: -5 if 5+ types, +10 if <3 types'],
+        'high'
+      ),
+    },
+    {
+      metricId: 'sharpeRatio',
+      label: 'Sharpe Ratio',
+      value: sharpeRatio,
+      explainable: explainable(
+        DATA_SOURCES.benchmark,
+        [`Risk-free rate: ${RISK_FREE_RATE * 100}%`, 'Excess return = portfolio return - risk-free rate', 'Sharpe = excess return / (annualized volatility / 100)'],
+        'medium'
+      ),
+    },
+    {
+      metricId: 'annualizedVolatility',
+      label: 'Annualized Volatility',
+      value: `${annualizedVolatility}%`,
+      explainable: explainable(
+        DATA_SOURCES.typeWeights,
+        ['Weighted average of asset-class volatilities (crypto 80%, stock 25%, bond 8%, cash 2%, etc.)', 'Based on historical volatility by asset type, not individual ticker data'],
+        'medium'
+      ),
+    },
+    {
+      metricId: 'maxDrawdown',
+      label: 'Max Drawdown',
+      value: `-${maxDrawdownPercent}%`,
+      explainable: explainable(
+        DATA_SOURCES.typeWeights,
+        ['Weighted average of asset-class max drawdowns (crypto 80%, stock 50%, bond 15%, etc.)', 'Stress-tested worst-case historical drawdown by type'],
+        'medium'
+      ),
+    },
+    {
+      metricId: 'diversificationScore',
+      label: 'Diversification Score',
+      value: diversificationScore,
+      explainable: explainable(
+        DATA_SOURCES.correlation,
+        ['Penalties for correlated pairs: stocks/ETFs 0.85, crypto-crypto 0.75, bonds/cash 0.60', 'Bonus for 4+ asset types', 'HHI-based concentration factor'],
+        'high'
+      ),
+    },
+    {
+      metricId: 'liquidityScore',
+      label: 'Liquidity Score',
+      value: liquidityScore,
+      explainable: explainable(
+        DATA_SOURCES.liquidityModel,
+        ['Immediate: 100, Short-term: 80, Medium: 50, Long-term: 20', 'Asset types mapped to liquidity categories (cash=immediate, stocks/ETFs/crypto=short, bonds/commodities=medium, real estate/PE=long)'],
+        'high'
+      ),
+    },
+  ]
 
   return {
     riskScore, riskLevel,
@@ -263,5 +366,6 @@ export function analyzePortfolio(assets: Asset[], totalValue: number, totalGainL
     benchmarkComparison,
     topRiskContributors,
     rebalancingSuggestions,
+    explainableMetrics,
   }
 }

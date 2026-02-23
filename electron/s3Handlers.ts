@@ -55,6 +55,32 @@ function getS3Client(): S3Client | null {
   })
 }
 
+/** Get file buffer from S3 - used by AI handlers */
+export async function getS3FileBuffer(key: string): Promise<{ buffer: number[]; contentType?: string } | null> {
+  const client = getS3Client()
+  const creds = loadCredentials()
+  if (!client || !creds) return null
+  try {
+    const result = await client.send(new GetObjectCommand({ Bucket: creds.bucket, Key: key }))
+    const body = result.Body
+    if (!body) return null
+    const chunks: Uint8Array[] = []
+    for await (const chunk of body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk)
+    }
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0)
+    const buffer = new Uint8Array(totalLen)
+    let offset = 0
+    for (const c of chunks) {
+      buffer.set(c, offset)
+      offset += c.length
+    }
+    return { buffer: Array.from(buffer), contentType: result.ContentType }
+  } catch {
+    return null
+  }
+}
+
 export function registerS3Handlers(): void {
   ipcMain.handle('s3-save-credentials', async (_event, payload: { bucket: string; region: string; accessKeyId: string; secret: string }) => {
     const { bucket, region, accessKeyId, secret } = payload
@@ -110,6 +136,12 @@ export function registerS3Handlers(): void {
       lastModified: obj.LastModified?.toISOString() ?? '',
     }))
     return { items }
+  })
+
+  ipcMain.handle('s3-get-file-buffer', async (_event, payload: { key: string }) => {
+    const result = await getS3FileBuffer(payload.key)
+    if (!result) throw new Error('Failed to get file from S3')
+    return result
   })
 
   ipcMain.handle('s3-get-download-url', async (_event, payload: { key: string }) => {

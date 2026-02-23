@@ -1,5 +1,25 @@
 /// <reference types="vite/client" />
 
+declare module '*.json' {
+  const value: unknown
+  export default value
+}
+
+interface AIConfigFromMain {
+  provider: 'ollama' | 'bedrock' | 'azure'
+  model: string
+  ollamaBaseUrl?: string
+  bedrockRegion?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  azureEndpoint?: string
+  azureApiKey?: string
+  azureDeployment?: string
+  a2aEnabled: boolean
+}
+
+interface AIConfigPayload extends AIConfigFromMain { }
+
 interface ElectronAPI {
   platform: string
   versions: {
@@ -16,6 +36,7 @@ interface ElectronAPI {
   s3Upload?: (payload: { key: string; buffer: number[]; contentType?: string }) => Promise<{ ok: boolean }>
   s3List?: (payload: { prefix: string }) => Promise<{ items: { key: string; size: number; lastModified: string }[] }>
   s3GetDownloadUrl?: (payload: { key: string }) => Promise<{ url: string }>
+  s3GetFileBuffer?: (payload: { key: string }) => Promise<{ buffer: number[]; contentType?: string }>
   s3Delete?: (payload: { key: string }) => Promise<{ ok: boolean }>
   // Local storage (device directory)
   localStorageChooseDirectory?: () => Promise<{ path: string | null }>
@@ -27,8 +48,51 @@ interface ElectronAPI {
   localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
   localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  // Portfolio sync (for A2A / main process)
+  portfolioSync?: (payload: { portfolioName: string; totalValue: number; totalGainLossPercent: number; assetCount: number; riskScore?: number; riskLevel?: string } | null) => Promise<{ ok: boolean }>
+  // AI
+  aiConfigGet?: () => Promise<AIConfigFromMain>
+  aiConfigSave?: (payload: AIConfigPayload) => Promise<{ ok: boolean }>
+  aiCheckOllama?: () => Promise<{ ok: boolean; error?: string }>
+  aiCheckConnection?: () => Promise<{ ok: boolean; error?: string; modelCount?: number }>
+  aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>
+  aiTestConnection?: (payload: {
+    provider: 'ollama' | 'bedrock' | 'azure'
+    model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
+    azureDeployment?: string
+  }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
+  aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
+  aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{ text: string }>
+  aiGenerateAdvancedAnalysis?: (payload: {
+    riskSummary: string
+    portfolioSummary: string
+    document?: { key: string; fileName: string; source: 'cloud' | 'local' }
+  }) => Promise<{ sections: { title: string; content: string }[] }>
+  priceHistorical?: (payload: {
+    assets: { symbol: string; quantity: number; type: string; currentValue: number }[]
+    period: '1D' | '1W' | '1M' | '1Y'
+    otherAssetsValue: number
+  }) => Promise<{ data: { date: string; value: number }[]; error: string | null }>
+  priceSearch?: (payload: { query: string }) => Promise<{
+    results: Array<{ symbol: string; name: string; type: string; price: number; sector: string }>
+    error: string | null
+  }>
 }
 
 interface Window {
   electronAPI: ElectronAPI
+  a2aAPI?: {
+    start: (options?: { port?: number }) => Promise<{ success: boolean; port?: number; url?: string; wellKnownUrl?: string; error?: string }>
+    stop: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; data?: { running: boolean; port: number; url: string | null; wellKnownUrl: string | null }; error?: string }>
+    getSettings: () => Promise<{ success: boolean; data?: { port: number; autoStart: boolean }; error?: string }>
+    updateSettings: (settings: { port?: number; autoStart?: boolean }) => Promise<{ success: boolean; error?: string }>
+    onVerbose?: (callback: (event: { type: string; timestamp: string; data: Record<string, unknown> }) => void) => () => void
+  }
 }

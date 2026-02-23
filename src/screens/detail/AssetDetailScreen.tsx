@@ -6,11 +6,13 @@ import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import CountrySelect from '../../components/CountrySelect'
 import AssetLogo from '../../components/AssetLogo'
 import TradingViewChart, { getTradingViewSymbol } from '../../components/TradingViewChart'
-import type { Asset, PerformancePeriod } from '../../types'
+import type { Asset, AssetSector, PerformancePeriod } from '../../types'
 import { assetCurrentValue, assetGainLoss, assetGainLossPercent, ASSET_TYPE_ICONS, SECTOR_LABELS, isLoan } from '../../types'
 import './DetailScreen.css'
+import '../add-asset/AddAsset.css'
 
 function generateMockChart(basePrice: number, period: PerformancePeriod) {
   const points = period === '1D' ? 24 : period === '1W' ? 7 : period === '1M' ? 30 : 365
@@ -46,6 +48,8 @@ export default function AssetDetailScreen() {
   const [editQty, setEditQty] = useState(asset?.quantity.toString() || '')
   const [editCost, setEditCost] = useState(asset?.costBasis.toString() || '')
   const [editPrice, setEditPrice] = useState(asset?.currentPrice.toString() || '')
+  const [editSector, setEditSector] = useState<AssetSector>(asset?.sector || 'other')
+  const [editCountry, setEditCountry] = useState(asset?.country || '')
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
@@ -82,6 +86,8 @@ export default function AssetDetailScreen() {
       quantity: parseFloat(editQty) || asset.quantity,
       costBasis: parseFloat(editCost) || asset.costBasis,
       currentPrice: parseFloat(editPrice) || asset.currentPrice,
+      sector: editSector,
+      country: editCountry || undefined,
     }
     const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     p.assets = (p.assets || []).map((a: Asset) => a.id === updated.id ? updated : a)
@@ -245,6 +251,18 @@ export default function AssetDetailScreen() {
                 <div>
                   <label className="add-asset-label">Current Price</label>
                   <GlassTextField value={editPrice} onChange={setEditPrice} type="number" />
+                </div>
+                <div>
+                  <label className="add-asset-label">Sector</label>
+                  <select className="add-asset-select" value={editSector} onChange={e => setEditSector(e.target.value as AssetSector)}>
+                    {(Object.keys(SECTOR_LABELS) as AssetSector[]).map(s => (
+                      <option key={s} value={s}>{SECTOR_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="add-asset-label">Country</label>
+                  <CountrySelect value={editCountry} onChange={setEditCountry} placeholder="Select country..." />
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <GlassButton text="Cancel" onClick={() => setShowEdit(false)} />

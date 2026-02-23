@@ -12,6 +12,9 @@ import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import AssetLogo from '../../components/AssetLogo'
 import { usePortfolio } from '../../store/usePortfolio'
+import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
+import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
+import { getPerformanceChartData } from '../../utils/performanceChartData'
 import type { PerformancePeriod, Asset } from '../../types'
 import {
   assetCurrentValue, assetGainLossPercent, isLoan,
@@ -38,15 +41,17 @@ export default function PortfolioScreen() {
   const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
   const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
 
-  const chartData = useMemo(() => {
-    if (!hasAssets) return []
-    const days = selectedPeriod === '1D' ? 24 : selectedPeriod === '1W' ? 7 : selectedPeriod === '1M' ? 30 : 365
-    const base = totalValue * 0.9
-    return Array.from({ length: days }, (_, i) => ({
-      name: `${i + 1}`,
-      value: +(base + (Math.sin(i * 0.25) * totalValue * 0.03) + (i / days) * (totalValue - base)).toFixed(2),
-    }))
-  }, [hasAssets, totalValue, selectedPeriod])
+  const { history } = usePortfolioValueHistory(totalValue, !!hasAssets)
+  const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
+    portfolio?.assets ?? [],
+    selectedPeriod,
+    totalValue,
+    !!hasAssets && !!window.electronAPI?.priceHistorical
+  )
+  const { data: chartData, hasRealData } = useMemo(
+    () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
+    [history, totalValue, selectedPeriod, historicalApiData]
+  )
 
   const allocData = useMemo(() => {
     if (!hasAssets || !portfolio) return []
@@ -190,22 +195,65 @@ export default function PortfolioScreen() {
         </button>
       </div>
 
-      {/* Summary */}
-      <GlassContainer padding="24px" borderRadius={20} className="portfolio-summary">
-        <div className="portfolio-summary__main">
-          <span className="portfolio-summary__label">Total Portfolio Value</span>
-          <span className="portfolio-summary__value">{fmt(totalValue)}</span>
-          <div className={`portfolio-summary__change ${isPositive ? 'portfolio-summary__change--up' : 'portfolio-summary__change--down'}`}>
-            {isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-            <span>{isPositive ? '+' : '-'}{fmt(totalGainLoss)} ({isPositive ? '+' : ''}{totalGainLossPercent.toFixed(2)}%)</span>
+      {/* TPV + Allocation — two columns */}
+      <div className="portfolio-tpv-alloc-row">
+        <GlassContainer padding="24px" borderRadius={20} className="portfolio-summary">
+          <div className="portfolio-summary__main">
+            <span className="portfolio-summary__label">Total Portfolio Value</span>
+            <span className="portfolio-summary__value">{fmt(totalValue)}</span>
+            <div className={`portfolio-summary__change ${isPositive ? 'portfolio-summary__change--up' : 'portfolio-summary__change--down'}`}>
+              {isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+              <span>{isPositive ? '+' : '-'}{fmt(totalGainLoss)} ({isPositive ? '+' : ''}{totalGainLossPercent.toFixed(2)}%)</span>
+            </div>
           </div>
-        </div>
-        <div className="portfolio-summary__meta">
-          <span>{portfolio!.assets.length} assets</span>
-          <span>{portfolio!.currency}</span>
-          <span>Cost: {fmt(totalCost)}</span>
-        </div>
-      </GlassContainer>
+          <div className="portfolio-summary__meta">
+            <span>{portfolio!.assets.length} assets</span>
+            <span>{portfolio!.currency}</span>
+            <span>Cost: {fmt(totalCost)}</span>
+          </div>
+        </GlassContainer>
+
+        {/* Allocation */}
+        <GlassContainer padding="24px" borderRadius={20} className="portfolio-allocation-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 className="section-title">Allocation</h2>
+            <div className="period-selector">
+              {(['type', 'sector', 'country'] as const).map(v => (
+                <button key={v} className={`period-btn ${allocView === v ? 'period-btn--active' : ''}`} onClick={() => setAllocView(v)}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <div style={{ width: 160, height: 160, flexShrink: 0 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={allocData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value" stroke="none">
+                    {allocData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
+                    formatter={(v: number) => [fmt(v), '']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+              {allocData.map((d, i) => (
+                <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{fmt(d.value)}</span>
+                  <span style={{ color: 'var(--text-tertiary)', fontSize: 11, minWidth: 36, textAlign: 'right', flexShrink: 0 }}>
+                    {totalValue > 0 ? ((d.value / totalValue) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </GlassContainer>
+      </div>
 
       {/* Performance Chart */}
       <GlassContainer padding="24px" borderRadius={20}>
@@ -217,65 +265,49 @@ export default function PortfolioScreen() {
             ))}
           </div>
         </div>
+        {!hasRealData && !historicalLoading && (
+          <p className="performance-chart-disclaimer">History builds as you use the app. Add stocks or ETFs with symbols to see live historical performance.</p>
+        )}
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
             <defs>
               <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="var(--brand-primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-            <YAxis hide />
+            <XAxis
+              dataKey="dateLabel"
+              tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+              axisLine={{ stroke: 'var(--glass-border)' }}
+              tickLine={{ stroke: 'var(--glass-border)' }}
+              interval="preserveStartEnd"
+              label={{ value: 'Date', position: 'insideBottom', offset: -8, fill: 'var(--text-tertiary)', fontSize: 11 }}
+            />
+            <YAxis
+              tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+              axisLine={{ stroke: 'var(--glass-border)' }}
+              tickLine={{ stroke: 'var(--glass-border)' }}
+              tickFormatter={(v) => (v >= 0 ? `$${(v / 1000).toFixed(0)}k` : `-$${(Math.abs(v) / 1000).toFixed(0)}k`)}
+              width={56}
+              tickCount={5}
+              domain={([dataMin, dataMax]) => {
+                const range = dataMax - dataMin
+                const pad = range > 0
+                  ? Math.max(range * 0.15, Math.abs(dataMin + dataMax) / 2 * 0.005, 50)
+                  : Math.max(Math.abs(dataMin) * 0.02, 100)
+                return [dataMin - pad, dataMax + pad]
+              }}
+              label={{ value: 'Portfolio Value ($)', angle: -90, position: 'insideLeft', fill: 'var(--text-tertiary)', fontSize: 11 }}
+            />
             <Tooltip
               contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
-              formatter={(v: number) => [`$${v.toLocaleString()}`, 'Value']}
-              labelFormatter={() => ''}
+              formatter={(v: number) => [`$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Value']}
+              labelFormatter={(label) => `Date: ${label}`}
             />
             <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#portfolioGrad)" />
           </AreaChart>
         </ResponsiveContainer>
-      </GlassContainer>
-
-      {/* Allocation */}
-      <GlassContainer padding="24px" borderRadius={20}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 className="section-title">Allocation</h2>
-          <div className="period-selector">
-            {(['type', 'sector', 'country'] as const).map(v => (
-              <button key={v} className={`period-btn ${allocView === v ? 'period-btn--active' : ''}`} onClick={() => setAllocView(v)}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <div style={{ width: 200, height: 200 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={allocData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
-                  {allocData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
-                  formatter={(v: number) => [fmt(v), '']}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {allocData.map((d, i) => (
-              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 3, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
-                <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{d.name}</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(d.value)}</span>
-                <span style={{ color: 'var(--text-tertiary)', fontSize: 11, minWidth: 40, textAlign: 'right' }}>
-                  {totalValue > 0 ? ((d.value / totalValue) * 100).toFixed(1) : 0}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </GlassContainer>
 
       {/* Sankey – Interactive Portfolio Flow */}

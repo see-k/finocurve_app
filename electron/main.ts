@@ -1,7 +1,26 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, net, protocol } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { registerS3Handlers } from './s3Handlers'
 import { registerLocalStorageHandlers } from './localStorageHandlers'
+import { registerAIHandlers } from './aiHandlers'
+import { registerPriceHandlers } from './priceHandlers'
+
+const APP_PROTOCOL_SCHEME = 'app'
+const APP_PROTOCOL_HOST = 'local'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_PROTOCOL_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged
@@ -11,6 +30,23 @@ process.env.VITE_PUBLIC = app.isPackaged
 let win: BrowserWindow | null
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+
+function registerAppProtocol() {
+  protocol.handle(APP_PROTOCOL_SCHEME, (request) => {
+    const requestUrl = new URL(request.url)
+    const rawPath = decodeURIComponent(requestUrl.pathname || '/')
+    const relativePath = rawPath === '/' ? 'index.html' : rawPath.replace(/^\/+/, '')
+    const normalizedPath = path.normalize(relativePath)
+    const safeRelativePath = normalizedPath.startsWith('..') ? 'index.html' : normalizedPath
+
+    let filePath = path.join(process.env.DIST!, safeRelativePath)
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(process.env.DIST!, 'index.html')
+    }
+
+    return net.fetch(pathToFileURL(filePath).toString())
+  })
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -25,6 +61,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      devTools: !app.isPackaged,
     },
     backgroundColor: '#1A1A2E',
     show: false,
@@ -37,7 +74,7 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    win.loadFile(path.join(process.env.DIST!, 'index.html'))
+    win.loadURL(`${APP_PROTOCOL_SCHEME}://${APP_PROTOCOL_HOST}/index.html`)
   }
 }
 
@@ -55,7 +92,10 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  registerAppProtocol()
   registerS3Handlers()
   registerLocalStorageHandlers()
+  registerAIHandlers()
+  registerPriceHandlers()
   createWindow()
 })

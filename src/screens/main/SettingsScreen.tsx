@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Moon, User, DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
@@ -132,6 +132,9 @@ export default function SettingsScreen() {
             onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })} />
           {typeof window !== 'undefined' && (window.electronAPI?.s3List || window.electronAPI?.localStorageChooseDirectory) && (
             <SettingsRow icon={<Cloud size={18} />} label="Storage" value={prefs.s3Bucket ? 'S3 connected' : 'Configure'} onClick={() => navigate('/settings/cloud-storage')} />
+          )}
+          {typeof window !== 'undefined' && window.electronAPI?.aiConfigGet && (
+            <SettingsRow icon={<Cpu size={18} />} label="AI Models" value="Configure" onClick={() => navigate('/settings/ai-config')} />
           )}
         </GlassContainer>
       </div>

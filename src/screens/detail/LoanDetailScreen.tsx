@@ -1,12 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit3, Trash2 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
+import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
-import type { Asset, AmortizationEntry } from '../../types'
-import { loanPrincipal, loanBalance, loanPaidOff, loanPayoffPercent, LOAN_TYPE_LABELS, LOAN_TYPE_ICONS } from '../../types'
+import CountrySelect from '../../components/CountrySelect'
+import { getName } from 'country-list'
+import type { Asset, AmortizationEntry, AssetSector, LoanType } from '../../types'
+import { loanPrincipal, loanBalance, loanPaidOff, loanPayoffPercent, LOAN_TYPE_LABELS, LOAN_TYPE_ICONS, SECTOR_LABELS } from '../../types'
 import './DetailScreen.css'
+import '../add-asset/AddAsset.css'
 
 function computeAmortization(principal: number, annualRate: number, termMonths: number, monthlyPayment: number): AmortizationEntry[] {
   const schedule: AmortizationEntry[] = []
@@ -69,11 +73,47 @@ export default function LoanDetailScreen() {
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<'overview' | 'amortization' | 'payoff'>('overview')
   const [extraPay, setExtraPay] = useState(0)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
   const asset: Asset | undefined = (portfolio.assets || []).find((a: Asset) => a.id === assetId)
 
+  const [editName, setEditName] = useState(asset?.name || '')
+  const [editLoanType, setEditLoanType] = useState<LoanType>(asset?.loanType || 'mortgage')
+  const [editPrincipal, setEditPrincipal] = useState(asset ? Math.abs(asset.costBasis).toString() : '')
+  const [editBalance, setEditBalance] = useState(asset ? Math.abs(asset.currentPrice).toString() : '')
+  const [editInterestRate, setEditInterestRate] = useState(asset?.interestRate?.toString() || '')
+  const [editTermMonths, setEditTermMonths] = useState(asset?.loanTermMonths?.toString() || '')
+  const [editMonthlyPayment, setEditMonthlyPayment] = useState(asset?.monthlyPayment?.toString() || '')
+  const [editStartDate, setEditStartDate] = useState(asset?.loanStartDate || '')
+  const [editExtraPayment, setEditExtraPayment] = useState(asset?.extraMonthlyPayment?.toString() || '')
+  const [editSector, setEditSector] = useState<AssetSector>(asset?.sector || 'other')
+  const [editCountry, setEditCountry] = useState(asset?.country || '')
+
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+
+  const hasSyncedEditForm = useRef(false)
+  useEffect(() => {
+    if (showEdit && asset) {
+      if (!hasSyncedEditForm.current) {
+        setEditName(asset.name)
+        setEditLoanType((asset.loanType as LoanType) || 'mortgage')
+        setEditPrincipal(Math.abs(asset.costBasis).toString())
+        setEditBalance(Math.abs(asset.currentPrice).toString())
+        setEditInterestRate(asset.interestRate?.toString() || '')
+        setEditTermMonths(asset.loanTermMonths?.toString() || '')
+        setEditMonthlyPayment(asset.monthlyPayment?.toString() || '')
+        setEditStartDate(asset.loanStartDate || '')
+        setEditExtraPayment(asset.extraMonthlyPayment?.toString() || '')
+        setEditSector((asset.sector as AssetSector) || 'other')
+        setEditCountry(asset.country || '')
+        hasSyncedEditForm.current = true
+      }
+    } else {
+      hasSyncedEditForm.current = false
+    }
+  }, [showEdit, asset])
 
   const principal = asset ? loanPrincipal(asset) : 0
   const balance = asset ? loanBalance(asset) : 0
@@ -106,11 +146,36 @@ export default function LoanDetailScreen() {
     )
   }
 
+  const handleSaveEdit = () => {
+    if (!asset) return
+    const updated: Asset = {
+      ...asset,
+      name: editName,
+      loanType: editLoanType,
+      costBasis: -Math.abs(parseFloat(editPrincipal) || 0),
+      currentPrice: -Math.abs(parseFloat(editBalance) || 0),
+      interestRate: editInterestRate ? parseFloat(editInterestRate) : undefined,
+      loanTermMonths: editTermMonths ? parseInt(editTermMonths) : undefined,
+      monthlyPayment: editMonthlyPayment ? parseFloat(editMonthlyPayment) : undefined,
+      loanStartDate: editStartDate || undefined,
+      extraMonthlyPayment: editExtraPayment ? parseFloat(editExtraPayment) : undefined,
+      sector: editSector,
+      country: editCountry || undefined,
+    }
+    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    p.assets = (p.assets || []).map((a: Asset) => (a.id === updated.id ? updated : a))
+    p.updatedAt = new Date().toISOString()
+    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    setShowEdit(false)
+    window.location.reload()
+  }
+
   const handleDelete = () => {
     const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
     p.assets = (p.assets || []).filter((a: Asset) => a.id !== asset.id)
     p.updatedAt = new Date().toISOString()
     localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    setShowDeleteConfirm(false)
     navigate('/main', { replace: true })
   }
 
@@ -125,7 +190,8 @@ export default function LoanDetailScreen() {
         <div className="detail-header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <div className="detail-header-right">
-            <GlassIconButton icon={<Trash2 size={18} />} onClick={handleDelete} size={40} title="Delete" />
+            <GlassIconButton icon={<Edit3 size={18} />} onClick={() => setShowEdit(true)} size={40} title="Edit" />
+            <GlassIconButton icon={<Trash2 size={18} />} onClick={() => setShowDeleteConfirm(true)} size={40} title="Delete" />
           </div>
         </div>
 
@@ -183,6 +249,8 @@ export default function LoanDetailScreen() {
                 <div className="info-row"><span className="info-row__label">Monthly Payment</span><span className="info-row__value">{fmt(payment)}</span></div>
                 <div className="info-row"><span className="info-row__label">Term</span><span className="info-row__value">{term} months ({(term / 12).toFixed(0)} yrs)</span></div>
                 {asset.loanStartDate && <div className="info-row"><span className="info-row__label">Start Date</span><span className="info-row__value">{asset.loanStartDate}</span></div>}
+                {asset.sector && <div className="info-row"><span className="info-row__label">Sector</span><span className="info-row__value">{SECTOR_LABELS[asset.sector] || asset.sector}</span></div>}
+                {asset.country && <div className="info-row"><span className="info-row__label">Country</span><span className="info-row__value">{getName(asset.country) || asset.country}</span></div>}
               </div>
             </>
           )}
@@ -276,6 +344,99 @@ export default function LoanDetailScreen() {
           )}
         </GlassContainer>
       </div>
+
+      {/* Edit Modal */}
+      {showEdit && (
+        <div className="modal-overlay" onClick={() => setShowEdit(false)}>
+          <GlassContainer className="modal-content" onClick={undefined}>
+            <div onClick={e => e.stopPropagation()}>
+              <h2 style={{ color: 'var(--text-primary)', marginBottom: 16 }}>Edit Loan</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label className="add-asset-label">Loan Name *</label>
+                  <GlassTextField value={editName} onChange={setEditName} placeholder="e.g. Home Mortgage" />
+                </div>
+                <div>
+                  <label className="add-asset-label">Loan Type</label>
+                  <select className="add-asset-select" value={editLoanType} onChange={e => setEditLoanType(e.target.value as LoanType)}>
+                    {(Object.keys(LOAN_TYPE_LABELS) as LoanType[]).map(t => (
+                      <option key={t} value={t}>{LOAN_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="add-asset-row">
+                  <div>
+                    <label className="add-asset-label">Original Principal *</label>
+                    <GlassTextField value={editPrincipal} onChange={setEditPrincipal} type="number" />
+                  </div>
+                  <div>
+                    <label className="add-asset-label">Current Balance *</label>
+                    <GlassTextField value={editBalance} onChange={setEditBalance} type="number" />
+                  </div>
+                </div>
+                <div className="add-asset-row">
+                  <div>
+                    <label className="add-asset-label">Interest Rate (%)</label>
+                    <GlassTextField value={editInterestRate} onChange={setEditInterestRate} type="number" />
+                  </div>
+                  <div>
+                    <label className="add-asset-label">Term (months)</label>
+                    <GlassTextField value={editTermMonths} onChange={setEditTermMonths} type="number" />
+                  </div>
+                </div>
+                <div className="add-asset-row">
+                  <div>
+                    <label className="add-asset-label">Monthly Payment</label>
+                    <GlassTextField value={editMonthlyPayment} onChange={setEditMonthlyPayment} type="number" />
+                  </div>
+                  <div>
+                    <label className="add-asset-label">Start Date</label>
+                    <GlassTextField value={editStartDate} onChange={setEditStartDate} type="date" />
+                  </div>
+                </div>
+                <div>
+                  <label className="add-asset-label">Extra Monthly Payment</label>
+                  <GlassTextField value={editExtraPayment} onChange={setEditExtraPayment} type="number" />
+                </div>
+                <div>
+                  <label className="add-asset-label">Sector</label>
+                  <select className="add-asset-select" value={editSector} onChange={e => setEditSector(e.target.value as AssetSector)}>
+                    {(Object.keys(SECTOR_LABELS) as AssetSector[]).map(s => (
+                      <option key={s} value={s}>{SECTOR_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="add-asset-label">Country</label>
+                  <CountrySelect value={editCountry} onChange={setEditCountry} placeholder="Select country..." />
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <GlassButton text="Cancel" onClick={() => setShowEdit(false)} />
+                  <GlassButton text="Save" onClick={handleSaveEdit} isPrimary disabled={!editName || !editPrincipal || !editBalance} />
+                </div>
+              </div>
+            </div>
+          </GlassContainer>
+        </div>
+      )}
+
+      {/* Delete Confirm */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <GlassContainer className="modal-content" onClick={undefined}>
+            <div onClick={e => e.stopPropagation()}>
+              <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Delete Loan?</h2>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>
+                Are you sure you want to remove <strong>{asset.name}</strong> from your portfolio? This action cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <GlassButton text="Cancel" onClick={() => setShowDeleteConfirm(false)} />
+                <GlassButton text="Delete" onClick={handleDelete} isPrimary />
+              </div>
+            </div>
+          </GlassContainer>
+        </div>
+      )}
     </div>
   )
 }

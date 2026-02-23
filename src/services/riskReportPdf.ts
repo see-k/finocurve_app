@@ -6,7 +6,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { RiskAnalysisResult, Asset } from '../types'
-import { assetCurrentValue, ASSET_TYPE_LABELS, SECTOR_LABELS } from '../types'
+import { assetCurrentValue, assetGainLoss, assetGainLossPercent, isLoan, ASSET_TYPE_LABELS, SECTOR_LABELS } from '../types'
 
 // ── Colors ──
 const C = {
@@ -53,6 +53,14 @@ function loadImageAsBase64(url: string): Promise<string | null> {
   })
 }
 
+export interface DocumentInsight {
+  documentKey: string
+  documentName: string
+  summary: string
+  riskRelevantPoints: string[]
+  recommendations: string[]
+}
+
 interface ReportOptions {
   risk: RiskAnalysisResult
   assets: Asset[]
@@ -62,12 +70,16 @@ interface ReportOptions {
   sectorAlloc: Record<string, number>
   countryAlloc: Record<string, number>
   typeAlloc: Record<string, number>
+  /** AI-generated insights from user documents */
+  documentInsights?: DocumentInsight[]
+  /** Professional advanced analysis sections (no AI wording) */
+  advancedAnalysis?: { sections: { title: string; content: string }[] }
   /** When true, returns PDF as Uint8Array instead of triggering download */
   returnBlob?: boolean
 }
 
 export async function generateRiskReportPdf(opts: ReportOptions) {
-  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc } = opts
+  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc, documentInsights, advancedAnalysis } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()
   const ph = doc.internal.pageSize.getHeight()
@@ -251,8 +263,8 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   const holdingsHead = ['#', 'Asset', 'Type', 'Value', 'Weight', 'Gain/Loss']
   const holdingsBody = assets.sort((a, b) => assetCurrentValue(b) - assetCurrentValue(a)).map((a, i) => {
     const cv = assetCurrentValue(a)
-    const gl = cv - (a.costBasis * a.quantity)
-    const glPct = a.costBasis > 0 ? ((cv / (a.costBasis * a.quantity)) - 1) * 100 : 0
+    const gl = assetGainLoss(a)
+    const glPct = assetGainLossPercent(a)
     return [
       `${i + 1}`,
       a.name,
@@ -275,7 +287,21 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 45 }, 5: { cellWidth: 40 } },
   })
 
-  y = (doc as any).lastAutoTable.finalY + 12
+  y = (doc as any).lastAutoTable.finalY + 6
+
+  // Cost basis validation note when gains/losses seem implausible
+  const hasExtremeGl = assets.some((a) => {
+    const pct = assetGainLossPercent(a)
+    return pct < -80 || pct > 500
+  })
+  if (hasExtremeGl) {
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...C.warning)
+    doc.text('Note: Large gains or losses (>80% loss or >500% gain) may indicate data entry errors. Verify cost basis and purchase prices for accuracy.', margin, y)
+    y += 6
+  }
+  y += 6
 
   // ────────────────────────────────────
   // PAGE 3: Risk Metrics
@@ -292,7 +318,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     ['Max Drawdown', `-${risk.maxDrawdownPercent}%`, fmt(risk.maxDrawdown)],
     ['Diversification Score', `${risk.diversificationScore}/100`, risk.diversificationScore >= 70 ? 'Good' : risk.diversificationScore >= 40 ? 'Fair' : 'Poor'],
     ['Liquidity Score', `${risk.liquidityScore}/100`, risk.liquidityLevel.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())],
-    ['Concentration Index (HHI)', risk.concentrationIndex.toFixed(4), risk.concentrationIndex > 0.25 ? 'Concentrated' : 'Diversified'],
+    ['Concentration (HHI 0-1)', risk.concentrationIndex.toFixed(4), risk.concentrationIndex > 0.25 ? 'Concentrated' : 'Diversified'],
   ]
 
   autoTable(doc, {
@@ -380,13 +406,51 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   // ────────────────────────────────────
   newPage()
 
+  // Fallback: derive sector/country from assets when passed-in allocations are empty or zero
+  const investableAssets = assets.filter((a) => !isLoan(a))
+  const investableValue = investableAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
+  const sectorAllocResolved = (() => {
+    const sum = Object.values(sectorAlloc).reduce((s, v) => s + v, 0)
+    if (sum > 0) return sectorAlloc
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      const key = a.sector || 'other'
+      alloc[key] = (alloc[key] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  })()
+  const countryAllocResolved = (() => {
+    const sum = Object.values(countryAlloc).reduce((s, v) => s + v, 0)
+    if (sum > 0) return countryAlloc
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      const key = a.country || 'Unknown'
+      alloc[key] = (alloc[key] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  })()
+  const typeAllocResolved = (() => {
+    const sum = Object.values(typeAlloc).reduce((s, v) => s + v, 0)
+    if (sum > 0) return typeAlloc
+    const alloc: Record<string, number> = {}
+    for (const a of investableAssets) {
+      alloc[a.type] = (alloc[a.type] || 0) + assetCurrentValue(a)
+    }
+    return alloc
+  })()
+  const exposureDenom = investableValue > 0 ? investableValue : totalValue
+
   sectionTitle('Sector Exposure')
 
-  const sectorData = Object.entries(sectorAlloc).sort(([,a], [,b]) => b - a)
+  const sectorData = Object.entries(sectorAllocResolved).filter(([, v]) => v > 0).sort(([,a], [,b]) => b - a)
+  if (sectorData.length === 0) {
+    bodyText('No sector data available. Add sector information to your assets for exposure breakdown.')
+    y += 4
+  }
   sectorData.forEach(([sector, val]) => {
     checkSpace(10)
     const lbl = (SECTOR_LABELS as Record<string, string>)[sector] || sector
-    const pct = totalValue > 0 ? (val / totalValue * 100) : 0
+    const pct = exposureDenom > 0 ? (val / exposureDenom * 100) : 0
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C.text)
@@ -400,10 +464,14 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   y += 6
   sectionTitle('Geographic Exposure')
 
-  const countryData = Object.entries(countryAlloc).sort(([,a], [,b]) => b - a)
+  const countryData = Object.entries(countryAllocResolved).filter(([, v]) => v > 0).sort(([,a], [,b]) => b - a)
+  if (countryData.length === 0) {
+    bodyText('No geographic data available. Add country information to your assets for exposure breakdown.')
+    y += 4
+  }
   countryData.forEach(([country, val]) => {
     checkSpace(10)
-    const pct = totalValue > 0 ? (val / totalValue * 100) : 0
+    const pct = exposureDenom > 0 ? (val / exposureDenom * 100) : 0
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C.text)
@@ -417,11 +485,11 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   y += 6
   sectionTitle('Asset Type Breakdown')
 
-  const typeData = Object.entries(typeAlloc).sort(([,a], [,b]) => b - a)
+  const typeData = Object.entries(typeAllocResolved).filter(([, v]) => v > 0).sort(([,a], [,b]) => b - a)
   typeData.forEach(([type, val]) => {
     checkSpace(10)
     const lbl = (ASSET_TYPE_LABELS as Record<string, string>)[type] || type
-    const pct = totalValue > 0 ? (val / totalValue * 100) : 0
+    const pct = exposureDenom > 0 ? (val / exposureDenom * 100) : 0
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C.text)
@@ -440,7 +508,12 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   sectionTitle('Stress Test Scenarios')
 
   bodyText('These scenarios model how your portfolio might react to different economic events, based on historical asset-class behavior and your current allocation.')
-  y += 4
+  y += 2
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(...C.muted)
+  doc.text('Note: Positive impact (e.g. Market Crash showing +$) can occur when bonds or cash dominate—they typically rally in risk-off environments. Negative impact in Crypto Winter reflects crypto exposure. Signs reflect your allocation, not calculation errors.', margin, y)
+  y += 8
 
   autoTable(doc, {
     startY: y,
@@ -570,6 +643,170 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   })
 
   // ────────────────────────────────────
+  // Advanced Analysis (professional analysis sections)
+  // ────────────────────────────────────
+  if (advancedAnalysis && advancedAnalysis.sections.length > 0) {
+    checkSpace(30)
+    newPage()
+    sectionTitle('Advanced Analysis')
+
+    advancedAnalysis.sections.forEach((sec) => {
+      checkSpace(25)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text(sec.title, margin, y)
+      y += 6
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      const lines = doc.splitTextToSize(sec.content, cw)
+      doc.text(lines, margin, y)
+      y += lines.length * 4 + 8
+    })
+  }
+
+  // ────────────────────────────────────
+  // AI Document Insights (when available)
+  // ────────────────────────────────────
+  if (documentInsights && documentInsights.length > 0) {
+    checkSpace(30)
+    newPage()
+    sectionTitle('AI Document Insights')
+
+    bodyText('The following insights were generated by AI analysis of your uploaded documents (tax files, financial statements, etc.) and may inform your risk assessment.')
+    y += 6
+
+    documentInsights.forEach((insight) => {
+      checkSpace(35)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text(insight.documentName, margin, y)
+      y += 6
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      const summaryLines = doc.splitTextToSize(insight.summary, cw)
+      doc.text(summaryLines, margin, y)
+      y += summaryLines.length * 4 + 4
+
+      if (insight.riskRelevantPoints.length > 0) {
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...C.warning)
+        doc.text('Risk-relevant points:', margin, y)
+        y += 5
+        insight.riskRelevantPoints.slice(0, 5).forEach((pt) => {
+          checkSpace(8)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(...C.text)
+          const lines = doc.splitTextToSize(`• ${pt}`, cw - 4)
+          doc.text(lines, margin + 4, y)
+          y += lines.length * 3.5 + 2
+        })
+        y += 2
+      }
+
+      if (insight.recommendations.length > 0) {
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...C.success)
+        doc.text('Recommendations:', margin, y)
+        y += 5
+        insight.recommendations.slice(0, 3).forEach((rec) => {
+          checkSpace(8)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(...C.text)
+          const lines = doc.splitTextToSize(`• ${rec}`, cw - 4)
+          doc.text(lines, margin + 4, y)
+          y += lines.length * 3.5 + 2
+        })
+        y += 4
+      }
+    })
+  }
+
+  // ────────────────────────────────────
+  // Explainability: What Changed & Data Sources
+  // ────────────────────────────────────
+  if ((risk.changeSummary && risk.changeSummary.length > 0) || (risk.explainableMetrics && risk.explainableMetrics.length > 0)) {
+    checkSpace(40)
+    newPage()
+    sectionTitle('Explainability & Methodology')
+
+    if (risk.changeSummary && risk.changeSummary.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('What Changed Since Last Report', margin, y)
+      y += 6
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      risk.changeSummary.forEach((c) => {
+        checkSpace(8)
+        const lines = doc.splitTextToSize(`• ${c}`, cw - 4)
+        doc.text(lines, margin + 4, y)
+        y += lines.length * 4 + 2
+      })
+      y += 10
+    }
+
+    if (risk.explainableMetrics && risk.explainableMetrics.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('Data Sources & Assumptions', margin, y)
+      y += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.muted)
+      doc.text('Each metric includes its data source, key assumptions, and confidence level for defensible decision-making.', margin, y)
+      y += 8
+
+      risk.explainableMetrics.slice(0, 6).forEach((m) => {
+        checkSpace(28)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...C.dark)
+        doc.text(`${m.label} (${typeof m.value === 'number' ? m.value : m.value})`, margin, y)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...C.brand)
+        doc.text(`Confidence: ${m.explainable.confidence}`, margin + 120, y)
+        y += 5
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...C.muted)
+        doc.text(`Source: ${m.explainable.dataSource}`, margin, y)
+        y += 4
+        m.explainable.assumptions.slice(0, 2).forEach((a) => {
+          const lines = doc.splitTextToSize(`• ${a}`, cw - 8)
+          doc.text(lines, margin + 4, y)
+          y += lines.length * 3.5 + 1
+        })
+        y += 4
+      })
+    }
+
+    if (risk.rebalancingSuggestions.length > 0 && risk.rebalancingSuggestions[0].explainable) {
+      checkSpace(20)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('Rebalancing Recommendation Sources', margin, y)
+      y += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.muted)
+      doc.text('Recommendations use balanced portfolio targets (40% stocks, 20% bonds, etc.) with thresholds: >15% deviation = high priority, >5% = medium/low.', margin, y)
+      y += 8
+    }
+  }
+
+  // ────────────────────────────────────
   // PAGE 7: Methodology & Disclaimers
   // ────────────────────────────────────
   newPage()
@@ -589,7 +826,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     ['Volatility', 'Weighted-average annualized volatility using historical asset-class volatility figures. Daily volatility derived using √252 trading days.'],
     ['Sharpe Ratio', 'Excess return (portfolio return minus 5% risk-free rate) divided by annualized volatility. Measures risk-adjusted return quality.'],
     ['Maximum Drawdown', 'Estimated worst-case loss based on weighted-average historical maximum drawdowns for each asset class.'],
-    ['Concentration (HHI)', 'Herfindahl-Hirschman Index calculated from asset-type allocation percentages. Values closer to 0 indicate diversification; values closer to 1 indicate concentration.'],
+    ['Concentration (HHI 0-1)', 'Herfindahl-Hirschman Index: sum of squared allocation shares. Scale 0-1 (0 = diversified, 1 = monopoly). Values >0.25 indicate concentration.'],
     ['Scenario Analysis', 'Applies historical scenario-specific impact multipliers per asset type to calculate potential portfolio impact under various economic conditions.'],
     ['Benchmark', 'Compared against S&P 500 historical averages: 10% annual return, 16% annual volatility, 0.5 Sharpe ratio.'],
   ]

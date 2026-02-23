@@ -70,6 +70,18 @@
 }
 .portfolio-add-btn:hover { opacity: 0.9; }
 
+/* TPV + Allocation two-column row */
+.portfolio-tpv-alloc-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 900px) {
+  .portfolio-tpv-alloc-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Summary */
 .portfolio-summary { }
 .portfolio-summary__main {
@@ -103,6 +115,12 @@
   margin-top: 12px;
   font-size: 13px;
   color: var(--text-tertiary);
+}
+
+.portfolio-allocation-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Two-column Holdings + Loans grid */
@@ -239,6 +257,13 @@
 .port-asset-card__change { font-size: 12px; font-weight: 600; }
 .port-asset-card__change--up { color: var(--status-success); }
 .port-asset-card__change--down { color: var(--status-error); }
+
+.performance-chart-disclaimer {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: -8px 0 12px 0;
+  line-height: 1.4;
+}
 
 /* Period selectors (shared) */
 .section-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
