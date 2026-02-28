@@ -1,0 +1,164 @@
+.sec-filings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sec-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sec-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sec-search-row .glass-text-field {
+  flex: 1;
+  max-width: 400px;
+}
+
+.sec-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: var(--brand-primary);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.sec-search-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.sec-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sec-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sec-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--status-error);
+}
+
+.sec-loading,
+.sec-empty,
+.sec-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.sec-examples {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sec-results {
+  overflow: hidden;
+}
+
+.sec-company-info {
+  padding: 20px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.sec-company-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+
+.sec-company-meta {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.sec-filings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sec-filing-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--glass-border);
+  transition: background 0.15s ease;
+}
+
+.sec-filing-row:last-child {
+  border-bottom: none;
+}
+
+.sec-filing-row:hover {
+  background: var(--glass-bg);
+}
+
+.sec-filing-icon {
+  flex-shrink: 0;
+  color: var(--brand-primary);
+}
+
+.sec-filing-info {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.sec-filing-form {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sec-filing-date {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.sec-filing-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sec-filing-link {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+@keyframes sec-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.sec-loading .spin,
+.sec-search-btn .spin {
+  animation: sec-spin 1s linear infinite;
+}

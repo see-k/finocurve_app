@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { app, BrowserWindow, net, protocol } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -6,6 +7,8 @@ import { registerS3Handlers } from './s3Handlers'
 import { registerLocalStorageHandlers } from './localStorageHandlers'
 import { registerAIHandlers } from './aiHandlers'
 import { registerPriceHandlers } from './priceHandlers'
+import { registerCongressHandlers } from './congressHandlers'
+import { registerSECHandlers } from './secHandlers'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -97,5 +100,7 @@ app.whenReady().then(() => {
   registerLocalStorageHandlers()
   registerAIHandlers()
   registerPriceHandlers()
+  registerCongressHandlers()
+  registerSECHandlers()
   createWindow()
 })

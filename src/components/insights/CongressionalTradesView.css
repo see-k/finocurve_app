@@ -1,0 +1,264 @@
+.congressional-trades-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ct-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ct-chamber-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.ct-chamber-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ct-chamber-tab:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ct-chamber-tab--active {
+  color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.ct-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.ct-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ct-refresh-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--brand-primary);
+}
+
+.ct-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ct-refresh-btn--primary {
+  padding: 12px 24px;
+  font-size: 14px;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.ct-fetched {
+  color: var(--text-secondary);
+}
+
+.ct-disclaimer {
+  font-style: italic;
+}
+
+.ct-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--status-error);
+}
+
+.ct-loading,
+.ct-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.ct-empty-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+@keyframes ct-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ct-spin {
+  animation: ct-spin 1s linear infinite;
+}
+
+/* Member cards */
+.ct-members {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ct-member-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.ct-member-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ct-member-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.ct-member-head:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ct-member-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--brand-primary) 0%, rgba(99, 102, 241, 0.6) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.ct-member-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ct-member-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ct-member-stats {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.ct-buy {
+  color: var(--status-success);
+  margin-right: 8px;
+}
+
+.ct-sell {
+  color: var(--status-error);
+}
+
+.ct-chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+/* Expandable filings */
+.ct-member-filings {
+  padding: 0 20px 18px;
+  padding-left: calc(20px + 48px + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .ct-member-filings {
+    padding-left: 20px;
+  }
+}
+
+.ct-filing-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 100px 100px;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .ct-filing-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.ct-filing-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ct-icon-buy {
+  color: var(--status-success);
+}
+
+.ct-icon-sell {
+  color: var(--status-error);
+}
+
+.ct-filing-asset {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.ct-filing-amount {
+  color: var(--text-secondary);
+}
+
+.ct-filing-date {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}

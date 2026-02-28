@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Briefcase, BarChart3, FileText, Settings, Plus, Search, PenLine, Landmark } from 'lucide-react'
+import { LayoutDashboard, Briefcase, BarChart3, Landmark, FileText, Settings, Plus, Search, PenLine } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
 import PortfolioScreen from './PortfolioScreen'
 import MarketsScreen from './MarketsScreen'
+import InsightsScreen from './InsightsScreen'
 import ReportsScreen from './ReportsScreen'
 import SettingsScreen from './SettingsScreen'
 import { TickerTapeWidget } from '../../components/TradingViewWidgets'
@@ -15,6 +16,7 @@ const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   { id: 'portfolio', label: 'Portfolio', icon: <Briefcase size={20} /> },
   { id: 'markets', label: 'Markets', icon: <BarChart3 size={20} /> },
+  { id: 'insights', label: 'Insights', icon: <Landmark size={20} /> },
   { id: 'reports', label: 'Reports', icon: <FileText size={20} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
 ]
@@ -29,6 +31,7 @@ export default function MainShell() {
       case 'dashboard': return <DashboardScreen />
       case 'portfolio': return <PortfolioScreen />
       case 'markets': return <MarketsScreen />
+      case 'insights': return <InsightsScreen />
       case 'reports': return <ReportsScreen />
       case 'settings': return <SettingsScreen />
     }

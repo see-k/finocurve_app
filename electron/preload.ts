@@ -74,6 +74,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('price-historical', payload),
   priceSearch: (payload: { query: string }) =>
     ipcRenderer.invoke('price-search', payload),
+  congressSenate: (payload?: { page?: number; limit?: number }) =>
+    ipcRenderer.invoke('congress-senate', payload ?? {}),
+  congressHouse: (payload?: { page?: number; limit?: number }) =>
+    ipcRenderer.invoke('congress-house', payload ?? {}),
+  congressCacheGet: () => ipcRenderer.invoke('congress-cache-get'),
+  congressPullLatest: () =>
+    ipcRenderer.invoke('congress-pull-latest'),
+  secSubmissions: (payload: { tickerOrCik: string }) =>
+    ipcRenderer.invoke('sec-submissions', payload),
+  secCompanyFacts: (payload: { tickerOrCik: string }) =>
+    ipcRenderer.invoke('sec-company-facts', payload),
 })
 
 // Expose A2A Server API for Agent-to-Agent protocol support
