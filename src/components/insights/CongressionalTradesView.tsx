@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Loader2, Users, Building2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { Loader2, Users, Building2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react'
 import GlassContainer from '../glass/GlassContainer'
 import './CongressionalTradesView.css'
 
@@ -20,6 +20,14 @@ interface MemberGroup {
   key: string
   name: string
   filings: CongressDisclosure[]
+}
+
+const SENATE_FILINGS_URL = 'https://efdsearch.senate.gov/search/'
+const HOUSE_FILINGS_URL = 'https://disclosures.house.gov/ld/ldsearch.aspx'
+
+function getFilingUrl(f: CongressDisclosure): string | null {
+  const url = f.url ?? f.documentUrl ?? f.filingUrl ?? f.reportUrl ?? f.link
+  return typeof url === 'string' && url.startsWith('http') ? url : null
 }
 
 function getMemberKey(d: CongressDisclosure): string {
@@ -226,11 +234,21 @@ export default function CongressionalTradesView() {
                 </button>
                 {isExpanded && (
                   <div className="ct-member-filings">
+                    <a
+                      href={chamber === 'senate' ? SENATE_FILINGS_URL : HOUSE_FILINGS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ct-view-filings-link"
+                    >
+                      <ExternalLink size={14} />
+                      View {member.name}'s filings on {chamber === 'senate' ? 'Senate.gov' : 'House.gov'}
+                    </a>
                     {member.filings.map((f, i) => {
                       const type = String(f.transactionType ?? '').toLowerCase()
                       const isBuy = /purchase|buy/i.test(type)
-                      return (
-                        <div key={i} className="ct-filing-row">
+                      const filingUrl = getFilingUrl(f)
+                      const rowContent = (
+                        <>
                           <div className="ct-filing-type">
                             {isBuy ? (
                               <TrendingUp size={14} className="ct-icon-buy" />
@@ -244,6 +262,26 @@ export default function CongressionalTradesView() {
                           </div>
                           <div className="ct-filing-amount">{formatValue(f.amount)}</div>
                           <div className="ct-filing-date">{formatDate(f.transactionDate)}</div>
+                          {filingUrl && (
+                            <span className="ct-filing-doc-link">
+                              <ExternalLink size={12} /> View filing
+                            </span>
+                          )}
+                        </>
+                      )
+                      return filingUrl ? (
+                        <a
+                          key={i}
+                          href={filingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ct-filing-row ct-filing-row--link"
+                        >
+                          {rowContent}
+                        </a>
+                      ) : (
+                        <div key={i} className="ct-filing-row">
+                          {rowContent}
                         </div>
                       )
                     })}

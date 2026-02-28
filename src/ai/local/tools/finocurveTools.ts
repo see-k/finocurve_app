@@ -4,8 +4,15 @@
  */
 
 import { z } from 'zod'
-import { tool } from '@langchain/core/tools'
+import { tool, type StructuredToolInterface } from '@langchain/core/tools'
 import type { DocumentRef, PortfolioContext } from '../../types'
+
+export interface CongressCache {
+  senate: Record<string, unknown>[]
+  house: Record<string, unknown>[]
+  senateFetchedAt?: string
+  houseFetchedAt?: string
+}
 
 export interface FinocurveToolContext {
   getPortfolioContext: () => Promise<PortfolioContext | null>
@@ -14,6 +21,8 @@ export interface FinocurveToolContext {
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getRiskMetrics: () => Promise<string>
   extractTextFromDocument: (buffer: Uint8Array, mimeType?: string, fileName?: string) => Promise<string>
+  getCongressCache?: () => Promise<CongressCache | null>
+  getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -137,5 +146,77 @@ ${topHoldings}`
     }
   )
 
-  return [getPortfolioSummary, getDocumentList, getDocumentContent, getReportList, getReportContent, getRiskMetrics]
+  const getCongressionalTrades = tool(
+    async ({ chamber }: { chamber?: 'senate' | 'house' }) => {
+      if (!ctx.getCongressCache) {
+        return 'Congressional trades data is not available. This feature requires the desktop app with cached data.'
+      }
+      const cache = await ctx.getCongressCache()
+      if (!cache) {
+        return 'No congressional disclosure data cached. The user should go to Insights > Congressional Trades and click Refresh to fetch data.'
+      }
+      const list = chamber === 'house' ? cache.house : cache.senate
+      const chamberName = chamber === 'house' ? 'House' : 'Senate'
+      const fetchedAt = chamber === 'house' ? cache.houseFetchedAt : cache.senateFetchedAt
+      if (!list || list.length === 0) {
+        return `No ${chamberName} disclosures in cache. Last fetched: ${fetchedAt || 'Never'}. User should click Refresh in Insights.`
+      }
+      const rows = list.slice(0, 50).map((r: Record<string, unknown>, i: number) => {
+        const name = [r.firstName, r.lastName].filter(Boolean).join(' ')
+        const asset = r.assetDescription ?? r.ticker ?? '—'
+        const type = r.transactionType ?? '—'
+        const amount = r.amount ?? '—'
+        const date = r.transactionDate ?? '—'
+        return `${i + 1}. ${name}: ${type} - ${asset} (${amount}) on ${date}`
+      })
+      return `[Source: ${chamberName} financial disclosures - STOCK Act, last updated ${fetchedAt || 'unknown'}]\n\n${rows.join('\n')}\n\n(Up to 50 of ${list.length} total. For full list, see Insights > Congressional Trades.)`
+    },
+    {
+      name: 'get_congressional_trades',
+      description: 'Get cached congressional financial disclosures (Senate or House). STOCK Act data - trades, assets reported by members of Congress. Use when user asks about congress trading, politician investments, congressional disclosures, or what senators/representatives are buying or selling. Data is cached - user must refresh in Insights to get latest.',
+      schema: z.object({
+        chamber: z.enum(['senate', 'house']).optional().describe('Which chamber: senate or house. Defaults to senate if omitted.'),
+      }),
+    }
+  )
+
+  const getSECFilings = tool(
+    async ({ tickerOrCik }: { tickerOrCik: string }) => {
+      if (!ctx.getSECSubmissions) {
+        return 'SEC filings data is not available. This feature requires the desktop app.'
+      }
+      const { data, error } = await ctx.getSECSubmissions(tickerOrCik)
+      if (error) {
+        return `[Source: SEC EDGAR]\nError: ${error}`
+      }
+      const sub = data as { name?: string; cik?: string; tickers?: string[]; filings?: { recent?: { form?: string[]; filingDate?: string[] } } } | null
+      if (!sub) return 'No SEC data returned.'
+      const name = sub.name ?? 'Unknown'
+      const cik = sub.cik ?? '—'
+      const tickers = (sub.tickers ?? []).join(', ') || '—'
+      const forms = sub.filings?.recent?.form ?? []
+      const dates = sub.filings?.recent?.filingDate ?? []
+      const recent = forms.slice(0, 15).map((f, i) => `${f} - ${dates[i] ?? '—'}`).join('\n')
+      return `[Source: SEC EDGAR - ${tickerOrCik}]\n\nCompany: ${name}\nCIK: ${cik}\nTickers: ${tickers}\n\nRecent filings:\n${recent || 'None'}\n\n(Full filings at sec.gov)`
+    },
+    {
+      name: 'get_sec_filings',
+      description: 'Get SEC EDGAR filing history for a public company. Use when user asks about SEC filings, 10-K, 10-Q, 8-K, company financial reports, or regulatory filings for a stock ticker (e.g. AAPL, TSLA). Provide the stock ticker symbol or 10-digit CIK.',
+      schema: z.object({
+        tickerOrCik: z.string().describe('Stock ticker symbol (e.g. AAPL, TSLA) or 10-digit SEC Central Index Key'),
+      }),
+    }
+  )
+
+  const baseTools: StructuredToolInterface[] = [
+    getPortfolioSummary,
+    getDocumentList,
+    getDocumentContent,
+    getReportList,
+    getReportContent,
+    getRiskMetrics,
+  ]
+  if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
+  if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
+  return baseTools
 }

@@ -93,6 +93,17 @@ export interface SecCompanyFactsResult {
   error: string | null
 }
 
+/** Exported for AI tools - fetches SEC submissions for a ticker or CIK. */
+export async function getSECSubmissionsData(tickerOrCik: string): Promise<SecSubmissionsResult> {
+  const cik = await resolveCik(tickerOrCik)
+  if (!cik) {
+    return { data: null, error: `Could not resolve CIK for "${tickerOrCik}". Use a valid ticker (e.g. AAPL) or 10-digit CIK.` }
+  }
+  const url = `${SEC_BASE}/submissions/CIK${cik}.json`
+  const { data, error } = await fetchSEC<unknown>(url)
+  return { data, error }
+}
+
 export function registerSECHandlers(): void {
   ipcMain.handle(
     'sec-submissions',

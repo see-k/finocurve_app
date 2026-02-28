@@ -1,7 +1,49 @@
 .insights {
   display: flex;
   flex-direction: column;
+  position: relative;
+  min-height: 100%;
+}
+
+.insights-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 380px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.insights-bg__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.2;
+}
+.insights-bg__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 15, 35, 0.3) 0%,
+    var(--bg-primary) 320px
+  );
+}
+.insights > *:not(.insights-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+.insights-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px 32px 32px;
 }
 
 .insights-header {

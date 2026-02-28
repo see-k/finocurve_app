@@ -212,6 +212,43 @@
   gap: 8px;
 }
 
+.ct-view-filings-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.ct-view-filings-link:hover {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.ct-filing-row--link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.ct-filing-row--link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ct-filing-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--brand-primary);
+  margin-left: auto;
+}
+
 @media (max-width: 600px) {
   .ct-member-filings {
     padding-left: 20px;
@@ -220,7 +257,7 @@
 
 .ct-filing-row {
   display: grid;
-  grid-template-columns: 140px 1fr 100px 100px;
+  grid-template-columns: 140px 1fr 100px 100px auto;
   gap: 16px;
   align-items: center;
   padding: 12px 16px;
@@ -229,9 +266,13 @@
   font-size: 13px;
 }
 
+.ct-filing-row.ct-filing-row--link {
+  cursor: pointer;
+}
+
 @media (max-width: 700px) {
   .ct-filing-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr auto;
   }
 }
 

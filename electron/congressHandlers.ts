@@ -71,6 +71,11 @@ function loadCache(): CongressCache | null {
   }
 }
 
+/** Exported for AI tools - returns cached congressional disclosure data. */
+export function getCongressCacheData(): CongressCache | null {
+  return loadCache()
+}
+
 function saveCache(cache: CongressCache): void {
   try {
     const p = getCachePath()

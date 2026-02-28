@@ -9,6 +9,8 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
 import { extractTextFromDocument } from '../src/ai/local/documentParser'
+import { getCongressCacheData } from './congressHandlers'
+import { getSECSubmissionsData } from './secHandlers'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
@@ -173,6 +175,8 @@ export function registerAIHandlers(): void {
         getDocumentList: async () => listDocumentsFromLocal(),
         getReportList: async () => listReportsFromLocal(),
         getRiskMetrics: async () => 'Not available',
+        getCongressCache: async () => getCongressCacheData(),
+        getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
         config: storedConfigToAIConfig(stored),
       })
     }
