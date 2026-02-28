@@ -11,6 +11,7 @@ import { LocalAIService } from '../src/ai/local/LocalAIService'
 import { extractTextFromDocument } from '../src/ai/local/documentParser'
 import { getCongressCacheData } from './congressHandlers'
 import { getSECSubmissionsData, getSECFilingContentData } from './secHandlers'
+import { tavilySearch } from './tavilyHandlers'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
@@ -179,6 +180,8 @@ export function registerAIHandlers(): void {
         getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
         getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
           getSECFilingContentData(tickerOrCik, accessionNumber),
+        searchWeb: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) =>
+          tavilySearch(query, options),
         config: storedConfigToAIConfig(stored),
       })
     }

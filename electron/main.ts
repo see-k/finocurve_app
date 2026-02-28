@@ -9,6 +9,7 @@ import { registerAIHandlers } from './aiHandlers'
 import { registerPriceHandlers } from './priceHandlers'
 import { registerCongressHandlers } from './congressHandlers'
 import { registerSECHandlers } from './secHandlers'
+import { registerTavilyHandlers } from './tavilyHandlers'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -102,5 +103,6 @@ app.whenReady().then(() => {
   registerPriceHandlers()
   registerCongressHandlers()
   registerSECHandlers()
+  registerTavilyHandlers()
   createWindow()
 })
