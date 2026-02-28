@@ -41,6 +41,11 @@ export interface ChatContext {
   riskMetrics?: string
 }
 
+/** Chunk from chat stream - reasoning (thinking) vs answer content. */
+export type ChatStreamChunk =
+  | { type: 'reasoning'; content: string }
+  | { type: 'answer'; content: string }
+
 export interface Tool {
   name: string
   description: string
@@ -56,7 +61,7 @@ export interface AIService {
   chat(
     messages: ChatMessage[],
     context: ChatContext
-  ): AsyncGenerator<string, void, unknown>
+  ): AsyncGenerator<ChatStreamChunk, void, unknown>
 
   getTools(): Tool[]
 }

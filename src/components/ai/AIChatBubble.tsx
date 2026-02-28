@@ -20,6 +20,8 @@ function isAuthenticatedPath(path: string): boolean {
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Reasoning/thinking from models that support it (o1, o3, llama thinking, etc.) */
+  reasoning?: string
 }
 
 export default function AIChatBubble() {
@@ -31,6 +33,7 @@ export default function AIChatBubble() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -48,7 +51,7 @@ export default function AIChatBubble() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, streaming])
 
   useEffect(() => {
     resizeTextarea()
@@ -74,6 +77,15 @@ export default function AIChatBubble() {
     setMessages((prev) => [...prev, { role: 'user', content: text }])
     setLoading(true)
     setError(null)
+    setStreaming({ reasoning: '', answer: '' })
+
+    const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
+      setStreaming((prev) =>
+        chunk.type === 'reasoning'
+          ? { ...prev, reasoning: prev.reasoning + chunk.content }
+          : { ...prev, answer: prev.answer + chunk.content }
+      )
+    })
 
     try {
       const chatMessages = [...messages, { role: 'user' as const, content: text }].map((m) => ({
@@ -90,7 +102,7 @@ export default function AIChatBubble() {
           }
         : undefined
 
-      const { text: response } = await window.electronAPI.aiChatStream({
+      const { text: response, reasoning } = await window.electronAPI.aiChatStream({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
@@ -101,8 +113,15 @@ export default function AIChatBubble() {
         },
       })
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: response || 'No response.' }])
+      unsubscribe?.()
+      setStreaming({ reasoning: '', answer: '' })
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: response || 'No response.', reasoning },
+      ])
     } catch (e) {
+      unsubscribe?.()
+      setStreaming({ reasoning: '', answer: '' })
       setError(e instanceof Error ? e.message : 'Failed to get response')
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}` }])
     } finally {
@@ -162,11 +181,18 @@ export default function AIChatBubble() {
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
                   {msg.role === 'assistant' ? (
-                    <div className="ai-chat-markdown">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
+                    <>
+                      {msg.reasoning && (
+                        <div className="ai-chat-reasoning">
+                          {msg.reasoning}
+                        </div>
+                      )}
+                      <div className="ai-chat-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    </>
                   ) : (
                     msg.content
                   )}
@@ -178,8 +204,21 @@ export default function AIChatBubble() {
                 <div className="ai-chat-msg-avatar">
                   <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
                 </div>
-                <div className="ai-chat-msg ai-chat-msg--assistant ai-chat-msg--loading">
-                  Thinking...
+                <div className="ai-chat-msg ai-chat-msg--assistant">
+                  {streaming.reasoning && (
+                    <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
+                      {streaming.reasoning}
+                    </div>
+                  )}
+                  <div className={streaming.answer ? 'ai-chat-markdown' : 'ai-chat-msg--loading'}>
+                    {streaming.answer ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {streaming.answer}
+                      </ReactMarkdown>
+                    ) : (
+                      'Thinking...'
+                    )}
+                  </div>
                 </div>
               </div>
             )}

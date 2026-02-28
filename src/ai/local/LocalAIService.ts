@@ -5,9 +5,10 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages'
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
+import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
 import type {
   AIService,
+  ChatStreamChunk,
   DocumentRef,
   DocumentInsight,
   ChatMessage,
@@ -19,6 +20,104 @@ import { getAIConfig, type AIConfig } from '../config'
 import { createChatModel } from '../createChatModel'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools } from './tools'
+
+/** Parse AIMessage content into reasoning + answer chunks for display. */
+function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
+  const chunks: ChatStreamChunk[] = []
+
+  try {
+    const blocks = message.contentBlocks
+    if (blocks && blocks.length > 0) {
+      for (const block of blocks) {
+        if (block.type === 'reasoning' && 'reasoning' in block && typeof (block as { reasoning?: string }).reasoning === 'string') {
+          const r = (block as { reasoning: string }).reasoning
+          if (r.trim()) chunks.push({ type: 'reasoning', content: r })
+        } else if (block.type === 'text' && 'text' in block && typeof (block as { text?: string }).text === 'string') {
+          const t = (block as { text: string }).text
+          if (t.trim()) chunks.push({ type: 'answer', content: t })
+        }
+      }
+      if (chunks.length > 0) return chunks
+    }
+  } catch {
+    /* contentBlocks may throw; fall through */
+  }
+
+  const raw = typeof message.content === 'string' ? message.content : String(message.content ?? '')
+  if (!raw.trim()) return []
+
+  const thinkMatch = raw.match(/<think>([\s\S]*?)<\/think>/i)
+  if (thinkMatch) {
+    const reasoning = thinkMatch[1].trim()
+    if (reasoning) chunks.push({ type: 'reasoning', content: reasoning })
+  }
+
+  const answerPart = thinkMatch
+    ? raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+    : raw
+  if (answerPart) chunks.push({ type: 'answer', content: answerPart })
+
+  return chunks.length > 0 ? chunks : [{ type: 'answer', content: raw }]
+}
+
+/** Extract reasoning/answer content from a single streaming AIMessageChunk. */
+function extractStreamingContent(chunk: AIMessageChunk): { type: 'reasoning' | 'answer'; content: string } | null {
+  const content = chunk.content
+  if (typeof content === 'string') {
+    return content ? { type: 'answer', content } : null
+  }
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (typeof block === 'object' && block !== null) {
+        const b = block as Record<string, unknown>
+        if ((b.type === 'reasoning' || b.type === 'thinking') && typeof b.reasoning === 'string' && b.reasoning) {
+          return { type: 'reasoning', content: b.reasoning }
+        }
+        if (b.type === 'text' && typeof b.text === 'string' && b.text) {
+          return { type: 'answer', content: b.text }
+        }
+      }
+    }
+  }
+  return null
+}
+
+/** Stateful parser for Ollama-style <think>...</think> tags spanning multiple chunks. */
+class ThinkTagParser {
+  private insideThink = false
+
+  parse(text: string): ChatStreamChunk[] {
+    const chunks: ChatStreamChunk[] = []
+    let remaining = text
+
+    while (remaining.length > 0) {
+      if (this.insideThink) {
+        const closeIdx = remaining.indexOf('</think>')
+        if (closeIdx === -1) {
+          if (remaining) chunks.push({ type: 'reasoning', content: remaining })
+          remaining = ''
+        } else {
+          const before = remaining.slice(0, closeIdx)
+          if (before) chunks.push({ type: 'reasoning', content: before })
+          this.insideThink = false
+          remaining = remaining.slice(closeIdx + '</think>'.length)
+        }
+      } else {
+        const openIdx = remaining.indexOf('<think>')
+        if (openIdx === -1) {
+          if (remaining) chunks.push({ type: 'answer', content: remaining })
+          remaining = ''
+        } else {
+          const before = remaining.slice(0, openIdx)
+          if (before) chunks.push({ type: 'answer', content: before })
+          this.insideThink = true
+          remaining = remaining.slice(openIdx + '<think>'.length)
+        }
+      }
+    }
+    return chunks
+  }
+}
 
 export interface LocalAIServiceOptions {
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
@@ -134,7 +233,7 @@ export class LocalAIService implements AIService {
   async *chat(
     messages: ChatMessage[],
     context: ChatContext
-  ): AsyncGenerator<string, void, unknown> {
+  ): AsyncGenerator<ChatStreamChunk, void, unknown> {
     const systemParts: string[] = [
       'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use the available tools when you need current data.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
@@ -179,23 +278,57 @@ export class LocalAIService implements AIService {
 
     const MAX_TOOL_ROUNDS = 5
     let round = 0
+    let yieldedText = false
     let currentMessages: BaseMessage[] = langchainMessages
     const modelToUse = modelWithTools ?? this.model
+    const toolMap = new Map(tools.map((t) => [t.name, t]))
 
     while (round < MAX_TOOL_ROUNDS) {
-      const response = await modelToUse.invoke(currentMessages)
-      const aiMessage = AIMessage.isInstance(response) ? response : new AIMessage({ content: response })
+      const stream = await modelToUse.stream(currentMessages)
+      let accumulated: AIMessageChunk | null = null
+      const thinkParser = new ThinkTagParser()
+      let needsSeparator = yieldedText
+
+      for await (const chunk of stream) {
+        // Accumulate for tool-call detection at end
+        accumulated = accumulated ? accumulated.concat(chunk) : chunk
+
+        // Yield text/reasoning content immediately
+        const extracted = extractStreamingContent(chunk)
+        if (extracted) {
+          // Insert paragraph break between tool rounds so text doesn't run together
+          if (needsSeparator && extracted.type === 'answer') {
+            yield { type: 'answer', content: '\n\n' }
+            needsSeparator = false
+          }
+          if (extracted.type === 'reasoning') {
+            yield { type: 'reasoning', content: extracted.content }
+          } else {
+            // Parse for <think> tags (Ollama-style thinking models)
+            const parsed = thinkParser.parse(extracted.content)
+            for (const c of parsed) yield c
+            yieldedText = true
+          }
+        }
+      }
+
+      if (!accumulated) return
+
+      // Convert accumulated chunk to AIMessage for message history
+      const aiMessage = new AIMessage({
+        content: accumulated.content,
+        tool_calls: accumulated.tool_calls,
+        additional_kwargs: accumulated.additional_kwargs,
+      })
 
       const toolCalls = aiMessage.tool_calls
       if (!toolCalls || toolCalls.length === 0) {
-        const content = typeof aiMessage.content === 'string' ? aiMessage.content : String(aiMessage.content ?? '')
-        if (content) yield content
+        // Text was already streamed above — we're done
         return
       }
 
+      // Execute tool calls
       const toolMessages: ToolMessage[] = []
-      const toolMap = new Map(tools.map((t) => [t.name, t]))
-
       for (const tc of toolCalls) {
         const tool = toolMap.get(tc.name)
         const id = tc.id ?? `call_${tc.name}_${round}`
@@ -215,7 +348,7 @@ export class LocalAIService implements AIService {
       round++
     }
 
-    yield 'I reached the maximum number of tool calls. Please try a simpler question.'
+    yield { type: 'answer', content: 'I reached the maximum number of tool calls. Please try a simpler question.' }
   }
 
   getTools(): Tool[] {

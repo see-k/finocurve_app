@@ -358,18 +358,26 @@ export function registerAIHandlers(): void {
   })
 
   ipcMain.handle('ai-chat-stream', async (
-    _event,
+    event,
     payload: {
       messages: ChatMessage[]
       context: ChatContext
     }
   ) => {
     const service = getService()
-    const chunks: string[] = []
+    const sender = event.sender
+    let reasoning = ''
+    let answer = ''
     for await (const chunk of service.chat(payload.messages, payload.context)) {
-      chunks.push(chunk)
+      if (chunk.type === 'reasoning') {
+        reasoning += chunk.content
+        sender.send('ai-chat-chunk', { type: 'reasoning', content: chunk.content })
+      } else {
+        answer += chunk.content
+        sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
+      }
     }
-    return { text: chunks.join('') }
+    return { text: answer, reasoning: reasoning || undefined }
   })
 
   ipcMain.handle('ai-generate-advanced-analysis', async (

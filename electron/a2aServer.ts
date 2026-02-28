@@ -227,11 +227,11 @@ export function startA2AServer(
             let responseText: string
             const chatContext = getAIContext?.() ?? {}
             try {
-              const chunks: string[] = []
+              const answerParts: string[] = []
               for await (const chunk of service.chat(chatMessages, chatContext)) {
-                chunks.push(chunk)
+                if (chunk.type === 'answer') answerParts.push(chunk.content)
               }
-              responseText = chunks.join('')
+              responseText = answerParts.join('')
               emit('a2a_llm_end', {
                 responseLength: responseText.length,
                 responsePreview: responseText.slice(0, 200) + (responseText.length > 200 ? '...' : ''),
@@ -292,11 +292,11 @@ export function startA2AServer(
             const params = parsed.params as { messages?: { role: 'user' | 'assistant' | 'system'; content: string }[]; context?: unknown }
             const messages = params?.messages ?? []
             const context = params?.context ?? {}
-            const chunks: string[] = []
+            const answerParts: string[] = []
             for await (const chunk of service.chat(messages, context)) {
-              chunks.push(chunk)
+              if (chunk.type === 'answer') answerParts.push(chunk.content)
             }
-            sendJson({ text: chunks.join('') })
+            sendJson({ text: answerParts.join('') })
             return
           }
 
