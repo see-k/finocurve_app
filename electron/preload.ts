@@ -85,6 +85,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('sec-submissions', payload),
   secCompanyFacts: (payload: { tickerOrCik: string }) =>
     ipcRenderer.invoke('sec-company-facts', payload),
+  secFilingContent: (payload: { tickerOrCik: string; accessionNumber: string }) =>
+    ipcRenderer.invoke('sec-filing-content', payload),
 })
 
 // Expose A2A Server API for Agent-to-Agent protocol support

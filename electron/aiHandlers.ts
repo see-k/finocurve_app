@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
 import { extractTextFromDocument } from '../src/ai/local/documentParser'
 import { getCongressCacheData } from './congressHandlers'
-import { getSECSubmissionsData } from './secHandlers'
+import { getSECSubmissionsData, getSECFilingContentData } from './secHandlers'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
@@ -177,6 +177,8 @@ export function registerAIHandlers(): void {
         getRiskMetrics: async () => 'Not available',
         getCongressCache: async () => getCongressCacheData(),
         getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
+        getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
+          getSECFilingContentData(tickerOrCik, accessionNumber),
         config: storedConfigToAIConfig(stored),
       })
     }

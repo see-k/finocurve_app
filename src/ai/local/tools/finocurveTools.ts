@@ -23,6 +23,7 @@ export interface FinocurveToolContext {
   extractTextFromDocument: (buffer: Uint8Array, mimeType?: string, fileName?: string) => Promise<string>
   getCongressCache?: () => Promise<CongressCache | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
+  getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -189,21 +190,57 @@ ${topHoldings}`
       if (error) {
         return `[Source: SEC EDGAR]\nError: ${error}`
       }
-      const sub = data as { name?: string; cik?: string; tickers?: string[]; filings?: { recent?: { form?: string[]; filingDate?: string[] } } } | null
+      const sub = data as {
+        name?: string
+        cik?: string
+        tickers?: string[]
+        filings?: {
+          recent?: { form?: string[]; filingDate?: string[]; accessionNumber?: string[] }
+        }
+      } | null
       if (!sub) return 'No SEC data returned.'
       const name = sub.name ?? 'Unknown'
       const cik = sub.cik ?? '—'
       const tickers = (sub.tickers ?? []).join(', ') || '—'
       const forms = sub.filings?.recent?.form ?? []
       const dates = sub.filings?.recent?.filingDate ?? []
-      const recent = forms.slice(0, 15).map((f, i) => `${f} - ${dates[i] ?? '—'}`).join('\n')
-      return `[Source: SEC EDGAR - ${tickerOrCik}]\n\nCompany: ${name}\nCIK: ${cik}\nTickers: ${tickers}\n\nRecent filings:\n${recent || 'None'}\n\n(Full filings at sec.gov)`
+      const accNos = sub.filings?.recent?.accessionNumber ?? []
+      const recent = forms
+        .slice(0, 15)
+        .map((f, i) => {
+          const acc = accNos[i]
+          return `${f} - ${dates[i] ?? '—'}${acc ? ` (accession: ${acc})` : ''}`
+        })
+        .join('\n')
+      return `[Source: SEC EDGAR - ${tickerOrCik}]\n\nCompany: ${name}\nCIK: ${cik}\nTickers: ${tickers}\n\nRecent filings (use accession numbers with get_sec_filing_content to fetch full text):\n${recent || 'None'}\n\n(Full filings at sec.gov)`
     },
     {
       name: 'get_sec_filings',
-      description: 'Get SEC EDGAR filing history for a public company. Use when user asks about SEC filings, 10-K, 10-Q, 8-K, company financial reports, or regulatory filings for a stock ticker (e.g. AAPL, TSLA). Provide the stock ticker symbol or 10-digit CIK.',
+      description: 'Get SEC EDGAR filing history for a public company. Use when user asks about SEC filings, 10-K, 10-Q, 8-K, company financial reports, or regulatory filings for a stock ticker (e.g. AAPL, TSLA). Returns form types, dates, and accession numbers. Use get_sec_filing_content with an accession number to fetch and summarize the full filing text.',
       schema: z.object({
         tickerOrCik: z.string().describe('Stock ticker symbol (e.g. AAPL, TSLA) or 10-digit SEC Central Index Key'),
+      }),
+    }
+  )
+
+  const getSECFilingContent = tool(
+    async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
+      if (!ctx.getSECFilingContent) {
+        return 'SEC filing content is not available. This feature requires the desktop app.'
+      }
+      const { content, error } = await ctx.getSECFilingContent(tickerOrCik, accessionNumber)
+      if (error) {
+        return `[Source: SEC EDGAR]\nError: ${error}`
+      }
+      if (!content) return 'No content returned for this filing.'
+      return `[Source: SEC EDGAR - ${tickerOrCik}, accession ${accessionNumber}]\n\n${content}`
+    },
+    {
+      name: 'get_sec_filing_content',
+      description: 'Fetch the full text content of a specific SEC filing. Use after get_sec_filings to get accession numbers. Provide ticker (e.g. AAPL) or CIK and the accession number (e.g. 0000320193-26-000123). Use when the user asks to summarize, analyze, or read a specific filing like an 8-K or 10-K.',
+      schema: z.object({
+        tickerOrCik: z.string().describe('Stock ticker symbol (e.g. AAPL) or 10-digit CIK'),
+        accessionNumber: z.string().describe('SEC accession number from get_sec_filings (e.g. 0000320193-26-000123)'),
       }),
     }
   )
@@ -218,5 +255,6 @@ ${topHoldings}`
   ]
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
+  if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
   return baseTools
 }

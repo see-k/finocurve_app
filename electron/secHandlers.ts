@@ -93,6 +93,88 @@ export interface SecCompanyFactsResult {
   error: string | null
 }
 
+export interface SecFilingContentResult {
+  content: string | null
+  error: string | null
+}
+
+const MAX_FILING_TEXT_LENGTH = 80_000
+
+/** Convert SEC filing HTML to plain text for AI consumption. */
+function htmlToPlainText(html: string): string {
+  let text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  // Block elements -> newline
+  text = text.replace(/<\/?(div|p|br|tr|li|h[1-6]|section|article)[^>]*>/gi, '\n')
+  text = text.replace(/<[^>]+>/g, ' ')
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+  text = text.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
+  return text
+}
+
+/** Exported for AI tools - fetches full text content of an SEC filing by ticker/CIK and accession number. */
+export async function getSECFilingContentData(
+  tickerOrCik: string,
+  accessionNumber: string
+): Promise<SecFilingContentResult> {
+  const accNo = String(accessionNumber).trim()
+  if (!accNo) {
+    return { content: null, error: 'Accession number is required.' }
+  }
+  const cik = await resolveCik(tickerOrCik)
+  if (!cik) {
+    return {
+      content: null,
+      error: `Could not resolve CIK for "${tickerOrCik}". Use a valid ticker (e.g. AAPL) or 10-digit CIK.`,
+    }
+  }
+  const { data: subData } = await fetchSEC<{
+    filings?: { recent?: { accessionNumber?: string[]; primaryDocument?: string[] } }
+  }>(`${SEC_BASE}/submissions/CIK${cik}.json`)
+  if (!subData?.filings?.recent) {
+    return { content: null, error: 'Could not load company filings.' }
+  }
+  const accNos = subData.filings.recent.accessionNumber ?? []
+  const primaryDocs = subData.filings.recent.primaryDocument ?? []
+  const idx = accNos.findIndex((a) => a === accNo)
+  if (idx < 0) {
+    return {
+      content: null,
+      error: `Accession number ${accNo} not found in recent filings. Use get_sec_filings first to get valid accession numbers.`,
+    }
+  }
+  const primaryDoc = primaryDocs[idx] ?? accNo.replace(/-/g, '') + '.htm'
+  const cleanAcc = accNo.replace(/-/g, '')
+  const docUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${cleanAcc}/${primaryDoc}`
+
+  try {
+    const res = await fetch(docUrl, {
+      headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+    })
+    if (!res.ok) {
+      return { content: null, error: `SEC returned ${res.status} for document.` }
+    }
+    const html = await res.text()
+    const text = htmlToPlainText(html)
+    const truncated =
+      text.length > MAX_FILING_TEXT_LENGTH
+        ? text.slice(0, MAX_FILING_TEXT_LENGTH) +
+          `\n\n[... truncated - original length ${text.length} chars. Full filing at ${docUrl}]`
+        : text
+    return { content: truncated, error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { content: null, error: `Failed to fetch filing: ${msg}` }
+  }
+}
+
 /** Exported for AI tools - fetches SEC submissions for a ticker or CIK. */
 export async function getSECSubmissionsData(tickerOrCik: string): Promise<SecSubmissionsResult> {
   const cik = await resolveCik(tickerOrCik)
@@ -115,6 +197,16 @@ export function registerSECHandlers(): void {
       const url = `${SEC_BASE}/submissions/CIK${cik}.json`
       const { data, error } = await fetchSEC<unknown>(url)
       return { data, error }
+    }
+  )
+
+  ipcMain.handle(
+    'sec-filing-content',
+    async (
+      _event,
+      payload: { tickerOrCik: string; accessionNumber: string }
+    ): Promise<SecFilingContentResult> => {
+      return getSECFilingContentData(payload.tickerOrCik, payload.accessionNumber)
     }
   )
 

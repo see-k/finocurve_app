@@ -89,6 +89,10 @@ interface ElectronAPI {
   congressPullLatest?: () => Promise<{ data: { senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string }; error: string | null }>
   secSubmissions?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
   secCompanyFacts?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
+  secFilingContent?: (payload: {
+    tickerOrCik: string
+    accessionNumber: string
+  }) => Promise<{ content: string | null; error: string | null }>
 }
 
 interface Window {

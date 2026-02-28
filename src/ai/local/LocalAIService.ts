@@ -28,6 +28,7 @@ export interface LocalAIServiceOptions {
   getRiskMetrics?: () => Promise<string>
   getCongressCache?: () => Promise<{ senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string } | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
+  getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
   config?: Partial<AIConfig>
 }
 
@@ -156,6 +157,7 @@ export class LocalAIService implements AIService {
       extractTextFromDocument,
       getCongressCache: this.options.getCongressCache,
       getSECSubmissions: this.options.getSECSubmissions,
+      getSECFilingContent: this.options.getSECFilingContent,
     }
 
     const tools = createFinocurveTools(toolContext)
@@ -230,6 +232,12 @@ export class LocalAIService implements AIService {
     }
     if (this.options.getSECSubmissions) {
       base.push({ name: 'get_sec_filings', description: 'Get SEC EDGAR filings for a ticker or CIK' })
+    }
+    if (this.options.getSECFilingContent) {
+      base.push({
+        name: 'get_sec_filing_content',
+        description: 'Fetch full text of a specific SEC filing by accession number',
+      })
     }
     return base
   }
