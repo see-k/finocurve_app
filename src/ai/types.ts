@@ -9,6 +9,13 @@ export interface DocumentRef {
   source: 'cloud' | 'local'
 }
 
+export interface PortfolioHolding {
+  symbol?: string
+  name: string
+  value: number
+  percent?: number
+}
+
 export interface PortfolioContext {
   portfolioName: string
   totalValue: number
@@ -16,6 +23,8 @@ export interface PortfolioContext {
   assetCount: number
   riskScore?: number
   riskLevel?: string
+  /** Top holdings for news matching and context */
+  topHoldings?: PortfolioHolding[]
 }
 
 export interface DocumentInsight {

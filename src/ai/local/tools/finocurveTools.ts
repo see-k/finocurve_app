@@ -34,7 +34,16 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
       if (!portfolio) {
         return 'No portfolio data available. The user has not set up a portfolio yet.'
       }
-      const topHoldings = 'Top holdings not available in current context.'
+      const holdings = portfolio.topHoldings ?? []
+      const topHoldings =
+        holdings.length > 0
+          ? holdings
+              .map(
+                (h) =>
+                  `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
+              )
+              .join('\n')
+          : 'Top holdings not available in current context.'
       return `[Source: Portfolio data - ${portfolio.portfolioName}]
 Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
@@ -42,6 +51,8 @@ Total gain/loss: ${portfolio.totalGainLossPercent.toFixed(1)}%
 Asset count: ${portfolio.assetCount}
 Risk score: ${portfolio.riskScore ?? 'N/A'}
 Risk level: ${portfolio.riskLevel ?? 'N/A'}
+
+Top holdings:
 ${topHoldings}`
     },
     {

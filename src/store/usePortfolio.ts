@@ -3,6 +3,7 @@ import type { Portfolio, Asset } from '../types'
 import {
   portfolioTotalValue, portfolioTotalCost,
   portfolioTotalGainLoss, portfolioTotalGainLossPercent,
+  assetCurrentValue,
 } from '../types'
 
 const STORAGE_KEY = 'finocurve-portfolio'
@@ -101,11 +102,22 @@ export function usePortfolio() {
     const totalVal = portfolioTotalValue(portfolio)
     const totalCostVal = portfolioTotalCost(portfolio)
     const gainLossPct = totalCostVal > 0 ? ((totalVal - totalCostVal) / totalCostVal) * 100 : 0
+    const nonLoanAssets = portfolio.assets?.filter((a) => a.category !== 'loan') ?? []
+    const topHoldings = nonLoanAssets
+      .map((a) => ({
+        symbol: a.symbol,
+        name: a.name,
+        value: assetCurrentValue(a),
+        percent: totalVal > 0 ? (assetCurrentValue(a) / totalVal) * 100 : undefined,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10)
     window.electronAPI.portfolioSync({
       portfolioName: portfolio.name || 'Portfolio',
       totalValue: totalVal,
       totalGainLossPercent: gainLossPct,
       assetCount: portfolio.assets?.length ?? 0,
+      topHoldings,
     })
   }, [portfolio])
 

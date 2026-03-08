@@ -49,7 +49,15 @@ interface ElectronAPI {
   localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
   // Portfolio sync (for A2A / main process)
-  portfolioSync?: (payload: { portfolioName: string; totalValue: number; totalGainLossPercent: number; assetCount: number; riskScore?: number; riskLevel?: string } | null) => Promise<{ ok: boolean }>
+  portfolioSync?: (payload: {
+    portfolioName: string
+    totalValue: number
+    totalGainLossPercent: number
+    assetCount: number
+    riskScore?: number
+    riskLevel?: string
+    topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+  } | null) => Promise<{ ok: boolean }>
   // AI
   aiConfigGet?: () => Promise<AIConfigFromMain>
   aiConfigSave?: (payload: AIConfigPayload) => Promise<{ ok: boolean }>
