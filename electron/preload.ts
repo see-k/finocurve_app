@@ -94,6 +94,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('sec-filing-content', payload),
 })
 
+// Expose MCP API for Model Context Protocol server management
+contextBridge.exposeInMainWorld('mcpAPI', {
+  selectConfigFile: () => ipcRenderer.invoke('mcp:select-config-file'),
+  getConfigPath: () => ipcRenderer.invoke('mcp:get-config-path'),
+  clearConfigPath: () => ipcRenderer.invoke('mcp:clear-config-path'),
+  loadServers: () => ipcRenderer.invoke('mcp:load-servers'),
+  startServers: () => ipcRenderer.invoke('mcp:start-servers'),
+  stopServers: () => ipcRenderer.invoke('mcp:stop-servers'),
+  getStatus: () => ipcRenderer.invoke('mcp:get-status'),
+  getSettings: () => ipcRenderer.invoke('mcp:get-settings'),
+  updateSettings: (settings: { autoStart?: boolean }) => ipcRenderer.invoke('mcp:update-settings', settings),
+})
+
 // Expose A2A Server API for Agent-to-Agent protocol support
 contextBridge.exposeInMainWorld('a2aAPI', {
   start: (options?: { port?: number }) => ipcRenderer.invoke('a2a:start', options),

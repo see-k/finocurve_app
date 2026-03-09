@@ -18,6 +18,7 @@ import type {
 } from '../types'
 import { getAIConfig, type AIConfig } from '../config'
 import { createChatModel } from '../createChatModel'
+import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools } from './tools'
 
@@ -129,6 +130,7 @@ export interface LocalAIServiceOptions {
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
   searchWeb?: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) => Promise<{ data: { results: string; answer?: string } | null; error: string | null }>
+  getMCPTools?: () => StructuredToolInterface[]
   config?: Partial<AIConfig>
 }
 
@@ -261,7 +263,9 @@ export class LocalAIService implements AIService {
       searchWeb: this.options.searchWeb,
     }
 
-    const tools = createFinocurveTools(toolContext)
+    const finocurveTools = createFinocurveTools(toolContext)
+    const mcpTools = this.options.getMCPTools?.() ?? []
+    const tools = [...finocurveTools, ...mcpTools]
     const modelWithTools =
       typeof this.model.bindTools === 'function'
         ? this.model.bindTools(tools)
@@ -376,6 +380,11 @@ export class LocalAIService implements AIService {
     }
     if (this.options.searchWeb) {
       base.push({ name: 'search_web', description: 'Search the web for current info (news, finance)' })
+    }
+    // Include MCP tools in the reported tool list
+    const mcpTools = this.options.getMCPTools?.() ?? []
+    for (const t of mcpTools) {
+      base.push({ name: t.name, description: t.description })
     }
     return base
   }

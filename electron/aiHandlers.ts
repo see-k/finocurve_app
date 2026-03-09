@@ -12,6 +12,7 @@ import { extractTextFromDocument } from '../src/ai/local/documentParser'
 import { getCongressCacheData } from './congressHandlers'
 import { getSECSubmissionsData, getSECFilingContentData } from './secHandlers'
 import { tavilySearch } from './tavilyHandlers'
+import { getMCPLangChainTools } from './mcpToolBridge'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
@@ -182,6 +183,7 @@ export function registerAIHandlers(): void {
           getSECFilingContentData(tickerOrCik, accessionNumber),
         searchWeb: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) =>
           tavilySearch(query, options),
+        getMCPTools: () => getMCPLangChainTools(),
         config: storedConfigToAIConfig(stored),
       })
     }

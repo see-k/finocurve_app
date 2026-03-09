@@ -10,6 +10,8 @@ import { registerPriceHandlers } from './priceHandlers'
 import { registerCongressHandlers } from './congressHandlers'
 import { registerSECHandlers } from './secHandlers'
 import { registerTavilyHandlers } from './tavilyHandlers'
+import { registerMCPHandlers } from './mcpHandlers'
+import { stopMCPServers } from './mcpServer'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -89,6 +91,10 @@ app.on('window-all-closed', () => {
   }
 })
 
+app.on('before-quit', () => {
+  stopMCPServers().catch(() => {})
+})
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
@@ -104,5 +110,6 @@ app.whenReady().then(() => {
   registerCongressHandlers()
   registerSECHandlers()
   registerTavilyHandlers()
+  registerMCPHandlers()
   createWindow()
 })

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal } from 'lucide-react'
+import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -50,6 +50,16 @@ export default function AIConfigScreen() {
   const [a2aSuccess, setA2aSuccess] = useState<string | null>(null)
   const [showLogsModal, setShowLogsModal] = useState(false)
 
+  // MCP state
+  const [mcpConfigPath, setMcpConfigPath] = useState<string | null>(null)
+  const [mcpServerList, setMcpServerList] = useState<MCPServerDefinition[]>([])
+  const [mcpRunning, setMcpRunning] = useState(false)
+  const [mcpServerStatuses, setMcpServerStatuses] = useState<MCPServerStatusInfo[]>([])
+  const [mcpAutoStart, setMcpAutoStart] = useState(false)
+  const [mcpLoading, setMcpLoading] = useState(false)
+  const [mcpConfigError, setMcpConfigError] = useState<string | null>(null)
+  const [mcpSuccess, setMcpSuccess] = useState<string | null>(null)
+
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
   }, [])
@@ -94,6 +104,41 @@ export default function AIConfigScreen() {
       return () => clearTimeout(timer)
     }
   }, [a2aSuccess])
+
+  // Load MCP settings on mount
+  useEffect(() => {
+    if (!window.mcpAPI) return
+    window.mcpAPI.getSettings().then((settings) => {
+      setMcpConfigPath(settings.configFilePath)
+      setMcpAutoStart(settings.autoStart)
+      if (settings.configFilePath) {
+        window.mcpAPI!.loadServers().then((result) => {
+          if (!result.error) setMcpServerList(result.servers)
+        })
+      }
+    })
+  }, [])
+
+  // Poll MCP status every 5 seconds
+  useEffect(() => {
+    if (!window.mcpAPI) return
+    const loadMCPStatus = async () => {
+      const status = await window.mcpAPI!.getStatus()
+      setMcpRunning(status.running)
+      setMcpServerStatuses(status.servers)
+    }
+    loadMCPStatus()
+    const interval = setInterval(loadMCPStatus, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Auto-dismiss MCP success
+  useEffect(() => {
+    if (mcpSuccess) {
+      const timer = setTimeout(() => setMcpSuccess(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [mcpSuccess])
 
   const loadA2AStatus = async () => {
     try {
@@ -269,6 +314,79 @@ export default function AIConfigScreen() {
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url)
     setA2aSuccess('URL copied to clipboard!')
+  }
+
+  // =============================================
+  // MCP Handlers
+  // =============================================
+
+  const handleMCPSelectFile = async () => {
+    if (!window.mcpAPI) return
+    setMcpConfigError(null)
+    const result = await window.mcpAPI.selectConfigFile()
+    if (result.error) {
+      setMcpConfigError(result.error)
+      return
+    }
+    if (result.path) {
+      setMcpConfigPath(result.path)
+      const serversResult = await window.mcpAPI.loadServers()
+      if (!serversResult.error) setMcpServerList(serversResult.servers)
+      setMcpSuccess('Config file loaded successfully')
+    }
+  }
+
+  const handleMCPClearFile = async () => {
+    if (!window.mcpAPI) return
+    await window.mcpAPI.clearConfigPath()
+    setMcpConfigPath(null)
+    setMcpServerList([])
+    setMcpConfigError(null)
+  }
+
+  const handleMCPStart = async () => {
+    if (!window.mcpAPI) return
+    setMcpLoading(true)
+    setError(null)
+    try {
+      const result = await window.mcpAPI.startServers()
+      if (result.ok) {
+        setMcpSuccess('MCP servers started!')
+        const status = await window.mcpAPI.getStatus()
+        setMcpRunning(status.running)
+        setMcpServerStatuses(status.servers)
+      } else {
+        setError(result.error || 'Failed to start MCP servers')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start MCP servers')
+    } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  const handleMCPStop = async () => {
+    if (!window.mcpAPI) return
+    setMcpLoading(true)
+    try {
+      await window.mcpAPI.stopServers()
+      setMcpSuccess('MCP servers stopped')
+      const status = await window.mcpAPI.getStatus()
+      setMcpRunning(status.running)
+      setMcpServerStatuses(status.servers)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop MCP servers')
+    } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  const handleMCPAutoStartToggle = async () => {
+    if (!window.mcpAPI || !mcpConfigPath) return
+    const newVal = !mcpAutoStart
+    setMcpAutoStart(newVal)
+    await window.mcpAPI.updateSettings({ autoStart: newVal })
+    setMcpSuccess(newVal ? 'Auto-start enabled' : 'Auto-start disabled')
   }
 
   const hasElectronAI = typeof window !== 'undefined' && window.electronAPI?.aiConfigGet
@@ -638,6 +756,187 @@ export default function AIConfigScreen() {
                   <Globe size={18} style={{ color: 'var(--text-tertiary)' }} />
                   <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
                     A2A server controls are available in the desktop app.
+                  </p>
+                </div>
+              )}
+            </GlassContainer>
+
+            {/* MCP Servers */}
+            <GlassContainer style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Server size={18} /> MCP Servers
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+                Connect to Model Context Protocol servers to extend the AI with custom tools and resources. Provide an Anthropic Claude Desktop compatible JSON config file.
+              </p>
+
+              {mcpSuccess && (
+                <div className="a2a-success-banner" style={{ marginBottom: 16 }}>
+                  <CheckCircle size={16} />
+                  <span>{mcpSuccess}</span>
+                </div>
+              )}
+
+              {window.mcpAPI ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Config file picker */}
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                      Config File
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: mcpConfigPath ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap' as const,
+                        minWidth: 0,
+                      }}>
+                        {mcpConfigPath || 'No config file selected'}
+                      </div>
+                      <GlassButton
+                        text="Browse..."
+                        onClick={handleMCPSelectFile}
+                        disabled={mcpLoading}
+                        width="auto"
+                      />
+                      {mcpConfigPath && (
+                        <button
+                          type="button"
+                          onClick={handleMCPClearFile}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: 6,
+                            borderRadius: 6,
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: 'var(--text-tertiary)',
+                            cursor: 'pointer',
+                          }}
+                          title="Remove config file"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      )}
+                    </div>
+                    {mcpConfigError && (
+                      <p style={{ fontSize: 12, color: 'var(--status-error)', marginTop: 6 }}>{mcpConfigError}</p>
+                    )}
+                  </div>
+
+                  {/* Server list */}
+                  {mcpServerList.length > 0 && (
+                    <div>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
+                        Configured Servers ({mcpServerList.length})
+                      </label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {mcpServerList.map((server) => {
+                          const statusInfo = mcpServerStatuses.find((s) => s.name === server.name)
+                          return (
+                            <div key={server.name} className="a2a-status-card" style={{ padding: '10px 14px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div className={`a2a-status-dot ${statusInfo?.status === 'running' ? 'a2a-status-dot--running' : ''}`} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13 }}>{server.name}</p>
+                                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {server.command} {server.args.join(' ')}
+                                  </p>
+                                </div>
+                                <span style={{
+                                  fontSize: 11,
+                                  flexShrink: 0,
+                                  color: statusInfo?.status === 'running'
+                                    ? 'var(--status-success)'
+                                    : statusInfo?.status === 'error'
+                                      ? 'var(--status-error)'
+                                      : 'var(--text-tertiary)',
+                                }}>
+                                  {statusInfo?.status === 'running' ? 'Running' : statusInfo?.status === 'error' ? 'Error' : 'Stopped'}
+                                </span>
+                              </div>
+                              {statusInfo?.error && (
+                                <p style={{ fontSize: 11, color: 'var(--status-error)', marginTop: 6 }}>{statusInfo.error}</p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Start/Stop control */}
+                  {mcpServerList.length > 0 && (
+                    <div className="a2a-status-card">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div className={`a2a-status-dot ${mcpRunning ? 'a2a-status-dot--running' : ''}`} />
+                          <div>
+                            <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>
+                              {mcpRunning ? `${mcpServerStatuses.length} server(s) running` : 'Servers stopped'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className={`a2a-control-btn ${mcpRunning ? 'a2a-control-btn--stop' : 'a2a-control-btn--start'}`}
+                          onClick={mcpRunning ? handleMCPStop : handleMCPStart}
+                          disabled={mcpLoading}
+                        >
+                          {mcpLoading ? (
+                            <Loader2 size={16} className="a2a-spinner" />
+                          ) : mcpRunning ? (
+                            <Square size={16} />
+                          ) : (
+                            <Play size={16} />
+                          )}
+                          {mcpRunning ? 'Stop All' : 'Start All'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Auto-start toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Auto-start on launch</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>Start MCP servers when app opens</p>
+                    </div>
+                    <div
+                      className={`settings-toggle ${mcpAutoStart ? 'settings-toggle--on' : ''}`}
+                      style={{ cursor: mcpConfigPath ? 'pointer' : 'not-allowed', opacity: mcpConfigPath ? 1 : 0.5 }}
+                      role="switch"
+                      aria-checked={mcpAutoStart}
+                      onClick={mcpConfigPath ? handleMCPAutoStartToggle : undefined}
+                    >
+                      <div className="settings-toggle__thumb" />
+                    </div>
+                  </div>
+
+                  {/* Info */}
+                  <div className="a2a-info-box">
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <p>
+                      MCP servers extend the AI with custom tools and data sources. Use the same JSON format as Anthropic Claude Desktop (<code>claude_desktop_config.json</code>).{' '}
+                      <a href="https://modelcontextprotocol.io/quickstart/user" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)' }}>
+                        Learn more →
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <FolderOpen size={18} style={{ color: 'var(--text-tertiary)' }} />
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                    MCP server controls are available in the desktop app.
                   </p>
                 </div>
               )}

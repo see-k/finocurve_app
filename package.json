@@ -38,6 +38,7 @@
     "@langchain/core": "^1.1.25",
     "@langchain/ollama": "^1.2.2",
     "@langchain/openai": "^1.2.8",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@vnedyalk0v/react19-simple-maps": "^2.0.2",
     "country-list": "^2.4.1",
     "dotenv": "^17.3.1",

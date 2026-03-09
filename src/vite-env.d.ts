@@ -104,8 +104,33 @@ interface ElectronAPI {
   }) => Promise<{ content: string | null; error: string | null }>
 }
 
+interface MCPServerDefinition {
+  name: string
+  command: string
+  args: string[]
+  env?: Record<string, string>
+}
+
+interface MCPServerStatusInfo {
+  name: string
+  status: 'running' | 'stopped' | 'error'
+  pid?: number
+  error?: string
+}
+
 interface Window {
   electronAPI: ElectronAPI
+  mcpAPI?: {
+    selectConfigFile: () => Promise<{ path: string | null; error?: string }>
+    getConfigPath: () => Promise<{ path: string | null }>
+    clearConfigPath: () => Promise<{ ok: boolean }>
+    loadServers: () => Promise<{ servers: MCPServerDefinition[]; error?: string }>
+    startServers: () => Promise<{ ok: boolean; error?: string; statuses?: MCPServerStatusInfo[] }>
+    stopServers: () => Promise<{ ok: boolean }>
+    getStatus: () => Promise<{ running: boolean; servers: MCPServerStatusInfo[] }>
+    getSettings: () => Promise<{ configFilePath: string | null; autoStart: boolean }>
+    updateSettings: (settings: { autoStart?: boolean }) => Promise<{ ok: boolean; error?: string }>
+  }
   a2aAPI?: {
     start: (options?: { port?: number }) => Promise<{ success: boolean; port?: number; url?: string; wellKnownUrl?: string; error?: string }>
     stop: () => Promise<{ success: boolean; error?: string }>
