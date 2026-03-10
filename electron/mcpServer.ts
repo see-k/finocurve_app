@@ -17,7 +17,10 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 export interface MCPServerDefinition {
   name: string
@@ -50,6 +53,117 @@ interface ConnectedServer {
 }
 
 const connectedServers = new Map<string, ConnectedServer>()
+const serverStatuses = new Map<string, MCPServerStatusInfo>()
+const COMMON_PATH_SEGMENTS = [
+  '/opt/homebrew/bin',
+  '/opt/homebrew/sbin',
+  '/usr/local/bin',
+  '/usr/local/sbin',
+  '/Library/Frameworks/Python.framework/Versions/Current/bin',
+]
+
+let cachedLoginShellPath: string | null | undefined
+
+function getLoginShellPath(): string | undefined {
+  if (cachedLoginShellPath !== undefined) {
+    return cachedLoginShellPath ?? undefined
+  }
+
+  if (process.platform !== 'darwin') {
+    cachedLoginShellPath = null
+    return undefined
+  }
+
+  const shell = process.env.SHELL || '/bin/zsh'
+
+  try {
+    const shellPath = execFileSync(shell, ['-ilc', 'printf %s "$PATH"'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: process.env.HOME || os.homedir(),
+      },
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+
+    cachedLoginShellPath = shellPath || null
+    return cachedLoginShellPath ?? undefined
+  } catch {
+    cachedLoginShellPath = null
+    return undefined
+  }
+}
+
+function mergePathValues(...values: Array<string | undefined>): string | undefined {
+  const seen = new Set<string>()
+  const merged: string[] = []
+
+  for (const value of values) {
+    if (!value) continue
+
+    for (const segment of value.split(path.delimiter)) {
+      const trimmed = segment.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      merged.push(trimmed)
+    }
+  }
+
+  return merged.length > 0 ? merged.join(path.delimiter) : undefined
+}
+
+function buildSpawnEnv(overrides?: Record<string, string>): Record<string, string> {
+  const loginShellPath = getLoginShellPath()
+  const mergedPath = mergePathValues(
+    overrides?.PATH,
+    process.env.PATH,
+    loginShellPath,
+    COMMON_PATH_SEGMENTS.join(path.delimiter)
+  )
+
+  return {
+    ...(process.env as Record<string, string | undefined>),
+    ...(overrides ?? {}),
+    ...(mergedPath ? { PATH: mergedPath } : {}),
+  } as Record<string, string>
+}
+
+function canExecute(filePath: string): boolean {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function resolveCommand(command: string, env: Record<string, string>): string {
+  if (!command.trim()) {
+    throw new Error('MCP server command is empty')
+  }
+
+  if (path.isAbsolute(command) || command.includes(path.sep)) {
+    return command
+  }
+
+  const pathValue = env.PATH || process.env.PATH || ''
+  for (const dir of pathValue.split(path.delimiter)) {
+    if (!dir) continue
+    const candidate = path.join(dir, command)
+    if (fs.existsSync(candidate) && canExecute(candidate)) {
+      return candidate
+    }
+  }
+
+  throw new Error(
+    `Command "${command}" was not found in PATH. In the packaged app, configure an absolute command path or ensure your shell exposes it in PATH.`
+  )
+}
+
+function setServerStatus(status: MCPServerStatusInfo): MCPServerStatusInfo {
+  serverStatuses.set(status.name, status)
+  return status
+}
 
 /**
  * Parse Anthropic Claude Desktop MCP config format from a JSON file.
@@ -116,20 +230,29 @@ export async function startMCPServers(servers: MCPServerDefinition[]): Promise<M
   for (const def of servers) {
     const existing = connectedServers.get(def.name)
     if (existing) {
-      statuses.push({
+      statuses.push(setServerStatus({
         name: def.name,
         status: existing.status,
         error: existing.error,
-      })
+      }))
       continue
     }
 
+    let stderrOutput = ''
+
     try {
+      const env = buildSpawnEnv(def.env)
+      const command = resolveCommand(def.command, env)
       const transport = new StdioClientTransport({
-        command: def.command,
+        command,
         args: def.args,
-        env: def.env,
+        env,
         stderr: 'pipe',
+      })
+
+      transport.stderr?.setEncoding('utf8')
+      transport.stderr?.on('data', (chunk) => {
+        stderrOutput = `${stderrOutput}${chunk}`.slice(-4000)
       })
 
       const client = new Client(
@@ -161,13 +284,19 @@ export async function startMCPServers(servers: MCPServerDefinition[]): Promise<M
       }
       connectedServers.set(def.name, entry)
 
-      statuses.push({ name: def.name, status: 'running' })
+      statuses.push(setServerStatus({
+        name: def.name,
+        status: 'running',
+        pid: transport.pid,
+      }))
     } catch (err) {
-      statuses.push({
+      const message = err instanceof Error ? err.message : 'Failed to connect to server'
+      const stderrMessage = stderrOutput ? stderrOutput.trim() : ''
+      statuses.push(setServerStatus({
         name: def.name,
         status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to connect to server',
-      })
+        error: stderrMessage ? `${message}\n${stderrMessage}` : message,
+      }))
     }
   }
 
@@ -184,6 +313,7 @@ export async function stopMCPServers(): Promise<void> {
     } catch {
       // ignore close errors
     }
+    setServerStatus({ name: entry.definition.name, status: 'stopped' })
   }
   connectedServers.clear()
 }
@@ -192,11 +322,7 @@ export async function stopMCPServers(): Promise<void> {
  * Get current status of all tracked servers.
  */
 export function getMCPServerStatuses(): MCPServerStatusInfo[] {
-  return Array.from(connectedServers.entries()).map(([name, entry]) => ({
-    name,
-    status: entry.status,
-    error: entry.error,
-  }))
+  return Array.from(serverStatuses.values())
 }
 
 /**

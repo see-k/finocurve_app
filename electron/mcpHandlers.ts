@@ -58,6 +58,15 @@ export function registerMCPHandlers(): void {
     const { servers, error } = parseMCPConfig(config.configFilePath)
     if (error && servers.length === 0) return { ok: false, error }
     const statuses = await startMCPServers(servers)
+    const runningCount = statuses.filter((status) => status.status === 'running').length
+    if (runningCount === 0) {
+      const firstError = statuses.find((status) => status.error)?.error
+      return {
+        ok: false,
+        error: firstError || 'Failed to start MCP servers',
+        statuses,
+      }
+    }
     return { ok: true, statuses }
   })
 
