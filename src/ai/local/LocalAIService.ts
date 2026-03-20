@@ -20,7 +20,7 @@ import { getAIConfig, type AIConfig } from '../config'
 import { createChatModel } from '../createChatModel'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
-import { createFinocurveTools } from './tools'
+import { createFinocurveTools, type FinocurveToolContext } from './tools'
 
 /** Parse AIMessage content into reasoning + answer chunks for display. */
 function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
@@ -130,6 +130,8 @@ export interface LocalAIServiceOptions {
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
   getMCPTools?: () => StructuredToolInterface[]
+  /** Desktop: AI chat tool to save branded PDFs into documents storage */
+  saveCustomBrandedReport?: FinocurveToolContext['saveCustomBrandedReport']
   config?: Partial<AIConfig>
 }
 
@@ -240,6 +242,11 @@ export class LocalAIService implements AIService {
       'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
     ]
+    if (this.options.saveCustomBrandedReport) {
+      systemParts.push(
+        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. The PDF uses FinoCurve branding and is saved to their documents area automatically when storage is configured.'
+      )
+    }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
 
@@ -259,6 +266,7 @@ export class LocalAIService implements AIService {
       getCongressCache: this.options.getCongressCache,
       getSECSubmissions: this.options.getSECSubmissions,
       getSECFilingContent: this.options.getSECFilingContent,
+      saveCustomBrandedReport: this.options.saveCustomBrandedReport,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -374,6 +382,12 @@ export class LocalAIService implements AIService {
       base.push({
         name: 'get_sec_filing_content',
         description: 'Fetch full text of a specific SEC filing by accession number',
+      })
+    }
+    if (this.options.saveCustomBrandedReport) {
+      base.push({
+        name: 'save_custom_branded_report_pdf',
+        description: 'Create branded PDF and save to finocurve/documents/ (local and/or cloud)',
       })
     }
     // Include MCP tools in the reported tool list

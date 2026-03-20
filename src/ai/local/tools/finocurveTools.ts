@@ -24,6 +24,12 @@ export interface FinocurveToolContext {
   getCongressCache?: () => Promise<CongressCache | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
+  /** Desktop: build branded PDF and save to finocurve/documents/ (local and/or S3). */
+  saveCustomBrandedReport?: (payload: {
+    title: string
+    subtitle?: string
+    sections: { heading: string; body: string }[]
+  }) => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -234,6 +240,46 @@ ${topHoldings}`
     }
   )
 
+  const saveCustomBrandedReportPdf = tool(
+    async ({
+      title,
+      subtitle,
+      sections,
+    }: {
+      title: string
+      subtitle?: string
+      sections: { heading: string; body: string }[]
+    }) => {
+      if (!ctx.saveCustomBrandedReport) {
+        return 'Branded PDF export is only available in the FinoCurve desktop app with storage configured.'
+      }
+      return ctx.saveCustomBrandedReport({ title, subtitle, sections })
+    },
+    {
+      name: 'save_custom_branded_report_pdf',
+      description:
+        'Create a PDF with FinoCurve letterhead, logo, and brand styling (same look as app risk reports), using your written sections as the body. Saves automatically to the user\'s documents folder (local device directory and/or cloud S3 when configured). Use when the user wants a downloadable report, memo, brief, or formal write-up. Write professional plain text; use blank lines between paragraphs in each section body.',
+      schema: z.object({
+        title: z.string().min(1).max(200).describe('Main title on the cover'),
+        subtitle: z.string().max(400).optional().describe('Optional subtitle shown under the title'),
+        sections: z
+          .array(
+            z.object({
+              heading: z.string().min(1).max(160).describe('Section heading'),
+              body: z
+                .string()
+                .min(1)
+                .max(14000)
+                .describe('Section content as plain text (double newline between paragraphs)'),
+            })
+          )
+          .min(1)
+          .max(30)
+          .describe('Ordered sections'),
+      }),
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -267,5 +313,6 @@ ${topHoldings}`
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
+  if (ctx.saveCustomBrandedReport) baseTools.push(saveCustomBrandedReportPdf)
   return baseTools
 }

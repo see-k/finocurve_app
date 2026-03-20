@@ -56,6 +56,22 @@ function getS3Client(): S3Client | null {
 }
 
 /** Get file buffer from S3 - used by AI handlers */
+/** Upload if credentials exist; returns whether upload ran successfully. */
+export async function uploadS3IfConfigured(key: string, buffer: Uint8Array, contentType?: string): Promise<boolean> {
+  const client = getS3Client()
+  const creds = loadCredentials()
+  if (!client || !creds) return false
+  await client.send(
+    new PutObjectCommand({
+      Bucket: creds.bucket,
+      Key: key,
+      Body: Buffer.from(buffer),
+      ContentType: contentType || 'application/octet-stream',
+    })
+  )
+  return true
+}
+
 export async function getS3FileBuffer(key: string): Promise<{ buffer: number[]; contentType?: string } | null> {
   const client = getS3Client()
   const creds = loadCredentials()

@@ -52,6 +52,17 @@ function ensureDir(dirPath: string): void {
   }
 }
 
+/** Write under the user's chosen local storage root (e.g. finocurve/documents/...). */
+export function writeLocalStorageFile(key: string, buffer: Uint8Array): void {
+  const config = loadConfig()
+  if (!config) {
+    throw new Error('Local storage folder not configured. Choose a folder in Settings > Cloud Storage > Local storage.')
+  }
+  const fullPath = path.join(config.directoryPath, key)
+  ensureDir(path.dirname(fullPath))
+  fs.writeFileSync(fullPath, Buffer.from(buffer))
+}
+
 export function registerLocalStorageHandlers(): void {
   ipcMain.handle('local-storage-choose-directory', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
