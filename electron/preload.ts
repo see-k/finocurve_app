@@ -86,6 +86,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   congressCacheGet: () => ipcRenderer.invoke('congress-cache-get'),
   congressPullLatest: () =>
     ipcRenderer.invoke('congress-pull-latest'),
+  pluginsFmpIsConfigured: () => ipcRenderer.invoke('plugins-fmp-is-configured'),
+  pluginsSettingsGet: () => ipcRenderer.invoke('plugins-settings-get'),
+  pluginsSettingsSave: (payload: { fmpApiKey: string }) =>
+    ipcRenderer.invoke('plugins-settings-save', payload),
   secSubmissions: (payload: { tickerOrCik: string }) =>
     ipcRenderer.invoke('sec-submissions', payload),
   secCompanyFacts: (payload: { tickerOrCik: string }) =>

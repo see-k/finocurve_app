@@ -96,6 +96,9 @@ interface ElectronAPI {
   congressHouse?: (payload?: { page?: number; limit?: number }) => Promise<{ data: Record<string, unknown>[]; error: string | null }>
   congressCacheGet?: () => Promise<{ data: { senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string }; error: string | null }>
   congressPullLatest?: () => Promise<{ data: { senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string }; error: string | null }>
+  pluginsFmpIsConfigured?: () => Promise<{ configured: boolean }>
+  pluginsSettingsGet?: () => Promise<{ fmpApiKey: string }>
+  pluginsSettingsSave?: (payload: { fmpApiKey: string }) => Promise<{ ok: boolean }>
   secSubmissions?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
   secCompanyFacts?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
   secFilingContent?: (payload: {

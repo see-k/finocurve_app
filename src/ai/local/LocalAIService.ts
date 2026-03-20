@@ -129,7 +129,6 @@ export interface LocalAIServiceOptions {
   getCongressCache?: () => Promise<{ senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string } | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
-  searchWeb?: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) => Promise<{ data: { results: string; answer?: string } | null; error: string | null }>
   getMCPTools?: () => StructuredToolInterface[]
   config?: Partial<AIConfig>
 }
@@ -238,7 +237,7 @@ export class LocalAIService implements AIService {
     context: ChatContext
   ): AsyncGenerator<ChatStreamChunk, void, unknown> {
     const systemParts: string[] = [
-      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), SEC EDGAR filings, and current web data. Use the available tools when you need current data. Use search_web for news, market updates, recent events, or general web lookup.',
+      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
     ]
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
@@ -260,7 +259,6 @@ export class LocalAIService implements AIService {
       getCongressCache: this.options.getCongressCache,
       getSECSubmissions: this.options.getSECSubmissions,
       getSECFilingContent: this.options.getSECFilingContent,
-      searchWeb: this.options.searchWeb,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -377,9 +375,6 @@ export class LocalAIService implements AIService {
         name: 'get_sec_filing_content',
         description: 'Fetch full text of a specific SEC filing by accession number',
       })
-    }
-    if (this.options.searchWeb) {
-      base.push({ name: 'search_web', description: 'Search the web for current info (news, finance)' })
     }
     // Include MCP tools in the reported tool list
     const mcpTools = this.options.getMCPTools?.() ?? []

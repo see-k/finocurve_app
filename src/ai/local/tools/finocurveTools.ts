@@ -24,7 +24,6 @@ export interface FinocurveToolContext {
   getCongressCache?: () => Promise<CongressCache | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
-  searchWeb?: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) => Promise<{ data: { results: string; answer?: string } | null; error: string | null }>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -166,7 +165,7 @@ ${topHoldings}`
       }
       const cache = await ctx.getCongressCache()
       if (!cache) {
-        return 'No congressional disclosure data cached. The user should go to Insights > Congressional Trades and click Refresh to fetch data.'
+        return 'No congressional disclosure data cached. The user needs a Financial Modeling Prep API key (Settings > Plugins), then Insights > Congressional Trades > Refresh.'
       }
       const list = chamber === 'house' ? cache.house : cache.senate
       const chamberName = chamber === 'house' ? 'House' : 'Senate'
@@ -257,30 +256,6 @@ ${topHoldings}`
     }
   )
 
-  const searchWeb = tool(
-    async ({ query, topic }: { query: string; topic?: 'general' | 'news' | 'finance' }) => {
-      if (!ctx.searchWeb) {
-        return 'Web search is not available. Add TAVILY_API_KEY to .env to enable it.'
-      }
-      const { data, error } = await ctx.searchWeb(query, { maxResults: 6, topic })
-      if (error) {
-        return `[Source: Web search]\nError: ${error}`
-      }
-      if (!data) return 'No search results.'
-      const parts: string[] = [`[Source: Tavily web search]\n\n${data.results}`]
-      if (data.answer) parts.push(`\nSummary: ${data.answer}`)
-      return parts.join('')
-    },
-    {
-      name: 'search_web',
-      description: 'Search the web for current information. Use when the user asks about news, market updates, recent events, company info, or anything that requires up-to-date web data. Optional topic: general (default), news, or finance.',
-      schema: z.object({
-        query: z.string().describe('Search query - be specific for better results'),
-        topic: z.enum(['general', 'news', 'finance']).optional().describe('Topic: general, news (real-time), or finance'),
-      }),
-    }
-  )
-
   const baseTools: StructuredToolInterface[] = [
     getPortfolioSummary,
     getDocumentList,
@@ -292,6 +267,5 @@ ${topHoldings}`
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
-  if (ctx.searchWeb) baseTools.push(searchWeb)
   return baseTools
 }

@@ -1,11 +1,12 @@
 /**
  * IPC handlers for Congressional financial disclosures (FMP Senate/House APIs).
- * Uses FMP_API_KEY from .env - never exposed to renderer.
+ * API key from Settings > Plugins (stored in userData) — never exposed to renderer.
  * Caches data locally to conserve API calls; user pulls latest manually.
  */
 import { ipcMain, app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { getFmpApiKey } from './pluginSettingsStorage'
 
 const FMP_BASE = 'https://financialmodelingprep.com/stable'
 // FMP free tier: max 25 records per request (402 error if exceeded)
@@ -20,8 +21,7 @@ export interface CongressCache {
 }
 
 function getApiKey(): string | null {
-  const key = process.env.FMP_API_KEY
-  return key && key.trim() ? key.trim() : null
+  return getFmpApiKey()
 }
 
 export interface CongressDisclosure {
@@ -36,7 +36,7 @@ export interface CongressListResult {
 async function fetchFMP<T>(path: string, params: Record<string, string> = {}): Promise<{ data: T | null; error: string | null }> {
   const apiKey = getApiKey()
   if (!apiKey) {
-    return { data: null, error: 'FMP_API_KEY not configured. Add it to your .env file.' }
+    return { data: null, error: 'Financial Modeling Prep API key not configured. Add it under Settings > Plugins.' }
   }
 
   const searchParams = new URLSearchParams({ ...params, apikey: apiKey })

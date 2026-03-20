@@ -1,6 +1,6 @@
 /**
  * AI configuration - provider, model, and optional remote URL.
- * Values from env, stored config, or defaults.
+ * In the desktop app, the main process merges stored Settings > AI Models into `overrides`.
  */
 
 export type AIProvider = 'local' | 'remote'
@@ -23,12 +23,11 @@ export interface AIConfig {
 }
 
 export function getAIConfig(overrides?: Partial<AIConfig>): AIConfig {
-  const base = {
-    provider: (process.env.AI_PROVIDER as AIProvider) ?? 'local',
-    providerType: 'ollama' as AIProviderType,
-    model: process.env.AI_MODEL ?? 'llama3.2',
-    apiUrl: process.env.AI_API_URL,
-    ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
+  const base: AIConfig = {
+    provider: 'local',
+    providerType: 'ollama',
+    model: 'llama3.2',
+    ollamaBaseUrl: 'http://localhost:11434',
   }
   if (!overrides) return base
   return {

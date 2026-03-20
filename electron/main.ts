@@ -1,4 +1,3 @@
-import 'dotenv/config'
 import { app, BrowserWindow, net, protocol } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -9,7 +8,7 @@ import { registerAIHandlers } from './aiHandlers'
 import { registerPriceHandlers } from './priceHandlers'
 import { registerCongressHandlers } from './congressHandlers'
 import { registerSECHandlers } from './secHandlers'
-import { registerTavilyHandlers } from './tavilyHandlers'
+import { registerPluginSettingsHandlers } from './pluginSettingsHandlers'
 import { registerMCPHandlers } from './mcpHandlers'
 import { stopMCPServers } from './mcpServer'
 
@@ -109,7 +108,7 @@ app.whenReady().then(() => {
   registerPriceHandlers()
   registerCongressHandlers()
   registerSECHandlers()
-  registerTavilyHandlers()
+  registerPluginSettingsHandlers()
   registerMCPHandlers()
   createWindow()
 })
