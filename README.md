@@ -1,112 +1,179 @@
-# <p align="center"><img src="public/images/finocurve-logo-transparent.png" alt="FinoCurve Logo" width="250"/></p>
+<p align="center">
+  <img src="public/images/finocurve-logo-transparent.png" alt="FinoCurve Logo" width="250"/>
+</p>
 
-# FinoCurve - Modern Investment Banking
+# FinoCurve App
 
-FinoCurve is a sophisticated desktop application designed for modern investment banking and personal finance management. Built with performance and user experience in mind, it provides a comprehensive suite of tools for tracking assets, analyzing markets, and managing portfolios.
+FinoCurve App is a **privacy-first desktop application** for portfolio tracking, risk analysis, market monitoring, and document-driven financial workflows.
 
-## 🚀 Key Features
+It is designed for people whose financial lives are more complex than what most mainstream investing apps handle well — especially users with a mix of public assets, manual/private holdings, loans, and a desire for deeper visibility into risk and exposure.
 
-- **Intuitive Dashboard**: A bird's-eye view of your financial health, including asset distribution and performance metrics.
-- **Advanced Market Analysis**: Real-time market data with integrated TradingView charts for professional-grade technical analysis.
-- **Portfolio Management**: Detailed tracking of your investments, including performance history and asset allocation.
-- **Risk Analysis**: In-depth tools to evaluate portfolio risk and make informed investment decisions.
-- **Asset & Loan Tracking**: Manage both your assets and liabilities (loans) in one unified interface.
-- **News & Notifications**: Stay informed with the latest financial news and personalized alerts.
-- **AI Assistant**: Local AI-powered document insights and chat (Ollama). Analyze documents for risk reports and chat via a global floating bubble.
-- **Global Settings**: Customize your experience with currency preferences and account management.
+## What this repository includes
 
-## 🛠️ Tech Stack
+This repository contains the **desktop/web client** for FinoCurve, built with React + Electron.
 
-- **Frontend**: [React 19](https://react.dev/)
-- **Desktop Framework**: [Electron 34](https://www.electronjs.org/)
-- **Build Tool**: [Vite 6](https://vitejs.dev/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Data Visualization**: [Recharts](https://recharts.org/)
-- **Icons**: [Lucide React](https://lucide.dev/)
+Included here:
+- portfolio dashboard and market views
+- asset, loan, and risk-analysis workflows
+- reports and documents UI
+- optional local AI assistant workflows
+- optional MCP / A2A integrations for local agent tooling
 
-## 📦 Installation & Setup
+## What this repository does **not** include
 
-To get started with FinoCurve locally, follow these steps:
+This repository does **not** include:
+- FinoCurve's hosted aggregation backend
+- premium sync / account-linking services
+- mobile app code
+- proprietary backend operations or managed provider infrastructure
+
+If you use this repo on its own, you should think of it as the **local trust surface** of FinoCurve rather than the full commercial stack.
+
+## Why open source this app?
+
+The desktop client is being opened to increase:
+- transparency
+- user trust
+- inspectability of the local product surface
+- confidence in the privacy-first direction of the product
+
+The broader FinoCurve ecosystem may include additional managed services that are not part of this repository.
+
+## Key features
+
+- **Portfolio Dashboard** — track assets, allocations, and performance in one place
+- **Risk Analysis** — explore concentration, risk-adjusted performance, and portfolio blindspots
+- **Asset & Loan Tracking** — manage both investments and liabilities
+- **Reports & Documents** — generate and review financial reports and uploaded documents
+- **Markets & News** — stay current with financial news and charting workflows
+- **Optional Local AI Assistant** — ask questions about your portfolio and analyze documents locally or with configured providers
+- **Optional MCP / A2A hooks** — connect the app to local agent tooling workflows
+
+## Tech stack
+
+- **Frontend:** React 19
+- **Desktop runtime:** Electron 40
+- **Build tool:** Vite 6
+- **Language:** TypeScript
+- **Charts / visualization:** Recharts
+- **Icons:** Lucide React
+
+## Getting started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (Latest LTS recommended)
-- [npm](https://www.npmjs.com/)
-- **AI features** (optional): [Ollama](https://ollama.ai) with a model (e.g. `ollama pull llama3.2`)
+- Node.js (latest LTS recommended)
+- npm
+- Optional for AI features: [Ollama](https://ollama.ai) or supported cloud provider credentials
 
 ### Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/finocurve-app.git
-   cd finocurve-app
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/see-k/finocurve_app.git
+cd finocurve_app
+npm install
+```
 
 ### Development
 
-Run the application in development mode:
 ```bash
 npm run dev
 ```
 
-### AI Assistant (Optional)
+### Production builds
 
-The AI assistant provides document analysis and chat. To use it:
-
-1. Install [Ollama](https://ollama.ai) and run `ollama pull llama3.2` (or another model).
-2. In Reports & Documents, upload PDFs or text files, then click **Analyze with AI**.
-3. Use the floating chat bubble (bottom-right) to ask questions about your portfolio.
-4. AI insights are included in generated risk reports when available.
-
-**A2A protocol**: Set `AI_ENABLE_A2A=true` to expose the AI on `http://127.0.0.1:3847` for external agent access.
-
-### Building for Production
-
-Build a production distributable for macOS:
 ```bash
 npm run dist
 ```
 
-Build for a specific CPU architecture:
+Architecture-specific macOS builds:
+
 ```bash
-npm run dist:arm    # Apple Silicon (arm64)
-npm run dist:intel  # Intel (x64)
+npm run dist:arm
+npm run dist:intel
 ```
 
-Release artifacts (`.dmg`, `.zip`, blockmaps) are written to:
+Release artifacts are written to:
+
 ```bash
 release/
 ```
 
-If you are preparing a new release, bump `version` in `package.json` before building.
+## Optional AI features
 
-### Updating From a New DMG (Data Persistence)
+FinoCurve App supports optional AI workflows for document analysis and portfolio-oriented chat.
 
-Installing a newer `.dmg` and choosing **Replace** for `FinoCurve.app` should not erase user data.
+Supported provider types in this repo include:
+- Ollama
+- AWS Bedrock
+- Azure OpenAI
+
+Typical local flow:
+1. Install Ollama
+2. Pull a model such as `llama3.2`
+3. Configure AI in the app settings
+4. Upload PDFs/text documents and run analysis from Reports & Documents
+
+### Optional A2A endpoint
+
+If enabled, the app can expose an A2A-compatible local endpoint on:
+
+```text
+http://127.0.0.1:3847
+```
+
+This is intended for **local / operator-controlled workflows**.
+
+## Security and privacy notes
+
+- Core desktop usage can be local-first
+- AI features are optional
+- Web search features require explicit API keys
+- A2A is optional and intended for local use
+- MCP integrations depend on user-configured local MCP servers
+- Cloud / managed service behavior is not fully represented by this repo alone
+
+## Environment variables
+
+See `.env.example` for optional values such as:
+- `FMP_API_KEY`
+- `TAVILY_API_KEY`
+
+These are **not required** for basic local development of the core app surface.
+
+## Data persistence
+
+Installing a newer `.dmg` and replacing the app should not erase user data.
 
 User data is stored outside the app bundle:
 - Renderer data in browser storage (`localStorage`)
-- Main-process config/cache in Electron `userData` (macOS: `~/Library/Application Support/finocurve-app`)
+- Main-process config/cache in Electron `userData`
 
 You usually only lose data if:
-- You explicitly clear it in-app (for example via Delete Account/Sign Out flows)
-- The `~/Library/Application Support/finocurve-app` folder is manually removed
-- App identity/storage path is changed between releases
+- you explicitly clear it in-app
+- the Electron user data folder is manually removed
+- the app identity/storage path changes between releases
 
-## 📸 Screenshots
+## Screenshots
 
 | Dashboard | Market Analysis |
 |-----------|-----------------|
 | ![Dashboard](public/images/dashboard-two-col.png) | ![Markets](public/images/markets-tradingview.png) |
 
-| Portfolio | Risk Analysis |
-|-----------|---------------|
+| Portfolio | News |
+|-----------|------|
 | ![Portfolio](public/images/portfolio-with-bg.png) | ![News](public/images/markets-news-tab.png) |
 
----
-*FinoCurve - Empowering your financial journey.*
+## Current status
+
+FinoCurve App is actively evolving.
+
+Expect rough edges around:
+- advanced integrations
+- premium/commercial service boundaries
+- contribution workflow polish
+- some optional AI / agent tooling flows
+
+## License
+
+MIT
