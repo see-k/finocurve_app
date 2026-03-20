@@ -2,7 +2,10 @@
 
 If you discover a security issue in FinoCurve App, please avoid posting sensitive details publicly in a GitHub issue.
 
-Instead, report it privately to the project maintainer through a private channel.
+Instead, please report it privately using one of the following channels:
+
+- GitHub: use this repository's **Report a vulnerability** flow under the **Security** tab to open a private vulnerability report
+- Email: security@finocurve.app
 
 ## Security notes for this repository
 

@@ -8,7 +8,7 @@ At the moment, this repository is being opened first to provide transparency and
 
 - Feel free to open issues for bugs, UX problems, or documentation gaps
 - For larger feature work, please open an issue first before starting implementation
-- Security-sensitive issues should not be disclosed publicly in an issue thread
+- Security-sensitive issues should not be disclosed publicly in an issue thread; please follow the process described in [SECURITY.md](SECURITY.md)
 
 ## Scope reminder
 
