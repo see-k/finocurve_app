@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,13 +24,78 @@ interface ChatMessage {
   reasoning?: string
 }
 
+const PREFS_STORAGE_KEY = 'finocurve-preferences'
+const MAX_PERSISTED_MESSAGES = 200
+
+function chatStorageKeyForUser(userEmail?: string, isGuest?: boolean): string {
+  const id = userEmail?.trim() || (isGuest ? 'guest' : 'local')
+  return `finocurve-ai-chat-messages-${id}`
+}
+
+function readPrefsIdentity(): { userEmail?: string; isGuest?: boolean } {
+  try {
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as { userEmail?: string; isGuest?: boolean }
+  } catch {
+    return {}
+  }
+}
+
+function loadChatMessages(storageKey: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (m): m is ChatMessage =>
+          !!m &&
+          typeof m === 'object' &&
+          (m as ChatMessage).role !== undefined &&
+          ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
+          typeof (m as ChatMessage).content === 'string'
+      )
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(typeof m.reasoning === 'string' && m.reasoning ? { reasoning: m.reasoning } : {}),
+      }))
+  } catch {
+    return []
+  }
+}
+
+function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
+  const trimmed = messages.length > MAX_PERSISTED_MESSAGES ? messages.slice(-MAX_PERSISTED_MESSAGES) : messages
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(trimmed))
+  } catch {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(trimmed.slice(-80)))
+    } catch {
+      /* quota or private mode */
+    }
+  }
+}
+
 export default function AIChatBubble() {
   const location = useLocation()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
+  const chatStorageKey = useMemo(
+    () => chatStorageKeyForUser(prefs.userEmail, prefs.isGuest),
+    [prefs.userEmail, prefs.isGuest]
+  )
+
   const [expanded, setExpanded] = useState(false)
   const [large, setLarge] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const { userEmail, isGuest } = readPrefsIdentity()
+    return loadChatMessages(chatStorageKeyForUser(userEmail, isGuest))
+  })
+  const lastHandledStorageKeyRef = useRef<string | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
@@ -57,6 +122,15 @@ export default function AIChatBubble() {
     resizeTextarea()
   }, [input])
 
+  useEffect(() => {
+    if (lastHandledStorageKeyRef.current !== chatStorageKey) {
+      lastHandledStorageKeyRef.current = chatStorageKey
+      setMessages(loadChatMessages(chatStorageKey))
+      return
+    }
+    persistChatMessages(chatStorageKey, messages)
+  }, [chatStorageKey, messages])
+
   const visible = isAuthenticatedPath(location.pathname)
 
   const portfolioSummary = portfolio && totalValue > 0
@@ -67,6 +141,11 @@ export default function AIChatBubble() {
     setMessages([])
     setInput('')
     setError(null)
+    try {
+      localStorage.removeItem(chatStorageKey)
+    } catch {
+      /* ignore */
+    }
   }
 
   const handleSend = async () => {
