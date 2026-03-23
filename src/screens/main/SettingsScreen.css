@@ -122,6 +122,9 @@
 .settings-theme-card__swatch--dark-executive {
   background: linear-gradient(135deg, #050505 42%, #c9a227 42%, #c9a227 58%, #0e0e0c 58%);
 }
+.settings-theme-card__swatch--dark-cyan {
+  background: linear-gradient(135deg, #030708 42%, #22d3ee 42%, #22d3ee 58%, #0a1012 58%);
+}
 .settings-theme-card__swatch--light {
   background: linear-gradient(135deg, #e8e8ee 48%, #ffffff 48%);
 }

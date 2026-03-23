@@ -267,6 +267,64 @@
 }
 
 /* ============================================
+   DARK: Developer (black & cyan — tech / IDE)
+   ============================================ */
+[data-theme="dark-cyan"] {
+  --brand-primary: #22d3ee;
+  --brand-secondary: #06b6d4;
+  --primary: #22d3ee;
+  --primary-hover: #0891b2;
+  --primary-alpha-20: rgba(34, 211, 238, 0.22);
+  --primary-alpha-40: rgba(34, 211, 238, 0.48);
+  --primary-alpha-90: rgba(34, 211, 238, 0.92);
+  --primary-hover-alpha-85: rgba(8, 145, 178, 0.88);
+  --brand-primary-r: 34;
+  --brand-primary-g: 211;
+  --brand-primary-b: 238;
+  --brand-secondary-r: 6;
+  --brand-secondary-g: 182;
+  --brand-secondary-b: 212;
+
+  --bg: #030708;
+  --bg-primary: #030708;
+  --surface: #0a1012;
+  --surface-light: #121a1e;
+
+  --text-primary: #ecfeff;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(236, 254, 255, 0.4);
+
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-bg-hover: rgba(34, 211, 238, 0.08);
+  --glass-bg-strong: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(34, 211, 238, 0.14);
+  --glass-shadow: rgba(0, 0, 0, 0.42);
+
+  --overlay: rgba(0, 0, 0, 0.58);
+  --divider: rgba(34, 211, 238, 0.1);
+
+  --nav-bg: rgba(3, 7, 8, 0.94);
+  --nav-border: rgba(34, 211, 238, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(34, 211, 238, 0.18);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(34, 211, 238, 0.07);
+  --chart-tooltip-bg: #0a1012;
+
+  --screen-overlay-soft: rgba(3, 10, 12, 0.4);
+  --screen-overlay-md: rgba(3, 12, 14, 0.52);
+  --screen-overlay-strong: rgba(3, 14, 16, 0.68);
+  --screen-overlay-deep: rgba(2, 8, 10, 0.9);
+
+  /* Layered on cards (see Developer glow section below) */
+  --dev-glow-ambient: 0 0 56px -14px rgba(34, 211, 238, 0.075);
+  --dev-glow-rim: 0 0 1px rgba(34, 211, 238, 0.14);
+  --dev-glow-nav: 0 0 48px -12px rgba(34, 211, 238, 0.09);
+}
+
+/* ============================================
    LIGHT
    ============================================ */
 [data-theme="light"] {
@@ -340,4 +398,66 @@
   --screen-overlay-md: rgba(255, 252, 247, 0.62);
   --screen-overlay-strong: rgba(245, 241, 235, 0.82);
   --screen-overlay-deep: rgba(245, 241, 235, 0.94);
+}
+
+/* ============================================
+   Developer (dark-cyan): subtle cyan ambient glow
+   ============================================ */
+[data-theme="dark-cyan"] .glass-container {
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    var(--dev-glow-ambient),
+    var(--dev-glow-rim);
+}
+
+[data-theme="dark-cyan"] .nav-pill {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    var(--dev-glow-nav);
+}
+
+[data-theme="dark-cyan"] .nav-fab {
+  box-shadow:
+    0 4px 16px var(--primary-alpha-40),
+    0 0 0 1px var(--primary-alpha-20),
+    0 0 32px -6px rgba(34, 211, 238, 0.22);
+}
+
+[data-theme="dark-cyan"] .nav-fab:hover {
+  box-shadow:
+    0 6px 24px var(--primary-alpha-40),
+    0 0 0 1px var(--primary-alpha-40),
+    0 0 40px -4px rgba(34, 211, 238, 0.28);
+}
+
+[data-theme="dark-cyan"] .fab-menu {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.28),
+    0 0 52px -14px rgba(34, 211, 238, 0.08),
+    var(--dev-glow-rim);
+}
+
+[data-theme="dark-cyan"] .markets-stocks-list-wrap {
+  box-shadow:
+    0 0 44px -12px rgba(34, 211, 238, 0.065),
+    0 0 0 1px rgba(34, 211, 238, 0.11);
+}
+
+[data-theme="dark-cyan"] .glass-text-field__wrapper {
+  box-shadow:
+    0 0 28px -10px rgba(34, 211, 238, 0.06);
+}
+
+[data-theme="dark-cyan"] .glass-button--primary {
+  box-shadow:
+    0 4px 15px var(--primary-alpha-40),
+    0 0 36px -8px rgba(34, 211, 238, 0.18);
+}
+
+[data-theme="dark-cyan"] .glass-button--primary:hover:not(:disabled) {
+  box-shadow:
+    0 6px 20px var(--primary-alpha-40),
+    0 0 44px -6px rgba(34, 211, 238, 0.24);
 }

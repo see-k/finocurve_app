@@ -8,6 +8,7 @@ export type AppThemeId =
   | 'dark-navy'
   | 'dark-royal'
   | 'dark-executive'
+  | 'dark-cyan'
   | 'light'
   | 'light-warm'
 
@@ -17,6 +18,7 @@ export const THEME_IDS: AppThemeId[] = [
   'dark-navy',
   'dark-royal',
   'dark-executive',
+  'dark-cyan',
   'light',
   'light-warm',
 ]
@@ -51,6 +53,8 @@ export function tradingViewBackgroundColor(id: AppThemeId): string {
       return '#0f0f23'
     case 'dark-executive':
       return '#050505'
+    case 'dark-cyan':
+      return '#030708'
     case 'light':
       return '#f4f4f8'
     case 'light-warm':
@@ -66,6 +70,7 @@ export const THEME_OPTIONS: { id: AppThemeId; label: string; subtitle: string }[
   { id: 'dark-navy', label: 'Midnight', subtitle: 'Cool blue-gray' },
   { id: 'dark-royal', label: 'Royal', subtitle: 'Classic purple night' },
   { id: 'dark-executive', label: 'Executive', subtitle: 'Black & gold' },
+  { id: 'dark-cyan', label: 'Developer', subtitle: 'Black & cyan' },
   { id: 'light', label: 'Light', subtitle: 'Clean & bright' },
   { id: 'light-warm', label: 'Parchment', subtitle: 'Warm paper' },
 ]
