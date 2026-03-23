@@ -19,10 +19,11 @@
   border-width: 2px;
 }
 
+/* Outlines on the inner input only cover the text flex segment and ignore the pill radius,
+   so rely on :focus-within on the wrapper for focus styling instead. */
+.glass-text-field__input:focus,
 .glass-text-field__input:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: 2px;
-  border-radius: 8px;
+  outline: none;
 }
 
 .glass-text-field--error .glass-text-field__wrapper {
