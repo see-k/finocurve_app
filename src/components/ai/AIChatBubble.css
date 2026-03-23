@@ -340,6 +340,11 @@
   border-color: var(--input-focus-border);
 }
 
+.ai-chat-input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
 .ai-chat-input::placeholder {
   color: var(--text-tertiary);
 }
@@ -357,6 +362,12 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  outline: none;
+}
+
+.ai-chat-send:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .ai-chat-send:hover:not(:disabled) {

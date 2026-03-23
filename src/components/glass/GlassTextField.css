@@ -8,8 +8,8 @@
   border-radius: 30px;
   border: 1px solid var(--input-border);
   background: var(--input-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-soft));
+  -webkit-backdrop-filter: blur(var(--glass-blur-soft));
   overflow: hidden;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
@@ -17,6 +17,12 @@
 .glass-text-field__wrapper:focus-within {
   border-color: var(--primary);
   border-width: 2px;
+}
+
+.glass-text-field__input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .glass-text-field--error .glass-text-field__wrapper {

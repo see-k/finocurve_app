@@ -61,9 +61,11 @@ export default function MainShell() {
           {tabs.map(tab => (
             <button
               key={tab.id}
+              type="button"
               className={`nav-item ${activeTab === tab.id ? 'nav-item--active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
               data-tooltip={tab.label}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               {tab.icon}
               {activeTab === tab.id && <span className="nav-item__indicator" />}
@@ -76,21 +78,24 @@ export default function MainShell() {
           <div className="fab-container">
             {showFabMenu && (
               <div className="fab-menu">
-                <button className="fab-menu__item" onClick={() => handleFabOption('/add-asset/search')}>
+                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/search')}>
                   <Search size={16} /> Search Public
                 </button>
-                <button className="fab-menu__item" onClick={() => handleFabOption('/add-asset/manual')}>
+                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/manual')}>
                   <PenLine size={16} /> Add Manual
                 </button>
-                <button className="fab-menu__item" onClick={() => handleFabOption('/add-asset/loan')}>
+                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/loan')}>
                   <Landmark size={16} /> Add Loan
                 </button>
               </div>
             )}
             <button
+              type="button"
               className={`nav-fab ${showFabMenu ? 'nav-fab--open' : ''}`}
               onClick={() => setShowFabMenu(!showFabMenu)}
               data-tooltip="Add Asset"
+              aria-expanded={showFabMenu}
+              aria-haspopup="true"
             >
               <Plus size={20} />
             </button>

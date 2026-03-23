@@ -7,8 +7,8 @@
   border-radius: 28px;
   border: 1.5px solid var(--glass-border);
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-soft));
+  -webkit-backdrop-filter: blur(var(--glass-blur-soft));
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0 24px;
@@ -17,6 +17,11 @@
 .glass-button:hover:not(:disabled) {
   background: var(--glass-bg-hover);
   transform: translateY(-1px);
+}
+
+.glass-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .glass-button:active:not(:disabled) {
@@ -30,7 +35,7 @@
 
 /* Primary variant */
 .glass-button--primary {
-  background: linear-gradient(135deg, var(--primary-alpha-90), rgba(14, 127, 185, 0.8));
+  background: linear-gradient(135deg, var(--primary-alpha-90), var(--primary-hover-alpha-85));
   border-color: var(--primary-alpha-40);
   box-shadow: 0 4px 15px var(--primary-alpha-40);
 }
@@ -80,4 +85,21 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-button {
+    transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  }
+
+  .glass-button:hover:not(:disabled),
+  .glass-button:active:not(:disabled) {
+    transform: none;
+  }
+
+  .glass-button__spinner {
+    animation: none;
+    border-color: rgba(255, 255, 255, 0.5);
+    border-top-color: #ffffff;
+  }
 }
