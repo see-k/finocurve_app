@@ -4,6 +4,8 @@
  * Color-codes countries by portfolio exposure percentage.
  */
 import { useState, useMemo, useEffect } from 'react'
+import { useTheme } from '../theme/ThemeContext'
+import { isDarkTheme } from '../theme/themes'
 import {
   ComposableMap,
   Geographies,
@@ -140,6 +142,7 @@ interface WorldMapProps {
 export default function WorldMap({ countryExposure, totalValue, onCountryClick }: WorldMapProps) {
   const [tooltipContent, setTooltipContent] = useState('')
   const [hovered, setHovered] = useState<string | null>(null)
+  const { theme: appTheme } = useTheme()
   const [themeEpoch, setThemeEpoch] = useState(0)
 
   useEffect(() => {
@@ -150,14 +153,14 @@ export default function WorldMap({ countryExposure, totalValue, onCountryClick }
   }, [])
 
   const { isDark, brand, brandStroke } = useMemo(() => {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const dark = isDarkTheme(appTheme)
     const b = readBrandRgb()
     return {
       isDark: dark,
       brand: b,
       brandStroke: `rgb(${b.pr},${b.pg},${b.pb})`,
     }
-  }, [themeEpoch])
+  }, [themeEpoch, appTheme])
 
   // Build numeric-id → pct lookup
   const numericExposure = useMemo(() => {

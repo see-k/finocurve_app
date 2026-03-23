@@ -58,7 +58,7 @@
   letter-spacing: 0.5px;
 }
 
-[data-theme="light"] .glass-button--secondary .glass-button__text {
+[data-theme^="light"] .glass-button--secondary .glass-button__text {
   color: var(--text-primary);
 }
 
@@ -69,7 +69,7 @@
   color: #FFFFFF;
 }
 
-[data-theme="light"] .glass-button--secondary .glass-button__icon {
+[data-theme^="light"] .glass-button--secondary .glass-button__icon {
   color: var(--text-primary);
 }
 

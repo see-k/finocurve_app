@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Sun, Moon, User, DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug,
+  User, DollarSign, Bell, HelpCircle, Info,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Check,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import UserAvatar from '../../components/UserAvatar'
 import { useTheme } from '../../theme/ThemeContext'
+import { THEME_OPTIONS, type AppThemeId } from '../../theme/themes'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
 import './SettingsScreen.css'
@@ -15,6 +16,11 @@ import './SettingsScreen.css'
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme()
   const { prefs, updatePreferences, resetPreferences } = usePreferences()
+
+  const applyTheme = (id: AppThemeId) => {
+    setTheme(id)
+    updatePreferences({ theme: id })
+  }
   const { portfolio } = usePortfolio()
   const navigate = useNavigate()
   const [showExportModal, setShowExportModal] = useState(false)
@@ -104,24 +110,29 @@ export default function SettingsScreen() {
         </GlassContainer>
       </div>
 
-      {/* Appearance */}
-      <div className="settings-section">
-        <h2 className="settings-section__title">Appearance</h2>
-        <GlassContainer padding="0" borderRadius={16} className="settings-group">
-          <div className="settings-theme-picker">
-            <button className={`theme-option ${theme === 'light' ? 'theme-option--active' : ''}`} onClick={() => setTheme('light')}>
-              <Sun size={20} /><span>Light</span>
-            </button>
-            <button className={`theme-option ${theme === 'dark' ? 'theme-option--active' : ''}`} onClick={() => setTheme('dark')}>
-              <Moon size={20} /><span>Dark</span>
-            </button>
-          </div>
-        </GlassContainer>
-      </div>
-
       {/* Preferences */}
       <div className="settings-section">
         <h2 className="settings-section__title">Preferences</h2>
+        <GlassContainer padding="16px" borderRadius={16} className="settings-group settings-group--theme">
+          <p className="settings-theme-heading">Theme</p>
+          <p className="settings-theme-hint">Choose a color theme for the app. Your choice is saved on this device.</p>
+          <div className="settings-theme-grid">
+            {THEME_OPTIONS.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                aria-pressed={theme === opt.id}
+                className={`settings-theme-card ${theme === opt.id ? 'settings-theme-card--active' : ''}`}
+                onClick={() => applyTheme(opt.id)}
+              >
+                <span className={`settings-theme-card__swatch settings-theme-card__swatch--${opt.id}`} aria-hidden />
+                <span className="settings-theme-card__label">{opt.label}</span>
+                <span className="settings-theme-card__sub">{opt.subtitle}</span>
+                {theme === opt.id && <Check className="settings-theme-card__check" size={18} strokeWidth={2.5} aria-hidden />}
+              </button>
+            ))}
+          </div>
+        </GlassContainer>
         <GlassContainer padding="0" borderRadius={16} className="settings-group">
           <SettingsRow icon={<DollarSign size={18} />} label="Currency" value={prefs.defaultCurrency} onClick={() => navigate('/settings/currency')} />
           <SettingsRow icon={<Bell size={18} />} label="Notifications" value={prefs.notificationsEnabled ? 'On' : 'Off'}

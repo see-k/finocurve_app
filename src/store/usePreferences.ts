@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { UserPreferences } from '../types'
+import { normalizeStoredTheme } from '../theme/themes'
 
 const STORAGE_KEY = 'finocurve-preferences'
 
@@ -9,7 +10,7 @@ const DEFAULT_PREFS: UserPreferences = {
   selectedAssetTypes: [],
   preferredDataEntry: 'manual',
   defaultCurrency: 'USD',
-  theme: 'dark',
+  theme: 'dark-graphite',
   hasAgreedToTerms: false,
   notificationsEnabled: true,
   priceAlerts: true,
@@ -20,7 +21,13 @@ const DEFAULT_PREFS: UserPreferences = {
 function loadPreferences(): UserPreferences {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) return { ...DEFAULT_PREFS, ...JSON.parse(stored) }
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<UserPreferences>
+      const theme = normalizeStoredTheme(
+        typeof parsed.theme === 'string' ? parsed.theme : null,
+      )
+      return { ...DEFAULT_PREFS, ...parsed, theme }
+    }
   } catch { /* ignore */ }
   return DEFAULT_PREFS
 }
