@@ -55,6 +55,16 @@
   flex-wrap: wrap;
 }
 
+@keyframes reports-toolbar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.reports-toolbar-icon--spin {
+  animation: reports-toolbar-spin 0.75s linear infinite;
+}
+
 /* Sub-page tabs */
 .reports-tabs {
   display: flex;

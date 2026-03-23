@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X, Sparkles, FolderOpen } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Shield, Cloud, HardDrive, Eye, X, FolderOpen, RefreshCw, Loader2, FileChartColumnIncreasing } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
-import { useDocumentInsights, setSharedDocumentInsights } from '../../store/useDocumentInsights'
-import { usePortfolio } from '../../store/usePortfolio'
 import './ReportsScreen.css'
 
 const REPORTS_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -52,8 +50,6 @@ function mimeFromKey(key: string): string {
 export default function ReportsScreen() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { insights, setDocumentInsights, loading: aiLoading, setLoading: setAiLoading, error: aiError, setError: setAiError } = useDocumentInsights()
-  const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [subTab, setSubTab] = useState<'reports' | 'documents'>('reports')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'cloud' | 'local'>('all')
   const [s3Connected, setS3Connected] = useState<boolean | null>(null)
@@ -228,47 +224,6 @@ export default function ReportsScreen() {
     setViewError(null)
   }
 
-  const handleAnalyzeWithAI = async () => {
-    if (!window.electronAPI?.aiGenerateInsights || !window.electronAPI?.aiCheckConnection) {
-      setAiError('AI features require the desktop app with an AI provider configured.')
-      return
-    }
-    const check = await window.electronAPI.aiCheckConnection()
-    if (!check.ok) {
-      setAiError(check.error ?? 'AI not available. Configure Ollama, AWS Bedrock, or Azure in Settings.')
-      return
-    }
-    const docs = documents.map((d) => ({
-      key: d.key,
-      fileName: fileNameFromKey(d.key),
-      source: d.source,
-    }))
-    if (docs.length === 0) {
-      setAiError('No documents to analyze.')
-      return
-    }
-    setAiError(null)
-    setAiLoading(true)
-    try {
-      const portfolioContext = portfolio && totalValue > 0 ? {
-        portfolioName: portfolio.name || 'Portfolio',
-        totalValue,
-        totalGainLossPercent,
-        assetCount: portfolio.assets.length,
-      } : undefined
-      const { insights: newInsights } = await window.electronAPI.aiGenerateInsights({
-        documents: docs,
-        portfolioContext,
-      })
-      setDocumentInsights(newInsights)
-      setSharedDocumentInsights(newInsights)
-    } catch (e) {
-      setAiError(e instanceof Error ? e.message : 'AI analysis failed')
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
   const handleOpenLocalDocumentsFolder = async () => {
     if (!window.electronAPI?.localStorageOpenDocumentsFolder) return
     setError(null)
@@ -386,11 +341,11 @@ export default function ReportsScreen() {
         <div className="reports-header">
           <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
           {hasElectronLocal && localConnected && window.electronAPI?.localStorageOpenDocumentsFolder && (
-            <GlassButton
-              text="Open documents folder"
-              onClick={handleOpenLocalDocumentsFolder}
-              icon={<FolderOpen size={16} />}
-              width="auto"
+            <GlassIconButton
+              icon={<FolderOpen size={18} aria-hidden />}
+              onClick={() => void handleOpenLocalDocumentsFolder()}
+              title="Open documents folder"
+              size={40}
             />
           )}
         </div>
@@ -431,14 +386,19 @@ export default function ReportsScreen() {
           </div>
         )}
 
-        {(error || aiError) && <p className="reports-error">{error || aiError}</p>}
+        {error && <p className="reports-error">{error}</p>}
 
         {/* Reports sub-page */}
         {subTab === 'reports' && (
           <div className="reports-section">
             <div className="reports-section__header">
               <h2 className="reports-section__title"><Shield size={18} /> Risk Reports</h2>
-              <GlassButton text="Generate Report" onClick={() => navigate('/risk-analysis')} icon={<ChevronRight size={16} />} width="auto" />
+              <GlassIconButton
+                icon={<FileChartColumnIncreasing size={18} aria-hidden />}
+                onClick={() => navigate('/risk-analysis')}
+                title="Generate report"
+                size={40}
+              />
             </div>
             <GlassContainer padding="16px" borderRadius={16}>
               {loading ? (
@@ -479,22 +439,26 @@ export default function ReportsScreen() {
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt"
                   onChange={handleUpload}
                 />
-                <GlassButton
-                  text={uploading ? 'Uploading...' : 'Upload'}
+                <GlassIconButton
+                  icon={
+                    uploading ? (
+                      <Loader2 size={18} className="reports-toolbar-icon--spin" aria-hidden />
+                    ) : (
+                      <Upload size={18} aria-hidden />
+                    )
+                  }
                   onClick={() => fileInputRef.current?.click()}
-                  icon={<Upload size={16} />}
-                  isPrimary
+                  title={uploading ? 'Uploading…' : 'Upload document'}
                   disabled={uploading}
-                  width="auto"
+                  size={40}
                 />
-                <GlassButton
-                  text={aiLoading ? 'Analyzing...' : 'Analyze with AI'}
-                  onClick={handleAnalyzeWithAI}
-                  icon={<Sparkles size={16} />}
-                  disabled={aiLoading || filteredDocuments.length === 0}
-                  width="auto"
+                <GlassIconButton
+                  icon={<RefreshCw size={18} aria-hidden />}
+                  onClick={() => void loadAll()}
+                  title="Refresh list"
+                  disabled={loading}
+                  size={40}
                 />
-                <GlassButton text="Refresh" onClick={loadAll} disabled={loading} width="auto" />
               </div>
             </div>
             <GlassContainer padding="16px" borderRadius={16}>
