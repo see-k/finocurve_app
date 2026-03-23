@@ -19,6 +19,7 @@ import {
   generateBrandedCustomReportPdf,
   safeReportFileSlug,
 } from '../src/services/brandedCustomReportPdf'
+import { buildCsvDocument, safeCsvBaseName } from '../src/services/csvDocumentExport'
 import { writeLocalStorageFile } from './localStorageHandlers'
 import { uploadS3IfConfigured } from './s3Handlers'
 
@@ -219,6 +220,53 @@ async function saveCustomBrandedReportForChat(payload: {
   ].join('\n')
 }
 
+async function saveCustomCsvForChat(payload: {
+  fileBaseName: string
+  headers: string[]
+  rows: string[][]
+}): Promise<string> {
+  let csvCore: string
+  try {
+    csvCore = buildCsvDocument({ headers: payload.headers, rows: payload.rows })
+  } catch (e) {
+    return `Could not build CSV: ${e instanceof Error ? e.message : 'invalid data'}`
+  }
+  const csvText = `\uFEFF${csvCore}`
+  const bytes = new TextEncoder().encode(csvText)
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const slug = safeCsvBaseName(payload.fileBaseName)
+  const fileName = `FinoCurve_AI_Data_${dateStr}_${slug}.csv`
+  const key = `${DOCUMENTS_PREFIX}${fileName}`
+
+  const notes: string[] = []
+  let savedAny = false
+  try {
+    writeLocalStorageFile(key, bytes)
+    savedAny = true
+    notes.push(`Saved locally: ${key}`)
+  } catch (e) {
+    notes.push(`Local: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+  try {
+    const uploaded = await uploadS3IfConfigured(key, bytes, 'text/csv; charset=utf-8')
+    if (uploaded) {
+      savedAny = true
+      notes.push(`Uploaded to cloud (S3): ${key}`)
+    }
+  } catch (e) {
+    notes.push(`Cloud: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+
+  if (!savedAny) {
+    return `Could not save the CSV. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
+  }
+  return [
+    'CSV file created (UTF-8 with BOM for Excel).',
+    ...notes,
+    'The file is listed under finocurve/documents/ in the app; the user can open it in Excel or Google Sheets.',
+  ].join('\n')
+}
+
 function storedConfigToAIConfig(stored: StoredAIConfig) {
   return {
     provider: 'local' as const,
@@ -252,6 +300,7 @@ export function registerAIHandlers(): void {
           getSECFilingContentData(tickerOrCik, accessionNumber),
         getMCPTools: () => getMCPLangChainTools(),
         saveCustomBrandedReport: saveCustomBrandedReportForChat,
+        saveCustomCsvDocument: saveCustomCsvForChat,
         config: storedConfigToAIConfig(stored),
       })
     }

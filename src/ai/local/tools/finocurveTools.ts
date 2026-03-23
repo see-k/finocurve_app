@@ -30,6 +30,8 @@ export interface FinocurveToolContext {
     subtitle?: string
     sections: { heading: string; body: string }[]
   }) => Promise<string>
+  /** Desktop: save UTF-8 CSV (Excel-friendly) to finocurve/documents/ (local and/or S3). */
+  saveCustomCsvDocument?: (payload: { fileBaseName: string; headers: string[]; rows: string[][] }) => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -280,6 +282,46 @@ ${topHoldings}`
     }
   )
 
+  const saveCustomCsvDocument = tool(
+    async ({
+      fileBaseName,
+      headers,
+      rows,
+    }: {
+      fileBaseName: string
+      headers: string[]
+      rows: string[][]
+    }) => {
+      if (!ctx.saveCustomCsvDocument) {
+        return 'CSV export is only available in the FinoCurve desktop app with storage configured.'
+      }
+      return ctx.saveCustomCsvDocument({ fileBaseName, headers, rows })
+    },
+    {
+      name: 'save_custom_csv_document',
+      description:
+        'Create a UTF-8 CSV file (opens in Excel, Google Sheets, Numbers) from a header row and data rows, and save it to the user\'s documents folder (local and/or S3). Use when the user wants spreadsheet-style output: tables, holdings lists, comparison matrices, export of numeric series, etc. Use plain strings for every cell (format numbers as text the user would expect, e.g. "1,234.56" or "12.5%"). Row order must match headers: each row is one array of cell values in column order. Do not include markdown or formulas—values only.',
+      schema: z.object({
+        fileBaseName: z
+          .string()
+          .min(1)
+          .max(100)
+          .describe('Short file name without extension, e.g. portfolio_holdings_march or risk_comparison'),
+        headers: z
+          .array(z.string().max(200))
+          .min(1)
+          .max(50)
+          .describe('Column names, first row of the CSV'),
+        rows: z
+          .array(z.array(z.string().max(8000)))
+          .max(2000)
+          .describe(
+            'Data rows; each inner array has one string per column in the same order as headers (use empty string for missing cells)'
+          ),
+      }),
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -314,5 +356,6 @@ ${topHoldings}`
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
   if (ctx.saveCustomBrandedReport) baseTools.push(saveCustomBrandedReportPdf)
+  if (ctx.saveCustomCsvDocument) baseTools.push(saveCustomCsvDocument)
   return baseTools
 }

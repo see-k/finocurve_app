@@ -132,6 +132,8 @@ export interface LocalAIServiceOptions {
   getMCPTools?: () => StructuredToolInterface[]
   /** Desktop: AI chat tool to save branded PDFs into documents storage */
   saveCustomBrandedReport?: FinocurveToolContext['saveCustomBrandedReport']
+  /** Desktop: AI chat tool to save CSV files into documents storage */
+  saveCustomCsvDocument?: FinocurveToolContext['saveCustomCsvDocument']
   config?: Partial<AIConfig>
 }
 
@@ -247,6 +249,11 @@ export class LocalAIService implements AIService {
         'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. The PDF uses FinoCurve branding and is saved to their documents area automatically when storage is configured.'
       )
     }
+    if (this.options.saveCustomCsvDocument) {
+      systemParts.push(
+        'When the user asks for a spreadsheet, Excel-style export, table download, or CSV, use save_custom_csv_document with fileBaseName, headers (column names), and rows (array of rows matching header order). The file is UTF-8 with BOM for Excel compatibility and is saved under finocurve/documents/ when storage is configured.'
+      )
+    }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
 
@@ -267,6 +274,7 @@ export class LocalAIService implements AIService {
       getSECSubmissions: this.options.getSECSubmissions,
       getSECFilingContent: this.options.getSECFilingContent,
       saveCustomBrandedReport: this.options.saveCustomBrandedReport,
+      saveCustomCsvDocument: this.options.saveCustomCsvDocument,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -388,6 +396,12 @@ export class LocalAIService implements AIService {
       base.push({
         name: 'save_custom_branded_report_pdf',
         description: 'Create branded PDF and save to finocurve/documents/ (local and/or cloud)',
+      })
+    }
+    if (this.options.saveCustomCsvDocument) {
+      base.push({
+        name: 'save_custom_csv_document',
+        description: 'Create UTF-8 CSV and save to finocurve/documents/ (local and/or cloud)',
       })
     }
     // Include MCP tools in the reported tool list
