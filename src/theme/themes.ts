@@ -6,6 +6,8 @@ export type AppThemeId =
   | 'dark-graphite'
   | 'dark-oled'
   | 'dark-navy'
+  | 'dark-royal'
+  | 'dark-executive'
   | 'light'
   | 'light-warm'
 
@@ -13,6 +15,8 @@ export const THEME_IDS: AppThemeId[] = [
   'dark-graphite',
   'dark-oled',
   'dark-navy',
+  'dark-royal',
+  'dark-executive',
   'light',
   'light-warm',
 ]
@@ -43,6 +47,10 @@ export function tradingViewBackgroundColor(id: AppThemeId): string {
       return '#000000'
     case 'dark-navy':
       return '#0a0e14'
+    case 'dark-royal':
+      return '#0f0f23'
+    case 'dark-executive':
+      return '#050505'
     case 'light':
       return '#f4f4f8'
     case 'light-warm':
@@ -56,6 +64,8 @@ export const THEME_OPTIONS: { id: AppThemeId; label: string; subtitle: string }[
   { id: 'dark-graphite', label: 'Graphite', subtitle: 'Neutral dark (default)' },
   { id: 'dark-oled', label: 'OLED', subtitle: 'True black' },
   { id: 'dark-navy', label: 'Midnight', subtitle: 'Cool blue-gray' },
+  { id: 'dark-royal', label: 'Royal', subtitle: 'Classic purple night' },
+  { id: 'dark-executive', label: 'Executive', subtitle: 'Black & gold' },
   { id: 'light', label: 'Light', subtitle: 'Clean & bright' },
   { id: 'light-warm', label: 'Parchment', subtitle: 'Warm paper' },
 ]

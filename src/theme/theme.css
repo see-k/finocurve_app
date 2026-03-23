@@ -176,6 +176,97 @@
 }
 
 /* ============================================
+   DARK: Royal (classic purple-tinted night + indigo brand from :root)
+   ============================================ */
+[data-theme="dark-royal"] {
+  --bg: #0f0f23;
+  --bg-primary: #0f0f23;
+  --surface: #1a1a35;
+  --surface-light: #2a2a4a;
+
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(255, 255, 255, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: rgba(0, 0, 0, 0.32);
+
+  --overlay: rgba(0, 0, 0, 0.52);
+  --divider: rgba(255, 255, 255, 0.08);
+
+  --nav-bg: rgba(15, 15, 35, 0.95);
+  --nav-border: rgba(255, 255, 255, 0.08);
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.15);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-tooltip-bg: #1a1a35;
+
+  --screen-overlay-soft: rgba(15, 15, 35, 0.34);
+  --screen-overlay-md: rgba(15, 15, 35, 0.46);
+  --screen-overlay-strong: rgba(15, 15, 35, 0.64);
+  --screen-overlay-deep: rgba(15, 15, 35, 0.88);
+}
+
+/* ============================================
+   DARK: Executive (black & gold — corporate)
+   ============================================ */
+[data-theme="dark-executive"] {
+  --brand-primary: #c9a227;
+  --brand-secondary: #a68b1d;
+  --primary: #c9a227;
+  --primary-hover: #8f7719;
+  --primary-alpha-20: rgba(201, 162, 39, 0.22);
+  --primary-alpha-40: rgba(201, 162, 39, 0.48);
+  --primary-alpha-90: rgba(201, 162, 39, 0.92);
+  --primary-hover-alpha-85: rgba(143, 119, 25, 0.88);
+  --brand-primary-r: 201;
+  --brand-primary-g: 162;
+  --brand-primary-b: 39;
+  --brand-secondary-r: 166;
+  --brand-secondary-g: 139;
+  --brand-secondary-b: 29;
+
+  --bg: #050505;
+  --bg-primary: #050505;
+  --surface: #0e0e0c;
+  --surface-light: #181812;
+
+  --text-primary: #faf9f5;
+  --text-secondary: #a8a29e;
+  --text-tertiary: rgba(250, 249, 245, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.045);
+  --glass-bg-hover: rgba(255, 255, 255, 0.085);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(201, 162, 39, 0.14);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.62);
+  --divider: rgba(201, 162, 39, 0.1);
+
+  --nav-bg: rgba(5, 5, 5, 0.94);
+  --nav-border: rgba(201, 162, 39, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(201, 162, 39, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-tooltip-bg: #0e0e0c;
+
+  --screen-overlay-soft: rgba(5, 5, 5, 0.42);
+  --screen-overlay-md: rgba(5, 5, 5, 0.55);
+  --screen-overlay-strong: rgba(5, 5, 5, 0.72);
+  --screen-overlay-deep: rgba(5, 5, 5, 0.92);
+}
+
+/* ============================================
    LIGHT
    ============================================ */
 [data-theme="light"] {

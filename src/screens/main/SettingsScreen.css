@@ -95,7 +95,7 @@
 }
 .settings-theme-card--active {
   border-color: var(--brand-primary);
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--primary-alpha-20);
   box-shadow: 0 0 0 1px var(--primary-alpha-20);
 }
 .settings-theme-card__swatch {
@@ -115,6 +115,12 @@
 }
 .settings-theme-card__swatch--dark-navy {
   background: linear-gradient(135deg, #0a0e14 48%, #1a2434 48%);
+}
+.settings-theme-card__swatch--dark-royal {
+  background: linear-gradient(135deg, #0f0f23 40%, #6366f1 40%, #6366f1 55%, #1a1a35 55%);
+}
+.settings-theme-card__swatch--dark-executive {
+  background: linear-gradient(135deg, #050505 42%, #c9a227 42%, #c9a227 58%, #0e0e0c 58%);
 }
 .settings-theme-card__swatch--light {
   background: linear-gradient(135deg, #e8e8ee 48%, #ffffff 48%);
