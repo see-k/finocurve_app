@@ -16,6 +16,21 @@ export interface PortfolioHolding {
   percent?: number
 }
 
+/** Loans synced from the portfolio for AI tools (category === loan). */
+export interface LoanContextRecord {
+  name: string
+  loanType?: string
+  /** Outstanding balance (positive number, USD or portfolio currency) */
+  balance: number
+  /** Original principal when available */
+  principal?: number
+  interestRate?: number
+  monthlyPayment?: number
+  termMonths?: number
+  startDate?: string
+  extraMonthlyPayment?: number
+}
+
 export interface PortfolioContext {
   portfolioName: string
   totalValue: number
@@ -25,6 +40,8 @@ export interface PortfolioContext {
   riskLevel?: string
   /** Top holdings for news matching and context */
   topHoldings?: PortfolioHolding[]
+  /** Liabilities the user recorded as loans in FinoCurve */
+  loans?: LoanContextRecord[]
 }
 
 export interface DocumentInsight {

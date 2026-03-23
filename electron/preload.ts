@@ -41,8 +41,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   localStorageReadFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-read-file', payload),
   localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
   localStorageOpenDocumentsFolder: () => ipcRenderer.invoke('local-storage-open-documents-folder'),
-  portfolioSync: (payload: { portfolioName: string; totalValue: number; totalGainLossPercent: number; assetCount: number; riskScore?: number; riskLevel?: string } | null) =>
-    ipcRenderer.invoke('portfolio-sync', payload),
+  portfolioSync: (
+    payload: {
+      portfolioName: string
+      totalValue: number
+      totalGainLossPercent: number
+      assetCount: number
+      riskScore?: number
+      riskLevel?: string
+      topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+      loans?: Array<{
+        name: string
+        loanType?: string
+        balance: number
+        principal?: number
+        interestRate?: number
+        monthlyPayment?: number
+        termMonths?: number
+        startDate?: string
+        extraMonthlyPayment?: number
+      }>
+    } | null
+  ) => ipcRenderer.invoke('portfolio-sync', payload),
   aiConfigGet: () => ipcRenderer.invoke('ai-config-get'),
   aiConfigSave: (payload: unknown) => ipcRenderer.invoke('ai-config-save', payload),
   aiCheckOllama: () => ipcRenderer.invoke('ai-check-ollama'),

@@ -4,6 +4,9 @@ import {
   portfolioTotalValue, portfolioTotalCost,
   portfolioTotalGainLoss, portfolioTotalGainLossPercent,
   assetCurrentValue,
+  isLoan,
+  loanBalance,
+  loanPrincipal,
 } from '../types'
 
 const STORAGE_KEY = 'finocurve-portfolio'
@@ -112,12 +115,25 @@ export function usePortfolio() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
+    const loanAssets = portfolio.assets?.filter(isLoan) ?? []
+    const loans = loanAssets.map((a) => ({
+      name: a.name,
+      loanType: a.loanType,
+      balance: loanBalance(a),
+      principal: loanPrincipal(a) > 0 ? loanPrincipal(a) : undefined,
+      interestRate: a.interestRate,
+      monthlyPayment: a.monthlyPayment,
+      termMonths: a.loanTermMonths,
+      startDate: a.loanStartDate,
+      extraMonthlyPayment: a.extraMonthlyPayment,
+    }))
     window.electronAPI.portfolioSync({
       portfolioName: portfolio.name || 'Portfolio',
       totalValue: totalVal,
       totalGainLossPercent: gainLossPct,
       assetCount: portfolio.assets?.length ?? 0,
       topHoldings,
+      loans,
     })
   }, [portfolio])
 

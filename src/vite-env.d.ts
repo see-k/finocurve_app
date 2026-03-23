@@ -60,6 +60,17 @@ interface ElectronAPI {
     riskScore?: number
     riskLevel?: string
     topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+    loans?: Array<{
+      name: string
+      loanType?: string
+      balance: number
+      principal?: number
+      interestRate?: number
+      monthlyPayment?: number
+      termMonths?: number
+      startDate?: string
+      extraMonthlyPayment?: number
+    }>
   } | null) => Promise<{ ok: boolean }>
   // AI
   aiConfigGet?: () => Promise<AIConfigFromMain>

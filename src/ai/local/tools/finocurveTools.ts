@@ -68,6 +68,58 @@ ${topHoldings}`
     }
   )
 
+  const getUserLoans = tool(
+    async () => {
+      const portfolio = await ctx.getPortfolioContext()
+      if (!portfolio) {
+        return 'No portfolio data available. The user has not set up a portfolio yet.'
+      }
+      const loans = portfolio.loans ?? []
+      if (loans.length === 0) {
+        return 'The user has not recorded any loans in FinoCurve. Loans can be added from Portfolio or Add Asset → Loan.'
+      }
+      const lines = loans.map((l, i) => {
+        const bits: string[] = [
+          `${i + 1}. ${l.name}`,
+          l.loanType ? `   Type: ${l.loanType.replace(/_/g, ' ')}` : '',
+          `   Outstanding balance: $${l.balance.toLocaleString()}`,
+        ]
+        if (l.principal != null && l.principal > 0) {
+          bits.push(`   Original principal: $${l.principal.toLocaleString()}`)
+        }
+        if (l.interestRate != null) bits.push(`   Interest rate: ${l.interestRate}% APR`)
+        if (l.monthlyPayment != null) bits.push(`   Monthly payment: $${l.monthlyPayment.toLocaleString()}`)
+        if (l.extraMonthlyPayment != null && l.extraMonthlyPayment > 0) {
+          bits.push(`   Extra monthly payment: $${l.extraMonthlyPayment.toLocaleString()}`)
+        }
+        if (l.termMonths != null) bits.push(`   Term: ${l.termMonths} months`)
+        if (l.startDate) bits.push(`   Start date: ${l.startDate}`)
+        return bits.filter(Boolean).join('\n')
+      })
+      return `[Source: FinoCurve — loans recorded in app]\nPortfolio: ${portfolio.portfolioName}\n\n${lines.join('\n\n')}`
+    },
+    {
+      name: 'get_user_loans',
+      description:
+        'List all loans and debt the user has recorded in FinoCurve (mortgage, auto, student, credit card, etc.) with balances, APR, payments, and term when available. Use when the user asks about their loans, debt, mortgage, liabilities tracked in the app, or monthly loan payments.',
+    }
+  )
+
+  const getCurrentDateTime = tool(
+    async () => {
+      const now = new Date()
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
+      const localLong = now.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })
+      const utc = now.toUTCString()
+      return `[Source: Device clock — FinoCurve runtime]\nISO 8601 (UTC): ${now.toISOString()}\nUTC string: ${utc}\nLocal (${tz}): ${localLong}\nUnix ms: ${now.getTime()}`
+    },
+    {
+      name: 'get_current_datetime',
+      description:
+        'Get the current date and time from the user\'s device (the computer running FinoCurve), including ISO UTC, local timezone, and Unix time. Use whenever the user asks what day or time it is, "today", "now", timezone, year, or any question that needs the real-world current date/time. Models do not know the live clock without this tool.',
+    }
+  )
+
   const getDocumentList = tool(
     async () => {
       const docs = await ctx.getDocumentList()
@@ -346,6 +398,8 @@ ${topHoldings}`
 
   const baseTools: StructuredToolInterface[] = [
     getPortfolioSummary,
+    getUserLoans,
+    getCurrentDateTime,
     getDocumentList,
     getDocumentContent,
     getReportList,

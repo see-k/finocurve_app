@@ -241,7 +241,7 @@ export class LocalAIService implements AIService {
     context: ChatContext
   ): AsyncGenerator<ChatStreamChunk, void, unknown> {
     const systemParts: string[] = [
-      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
+      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, loans they recorded in the app, documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use get_current_datetime for the real-world "today" or current time. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
     ]
     if (this.options.saveCustomBrandedReport) {
@@ -258,10 +258,13 @@ export class LocalAIService implements AIService {
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
 
     const toolContext = {
-      getPortfolioContext:
-        context.portfolioContext !== undefined
-          ? async () => context.portfolioContext ?? null
-          : this.options.getPortfolioContext,
+      // Prefer main-process cache (full topHoldings + loans from portfolioSync) over the
+      // partial object the renderer may send with chat; fall back to inline context if no cache.
+      getPortfolioContext: async () => {
+        const cached = await this.options.getPortfolioContext()
+        if (cached) return cached
+        return context.portfolioContext ?? null
+      },
       getDocumentList: this.options.getDocumentList,
       getReportList: this.options.getReportList,
       getDocumentContent: this.options.getDocumentContent,
