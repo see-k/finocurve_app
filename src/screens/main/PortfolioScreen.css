@@ -29,7 +29,7 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(15, 15, 35, 0.3) 0%,
+    var(--screen-overlay-soft) 0%,
     var(--bg-primary) 300px
   );
 }

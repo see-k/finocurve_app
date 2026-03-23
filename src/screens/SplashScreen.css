@@ -25,8 +25,8 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(15, 15, 35, 0.6) 0%,
-    rgba(15, 15, 35, 0.85) 50%,
+    var(--screen-overlay-strong) 0%,
+    var(--screen-overlay-deep) 50%,
     var(--bg-primary) 100%
   );
 }
@@ -37,7 +37,7 @@
   width: 400px;
   height: 400px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.09) 0%, transparent 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -72,7 +72,7 @@
   width: 180px;
   height: 180px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 24px rgba(99, 102, 241, 0.35));
+  filter: drop-shadow(0 4px 20px rgba(99, 102, 241, 0.2));
 }
 
 .splash-title {

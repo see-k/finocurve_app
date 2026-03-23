@@ -65,10 +65,11 @@
    DARK MODE (default)
    ============================================ */
 [data-theme="dark"] {
-  --bg: #0f0f23;
-  --bg-primary: #0f0f23;
-  --surface: #1a1a35;
-  --surface-light: #2a2a4a;
+  /* Near-black / graphite — less purple than legacy #0f0f23 / #1a1a35 */
+  --bg: #0a0a0c;
+  --bg-primary: #0a0a0c;
+  --surface: #121215;
+  --surface-light: #1c1c22;
 
   --text-primary: #FFFFFF;
   --text-secondary: #94a3b8;
@@ -83,7 +84,7 @@
   --overlay: rgba(0, 0, 0, 0.54);
   --divider: rgba(255, 255, 255, 0.08);
 
-  --nav-bg: rgba(15, 15, 35, 0.95);
+  --nav-bg: rgba(10, 10, 12, 0.95);
   --nav-border: rgba(255, 255, 255, 0.08);
 
   --input-bg: rgba(255, 255, 255, 0.06);
@@ -91,7 +92,13 @@
   --input-focus-border: var(--brand-primary);
 
   --chart-grid: rgba(255, 255, 255, 0.06);
-  --chart-tooltip-bg: #1a1a35;
+  --chart-tooltip-bg: #121215;
+
+  /* Hero image fades (neutral; use instead of rgba(15,15,35,…)) */
+  --screen-overlay-soft: rgba(8, 8, 10, 0.32);
+  --screen-overlay-md: rgba(8, 8, 10, 0.44);
+  --screen-overlay-strong: rgba(8, 8, 10, 0.62);
+  --screen-overlay-deep: rgba(8, 8, 10, 0.86);
 }
 
 /* ============================================
@@ -125,4 +132,9 @@
 
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-tooltip-bg: #FFFFFF;
+
+  --screen-overlay-soft: rgba(255, 255, 255, 0.42);
+  --screen-overlay-md: rgba(255, 255, 255, 0.52);
+  --screen-overlay-strong: rgba(248, 248, 250, 0.78);
+  --screen-overlay-deep: rgba(244, 244, 248, 0.92);
 }

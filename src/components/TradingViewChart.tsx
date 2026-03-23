@@ -57,7 +57,7 @@ export default function TradingViewChart({ symbol, onClose }: TradingViewChartPr
   const { theme } = useTheme()
   const [loading, setLoading] = useState(true)
   const colorTheme = theme === 'dark' ? 'dark' : 'light'
-  const bgColor = theme === 'dark' ? '#0f0f23' : '#f4f4f8'
+  const bgColor = theme === 'dark' ? '#0a0a0c' : '#f4f4f8'
 
   const initChart = useCallback(async () => {
     if (!containerRef.current) return
