@@ -48,6 +48,9 @@ interface ElectronAPI {
   localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
   localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  localStorageOpenDocumentsFolder?: () => Promise<
+    { ok: true } | { ok: false; error?: 'not_configured'; message?: string }
+  >
   // Portfolio sync (for A2A / main process)
   portfolioSync?: (payload: {
     portfolioName: string

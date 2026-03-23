@@ -157,4 +157,19 @@ export function registerLocalStorageHandlers(): void {
     }
     return { ok: true }
   })
+
+  ipcMain.handle('local-storage-open-documents-folder', async () => {
+    const config = loadConfig()
+    if (!config) {
+      return { ok: false as const, error: 'not_configured' as const }
+    }
+    const docsDir = path.join(config.directoryPath, 'finocurve', 'documents')
+    ensureDir(docsDir)
+    const { shell } = await import('electron')
+    const errMsg = await shell.openPath(docsDir)
+    if (errMsg) {
+      return { ok: false as const, message: errMsg }
+    }
+    return { ok: true as const }
+  })
 }

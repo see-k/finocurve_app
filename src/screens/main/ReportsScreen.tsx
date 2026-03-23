@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X, Sparkles } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X, Sparkles, FolderOpen } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
@@ -269,6 +269,25 @@ export default function ReportsScreen() {
     }
   }
 
+  const handleOpenLocalDocumentsFolder = async () => {
+    if (!window.electronAPI?.localStorageOpenDocumentsFolder) return
+    setError(null)
+    try {
+      const res = await window.electronAPI.localStorageOpenDocumentsFolder()
+      if (!res.ok) {
+        if ('error' in res && res.error === 'not_configured') {
+          setError('Choose a local folder in Settings → Cloud Storage first.')
+        } else if ('message' in res && res.message) {
+          setError(res.message)
+        } else {
+          setError('Could not open the documents folder.')
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open folder')
+    }
+  }
+
   const handleDelete = async (item: FileItem) => {
     if (!confirm(`Delete ${fileNameFromKey(item.key)}?`)) return
     setError(null)
@@ -366,6 +385,14 @@ export default function ReportsScreen() {
       <div className="reports-content">
         <div className="reports-header">
           <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
+          {hasElectronLocal && localConnected && window.electronAPI?.localStorageOpenDocumentsFolder && (
+            <GlassButton
+              text="Open documents folder"
+              onClick={handleOpenLocalDocumentsFolder}
+              icon={<FolderOpen size={16} />}
+              width="auto"
+            />
+          )}
         </div>
 
         {/* Sub-page menu */}
