@@ -41,16 +41,20 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
       if (!portfolio) {
         return 'No portfolio data available. The user has not set up a portfolio yet.'
       }
-      const holdings = portfolio.topHoldings ?? []
-      const topHoldings =
-        holdings.length > 0
-          ? holdings
+      const topList = (portfolio.holdings?.length ? portfolio.holdings : portfolio.topHoldings ?? []).slice(0, 10)
+      const topHoldingsBlock =
+        topList.length > 0
+          ? topList
               .map(
                 (h) =>
                   `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
               )
               .join('\n')
           : 'Top holdings not available in current context.'
+      const more =
+        (portfolio.holdings?.length ?? 0) > 10
+          ? `\n(Showing 10 largest by value. Use get_holdings for the full list.)`
+          : ''
       return `[Source: Portfolio data - ${portfolio.portfolioName}]
 Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
@@ -59,12 +63,54 @@ Asset count: ${portfolio.assetCount}
 Risk score: ${portfolio.riskScore ?? 'N/A'}
 Risk level: ${portfolio.riskLevel ?? 'N/A'}
 
-Top holdings:
-${topHoldings}`
+Top holdings (non-loan assets by value):
+${topHoldingsBlock}${more}`
     },
     {
       name: 'get_portfolio_summary',
-      description: 'Get the user\'s portfolio summary including total value, gain/loss percentage, asset count, risk score, and top holdings. Use this when the user asks about their portfolio, investments, or net worth.',
+      description:
+        'Get the user\'s portfolio summary: totals, gain/loss, asset count, risk score, and the 10 largest non-loan holdings by value. Use get_holdings for every holding. Use this for net worth, portfolio overview, or allocation questions at a glance.',
+    }
+  )
+
+  const getHoldings = tool(
+    async () => {
+      const portfolio = await ctx.getPortfolioContext()
+      if (!portfolio) {
+        return 'No portfolio data available. The user has not set up a portfolio yet.'
+      }
+      const list = portfolio.holdings ?? []
+      if (list.length === 0) {
+        const legacy = portfolio.topHoldings ?? []
+        if (legacy.length === 0) {
+          return 'No investable holdings (non-loan assets) in the portfolio, or data not synced yet. The user can add assets from Portfolio or Add Asset.'
+        }
+        return (
+          `[Source: FinoCurve — portfolio holdings (partial cache)]\n` +
+          `Only a short holdings snapshot is available; open the app or change the portfolio to refresh full data.\n\n` +
+          legacy
+            .map(
+              (h, i) =>
+                `${i + 1}. ${h.symbol ? `${h.symbol} (${h.name})` : h.name} — $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
+            )
+            .join('\n')
+        )
+      }
+      const lines = list.map((h, i) => {
+        const label = h.symbol ? `${h.symbol} (${h.name})` : h.name
+        const pct = h.percent != null ? ` (${h.percent.toFixed(1)}% of portfolio)` : ''
+        return (
+          `${i + 1}. ${label}${pct}\n` +
+          `   Type: ${h.type} · Category: ${h.category} · Value: $${h.value.toLocaleString()}\n` +
+          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}`
+        )
+      })
+      return `[Source: FinoCurve — all recorded holdings (non-loan assets)]\nPortfolio: ${portfolio.portfolioName}\nCount: ${list.length}\n\n${lines.join('\n\n')}`
+    },
+    {
+      name: 'get_holdings',
+      description:
+        'List every investable holding the user recorded in FinoCurve (stocks, ETFs, crypto, manual assets, etc.) — not loans. Includes symbol, name, type, value, weight, quantity, and cost basis. Use when the user asks for their full list of positions, every stock, all assets, or details beyond the top-10 summary. Does not read uploaded documents.',
     }
   )
 
@@ -398,6 +444,7 @@ ${topHoldings}`
 
   const baseTools: StructuredToolInterface[] = [
     getPortfolioSummary,
+    getHoldings,
     getUserLoans,
     getCurrentDateTime,
     getDocumentList,

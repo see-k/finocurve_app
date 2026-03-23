@@ -60,6 +60,17 @@ interface ElectronAPI {
     riskScore?: number
     riskLevel?: string
     topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+    holdings?: Array<{
+      name: string
+      symbol?: string
+      type: string
+      category: string
+      value: number
+      percent?: number
+      quantity: number
+      costBasis: number
+      currency: string
+    }>
     loans?: Array<{
       name: string
       loanType?: string

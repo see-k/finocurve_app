@@ -106,15 +106,25 @@ export function usePortfolio() {
     const totalCostVal = portfolioTotalCost(portfolio)
     const gainLossPct = totalCostVal > 0 ? ((totalVal - totalCostVal) / totalCostVal) * 100 : 0
     const nonLoanAssets = portfolio.assets?.filter((a) => a.category !== 'loan') ?? []
-    const topHoldings = nonLoanAssets
+    const holdings = nonLoanAssets
       .map((a) => ({
-        symbol: a.symbol,
         name: a.name,
+        symbol: a.symbol,
+        type: a.type,
+        category: a.category,
         value: assetCurrentValue(a),
         percent: totalVal > 0 ? (assetCurrentValue(a) / totalVal) * 100 : undefined,
+        quantity: a.quantity,
+        costBasis: a.costBasis,
+        currency: a.currency,
       }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
+    const topHoldings = holdings.slice(0, 10).map((h) => ({
+      symbol: h.symbol,
+      name: h.name,
+      value: h.value,
+      percent: h.percent,
+    }))
     const loanAssets = portfolio.assets?.filter(isLoan) ?? []
     const loans = loanAssets.map((a) => ({
       name: a.name,
@@ -133,6 +143,7 @@ export function usePortfolio() {
       totalGainLossPercent: gainLossPct,
       assetCount: portfolio.assets?.length ?? 0,
       topHoldings,
+      holdings,
       loans,
     })
   }, [portfolio])
