@@ -28,7 +28,16 @@ export interface FinocurveToolContext {
   saveCustomBrandedReport?: (payload: {
     title: string
     subtitle?: string
-    sections: { heading: string; body: string }[]
+    sections: {
+      heading: string
+      body: string
+      tables?: { title?: string; headers: string[]; rows: string[][] }[]
+      charts?: (
+        | { type: 'bar'; title?: string; labels: string[]; values: number[] }
+        | { type: 'line'; title?: string; labels: string[]; values: number[] }
+        | { type: 'pie'; title?: string; labels: string[]; values: number[] }
+      )[]
+    }[]
   }) => Promise<string>
   /** Desktop: save UTF-8 CSV (Excel-friendly) to finocurve/documents/ (local and/or S3). */
   saveCustomCsvDocument?: (payload: { fileBaseName: string; headers: string[]; rows: string[][] }) => Promise<string>
@@ -340,6 +349,53 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const chartLabelsValuesMatch = (c: { labels: string[]; values: number[] }) =>
+    c.labels.length === c.values.length && c.labels.length >= 1
+
+  const reportPdfTableSchema = z.object({
+    title: z.string().max(120).optional().describe('Optional caption above the table'),
+    headers: z
+      .array(z.string().max(200))
+      .min(1)
+      .max(14)
+      .describe('Column headers; every data row must have the same number of cells in this order'),
+    rows: z
+      .array(z.array(z.string().max(4000)))
+      .max(80)
+      .describe('Data rows; pad with empty strings if a cell is missing'),
+  })
+
+  const reportPdfChartSchema = z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('bar'),
+        title: z.string().max(120).optional().describe('Chart title above the graphic'),
+        labels: z.array(z.string().max(80)).min(1).max(20).describe('X-axis category for each bar'),
+        values: z.array(z.number()).min(1).max(20).describe('Numeric height for each bar (same length as labels; negatives draw downward from zero)'),
+      })
+      .refine(chartLabelsValuesMatch, { message: 'bar chart labels and values must match in length' }),
+    z
+      .object({
+        type: z.literal('line'),
+        title: z.string().max(120).optional(),
+        labels: z.array(z.string().max(80)).min(1).max(24).describe('Point labels in order along the X axis'),
+        values: z.array(z.number()).min(1).max(24).describe('Y values for each point (same length as labels)'),
+      })
+      .refine(chartLabelsValuesMatch, { message: 'line chart labels and values must match in length' }),
+    z
+      .object({
+        type: z.literal('pie'),
+        title: z.string().max(120).optional(),
+        labels: z.array(z.string().max(80)).min(1).max(16).describe('Slice labels'),
+        values: z
+          .array(z.number())
+          .min(1)
+          .max(16)
+          .describe('Positive magnitudes for each slice (same length as labels); zero or negative slices are omitted'),
+      })
+      .refine(chartLabelsValuesMatch, { message: 'pie chart labels and values must match in length' }),
+  ])
+
   const saveCustomBrandedReportPdf = tool(
     async ({
       title,
@@ -348,7 +404,16 @@ ${topHoldingsBlock}${more}`
     }: {
       title: string
       subtitle?: string
-      sections: { heading: string; body: string }[]
+      sections: {
+        heading: string
+        body: string
+        tables?: { title?: string; headers: string[]; rows: string[][] }[]
+        charts?: (
+          | { type: 'bar'; title?: string; labels: string[]; values: number[] }
+          | { type: 'line'; title?: string; labels: string[]; values: number[] }
+          | { type: 'pie'; title?: string; labels: string[]; values: number[] }
+        )[]
+      }[]
     }) => {
       if (!ctx.saveCustomBrandedReport) {
         return 'Branded PDF export is only available in the FinoCurve desktop app with storage configured.'
@@ -358,7 +423,7 @@ ${topHoldingsBlock}${more}`
     {
       name: 'save_custom_branded_report_pdf',
       description:
-        'Create a PDF with FinoCurve letterhead, logo, and brand styling (same look as app risk reports), using your written sections as the body. Saves automatically to the user\'s documents folder (local device directory and/or cloud S3 when configured). Use when the user wants a downloadable report, memo, brief, or formal write-up. Write professional plain text; use blank lines between paragraphs in each section body.',
+        'Create a PDF with FinoCurve letterhead, logo, and brand styling (same look as app risk reports). Each section is heading + narrative body, optionally plus tables (headers + rows of strings) and/or charts (bar, line, or pie) with numeric series. Tables and charts render after that section\'s text. Saves to the user\'s documents folder (local and/or S3 when configured). Use for downloadable reports, memos, or briefs. Use plain text in bodies; double newlines between paragraphs.',
       schema: z.object({
         title: z.string().min(1).max(200).describe('Main title on the cover'),
         subtitle: z.string().max(400).optional().describe('Optional subtitle shown under the title'),
@@ -371,6 +436,18 @@ ${topHoldingsBlock}${more}`
                 .min(1)
                 .max(14000)
                 .describe('Section content as plain text (double newline between paragraphs)'),
+              tables: z
+                .array(reportPdfTableSchema)
+                .max(4)
+                .optional()
+                .describe('Optional data tables shown after this section\'s body'),
+              charts: z
+                .array(reportPdfChartSchema)
+                .max(4)
+                .optional()
+                .describe(
+                  'Optional charts after tables: bar (categories + values), line (time series or ordered points), pie (parts of a whole; use positive values only)'
+                ),
             })
           )
           .min(1)

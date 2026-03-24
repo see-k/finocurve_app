@@ -246,7 +246,7 @@ export class LocalAIService implements AIService {
     ]
     if (this.options.saveCustomBrandedReport) {
       systemParts.push(
-        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. The PDF uses FinoCurve branding and is saved to their documents area automatically when storage is configured.'
+        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. The PDF uses FinoCurve branding and saves to documents when storage is configured.'
       )
     }
     if (this.options.saveCustomCsvDocument) {
@@ -398,7 +398,8 @@ export class LocalAIService implements AIService {
     if (this.options.saveCustomBrandedReport) {
       base.push({
         name: 'save_custom_branded_report_pdf',
-        description: 'Create branded PDF and save to finocurve/documents/ (local and/or cloud)',
+        description:
+          'Create branded PDF with optional per-section tables and charts; save to finocurve/documents/ (local and/or cloud)',
       })
     }
     if (this.options.saveCustomCsvDocument) {

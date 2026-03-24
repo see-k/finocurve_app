@@ -371,7 +371,7 @@ export default function AIChatBubble() {
             </div>
           </div>
 
-          <div className="ai-chat-messages">
+          <div className="ai-chat-messages" aria-busy={loading}>
             {messages.length === 0 && (
               <p className="ai-chat-placeholder">
                 Ask about your portfolio, risk metrics, or documents. Requires an AI provider (Ollama, Bedrock, or Azure) configured in Settings.
@@ -407,24 +407,49 @@ export default function AIChatBubble() {
               </div>
             ))}
             {loading && (
-              <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
-                <div className="ai-chat-msg-avatar">
-                  <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
-                </div>
-                <div className="ai-chat-msg ai-chat-msg--assistant">
-                  {streaming.reasoning && (
-                    <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
-                      {streaming.reasoning}
+              <div className="ai-chat-streaming-turn">
+                <div className="ai-chat-stream-status-row">
+                  <div className="ai-chat-stream-status-spacer" aria-hidden="true" />
+                  <div
+                    className="ai-chat-stream-status"
+                    role="status"
+                    aria-live="polite"
+                    aria-label={streaming.answer ? 'Assistant is typing' : 'Assistant is thinking'}
+                  >
+                    <div className="ai-chat-stream-status__bar-track" aria-hidden="true">
+                      <div className="ai-chat-stream-status__bar-fill" />
                     </div>
-                  )}
-                  <div className={streaming.answer ? 'ai-chat-markdown' : 'ai-chat-msg--loading'}>
-                    {streaming.answer ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {streaming.answer}
-                      </ReactMarkdown>
-                    ) : (
-                      'Thinking...'
+                    <div className="ai-chat-stream-status__row">
+                      <span className="ai-chat-typing-dots" aria-hidden="true">
+                        <span className="ai-chat-typing-dot" />
+                        <span className="ai-chat-typing-dot" />
+                        <span className="ai-chat-typing-dot" />
+                      </span>
+                      <span className="ai-chat-stream-status__label">
+                        {streaming.answer ? 'Typing…' : 'Thinking…'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
+                  <div className="ai-chat-msg-avatar">
+                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
+                  </div>
+                  <div className="ai-chat-msg ai-chat-msg--assistant">
+                    {streaming.reasoning && (
+                      <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
+                        {streaming.reasoning}
+                      </div>
                     )}
+                    <div className={streaming.answer ? 'ai-chat-markdown' : 'ai-chat-msg--loading'}>
+                      {streaming.answer ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {streaming.answer}
+                        </ReactMarkdown>
+                      ) : (
+                        'Thinking...'
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
