@@ -4,6 +4,31 @@
   gap: 24px;
 }
 
+.ct-fmp-key-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.ct-fmp-key-prompt__text {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ct-fmp-key-prompt__text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .ct-header {
   display: flex;
   flex-direction: column;

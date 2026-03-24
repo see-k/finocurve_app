@@ -11,11 +11,17 @@ import { LocalAIService } from '../src/ai/local/LocalAIService'
 import { extractTextFromDocument } from '../src/ai/local/documentParser'
 import { getCongressCacheData } from './congressHandlers'
 import { getSECSubmissionsData, getSECFilingContentData } from './secHandlers'
-import { tavilySearch } from './tavilyHandlers'
 import { getMCPLangChainTools } from './mcpToolBridge'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
+import {
+  generateBrandedCustomReportPdf,
+  safeReportFileSlug,
+} from '../src/services/brandedCustomReportPdf'
+import { buildCsvDocument, safeCsvBaseName } from '../src/services/csvDocumentExport'
+import { writeLocalStorageFile } from './localStorageHandlers'
+import { uploadS3IfConfigured } from './s3Handlers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -149,6 +155,117 @@ function listReportsFromLocal(): DocumentRef[] {
   return items
 }
 
+function getFinocurveLogoDataUrlForMain(): string | null {
+  const candidates = [
+    path.join(app.getAppPath(), 'dist', 'images', 'finocurve-logo-transparent.png'),
+    path.join(__dirname, '..', 'dist', 'images', 'finocurve-logo-transparent.png'),
+    path.join(process.cwd(), 'public', 'images', 'finocurve-logo-transparent.png'),
+  ]
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      try {
+        const buf = fs.readFileSync(p)
+        return `data:image/png;base64,${buf.toString('base64')}`
+      } catch {
+        /* try next */
+      }
+    }
+  }
+  return null
+}
+
+async function saveCustomBrandedReportForChat(payload: {
+  title: string
+  subtitle?: string
+  sections: { heading: string; body: string }[]
+}): Promise<string> {
+  const logo = getFinocurveLogoDataUrlForMain()
+  const pdf = generateBrandedCustomReportPdf({
+    title: payload.title,
+    subtitle: payload.subtitle,
+    sections: payload.sections,
+    logoDataUrl: logo,
+  })
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const slug = safeReportFileSlug(payload.title)
+  const fileName = `FinoCurve_AI_Report_${dateStr}_${slug}.pdf`
+  const key = `${DOCUMENTS_PREFIX}${fileName}`
+
+  const notes: string[] = []
+  let savedAny = false
+  try {
+    writeLocalStorageFile(key, pdf)
+    savedAny = true
+    notes.push(`Saved locally: ${key}`)
+  } catch (e) {
+    notes.push(`Local: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+  try {
+    const uploaded = await uploadS3IfConfigured(key, pdf, 'application/pdf')
+    if (uploaded) {
+      savedAny = true
+      notes.push(`Uploaded to cloud (S3): ${key}`)
+    }
+  } catch (e) {
+    notes.push(`Cloud: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+
+  if (!savedAny) {
+    return `Could not save the PDF. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
+  }
+  return [
+    'Custom report PDF created with FinoCurve letterhead and branding.',
+    ...notes,
+    'The file is listed under finocurve/documents/ in the app.',
+  ].join('\n')
+}
+
+async function saveCustomCsvForChat(payload: {
+  fileBaseName: string
+  headers: string[]
+  rows: string[][]
+}): Promise<string> {
+  let csvCore: string
+  try {
+    csvCore = buildCsvDocument({ headers: payload.headers, rows: payload.rows })
+  } catch (e) {
+    return `Could not build CSV: ${e instanceof Error ? e.message : 'invalid data'}`
+  }
+  const csvText = `\uFEFF${csvCore}`
+  const bytes = new TextEncoder().encode(csvText)
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const slug = safeCsvBaseName(payload.fileBaseName)
+  const fileName = `FinoCurve_AI_Data_${dateStr}_${slug}.csv`
+  const key = `${DOCUMENTS_PREFIX}${fileName}`
+
+  const notes: string[] = []
+  let savedAny = false
+  try {
+    writeLocalStorageFile(key, bytes)
+    savedAny = true
+    notes.push(`Saved locally: ${key}`)
+  } catch (e) {
+    notes.push(`Local: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+  try {
+    const uploaded = await uploadS3IfConfigured(key, bytes, 'text/csv; charset=utf-8')
+    if (uploaded) {
+      savedAny = true
+      notes.push(`Uploaded to cloud (S3): ${key}`)
+    }
+  } catch (e) {
+    notes.push(`Cloud: ${e instanceof Error ? e.message : 'failed'}`)
+  }
+
+  if (!savedAny) {
+    return `Could not save the CSV. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
+  }
+  return [
+    'CSV file created (UTF-8 with BOM for Excel).',
+    ...notes,
+    'The file is listed under finocurve/documents/ in the app; the user can open it in Excel or Google Sheets.',
+  ].join('\n')
+}
 
 function storedConfigToAIConfig(stored: StoredAIConfig) {
   return {
@@ -181,9 +298,9 @@ export function registerAIHandlers(): void {
         getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
         getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
           getSECFilingContentData(tickerOrCik, accessionNumber),
-        searchWeb: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) =>
-          tavilySearch(query, options),
         getMCPTools: () => getMCPLangChainTools(),
+        saveCustomBrandedReport: saveCustomBrandedReportForChat,
+        saveCustomCsvDocument: saveCustomCsvForChat,
         config: storedConfigToAIConfig(stored),
       })
     }

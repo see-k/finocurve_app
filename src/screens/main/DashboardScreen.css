@@ -29,7 +29,7 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(15, 15, 35, 0.3) 0%,
+    var(--screen-overlay-soft) 0%,
     var(--bg-primary) 300px
   );
 }
@@ -59,12 +59,13 @@
   flex-shrink: 0;
 }
 .dash-greeting__title {
-  font-size: 22px;
+  font-size: var(--text-xl);
   font-weight: 700;
+  line-height: var(--leading-tight);
   color: var(--text-primary);
 }
 .dash-greeting__subtitle {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
   margin-top: 2px;
 }
@@ -108,7 +109,15 @@
 .stat-card__icon--error { background: rgba(239, 68, 68, 0.15); color: var(--status-error); }
 .stat-card__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stat-card__label { font-size: 12px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-card__value { font-size: 18px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card__value {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .stat-card__value--success { color: var(--status-success); }
 .stat-card__value--error { color: var(--status-error); }
 
@@ -286,6 +295,22 @@
   .dash-movers-ticker {
     mask-image: none;
   }
+
+  .dash-mover-card {
+    transition: none;
+  }
+
+  .dash-mover-card:hover {
+    transform: none;
+  }
+
+  .dash-holding-card {
+    transition: none;
+  }
+
+  .dash-holding-card:hover {
+    transform: none;
+  }
 }
 @keyframes dash-movers-ticker {
   0% { transform: translateX(0); }
@@ -302,9 +327,9 @@
   flex-shrink: 0;
 }
 .dash-mover-card:hover { transform: translateY(-2px); }
-.dash-mover-card__symbol { font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
-.dash-mover-card__price { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-.dash-mover-card__change { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+.dash-mover-card__symbol { font-size: var(--text-xs); font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.dash-mover-card__price { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+.dash-mover-card__change { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
 .dash-mover-card__change--up { color: var(--status-success); }
 .dash-mover-card__change--down { color: var(--status-error); }
 
@@ -335,8 +360,8 @@
 .dash-holding-card__name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-holding-card__meta { font-size: 12px; color: var(--text-tertiary); }
 .dash-holding-card__right { text-align: right; }
-.dash-holding-card__value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.dash-holding-card__change { font-size: 12px; font-weight: 600; }
+.dash-holding-card__value { font-size: var(--text-md); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.dash-holding-card__change { font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 .dash-holding-card__change--up { color: var(--status-success); }
 .dash-holding-card__change--down { color: var(--status-error); }
 
@@ -356,6 +381,11 @@
 .dashboard-empty__cta {
   margin-top: 8px; padding: 12px 32px; border: none; border-radius: 999px;
   background: var(--brand-primary); color: white;
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+  font-size: var(--text-md); font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+  outline: none;
 }
 .dashboard-empty__cta:hover { opacity: 0.9; }
+.dashboard-empty__cta:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}

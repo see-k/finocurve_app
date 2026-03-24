@@ -1,6 +1,6 @@
 /* ============================================
    FinoCurve Theme Variables
-   Dark + Light mode via data-theme attribute
+   data-theme = AppThemeId (see src/theme/themes.ts)
    ============================================ */
 
 :root {
@@ -12,6 +12,24 @@
   --primary-alpha-20: rgba(99, 102, 241, 0.2);
   --primary-alpha-40: rgba(99, 102, 241, 0.4);
   --primary-alpha-90: rgba(99, 102, 241, 0.9);
+  --primary-hover-alpha-85: rgba(79, 70, 229, 0.85);
+
+  /* RGB components (keep in sync with hex above; used by charts / canvas) */
+  --brand-primary-r: 99;
+  --brand-primary-g: 102;
+  --brand-primary-b: 241;
+  --brand-secondary-r: 139;
+  --brand-secondary-g: 92;
+  --brand-secondary-b: 246;
+
+  /* Focus ring */
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--brand-primary);
+  --focus-ring-offset: 2px;
+
+  /* Backdrop blur: strong for nav / overlays; soft for nested glass controls */
+  --glass-blur-strong: 24px;
+  --glass-blur-soft: 6px;
 
   /* Status colors (constant) */
   --status-success: #10b981;
@@ -31,16 +49,26 @@
 
   /* Typography */
   --font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.5rem;
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
 }
 
 /* ============================================
-   DARK MODE (default)
+   DARK: Graphite (default)
    ============================================ */
-[data-theme="dark"] {
-  --bg: #0f0f23;
-  --bg-primary: #0f0f23;
-  --surface: #1a1a35;
-  --surface-light: #2a2a4a;
+[data-theme="dark-graphite"] {
+  --bg: #0a0a0c;
+  --bg-primary: #0a0a0c;
+  --surface: #121215;
+  --surface-light: #1c1c22;
 
   --text-primary: #FFFFFF;
   --text-secondary: #94a3b8;
@@ -55,6 +83,120 @@
   --overlay: rgba(0, 0, 0, 0.54);
   --divider: rgba(255, 255, 255, 0.08);
 
+  --nav-bg: rgba(10, 10, 12, 0.95);
+  --nav-border: rgba(255, 255, 255, 0.08);
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.15);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-tooltip-bg: #121215;
+
+  --screen-overlay-soft: rgba(8, 8, 10, 0.32);
+  --screen-overlay-md: rgba(8, 8, 10, 0.44);
+  --screen-overlay-strong: rgba(8, 8, 10, 0.62);
+  --screen-overlay-deep: rgba(8, 8, 10, 0.86);
+}
+
+/* ============================================
+   DARK: OLED (true black)
+   ============================================ */
+[data-theme="dark-oled"] {
+  --bg: #000000;
+  --bg-primary: #000000;
+  --surface: #0a0a0a;
+  --surface-light: #141414;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #9ca3af;
+  --text-tertiary: rgba(255, 255, 255, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(255, 255, 255, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.65);
+  --divider: rgba(255, 255, 255, 0.07);
+
+  --nav-bg: rgba(0, 0, 0, 0.92);
+  --nav-border: rgba(255, 255, 255, 0.08);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(255, 255, 255, 0.12);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-tooltip-bg: #0a0a0a;
+
+  --screen-overlay-soft: rgba(0, 0, 0, 0.4);
+  --screen-overlay-md: rgba(0, 0, 0, 0.52);
+  --screen-overlay-strong: rgba(0, 0, 0, 0.68);
+  --screen-overlay-deep: rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================
+   DARK: Midnight (cool blue-gray)
+   ============================================ */
+[data-theme="dark-navy"] {
+  --bg: #0a0e14;
+  --bg-primary: #0a0e14;
+  --surface: #111923;
+  --surface-light: #1a2434;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(248, 250, 252, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.055);
+  --glass-bg-hover: rgba(255, 255, 255, 0.095);
+  --glass-bg-strong: rgba(255, 255, 255, 0.09);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --glass-shadow: rgba(0, 0, 0, 0.35);
+
+  --overlay: rgba(0, 0, 0, 0.55);
+  --divider: rgba(148, 163, 184, 0.1);
+
+  --nav-bg: rgba(10, 14, 20, 0.94);
+  --nav-border: rgba(148, 163, 184, 0.1);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(148, 163, 184, 0.18);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.055);
+  --chart-tooltip-bg: #111923;
+
+  --screen-overlay-soft: rgba(6, 10, 18, 0.38);
+  --screen-overlay-md: rgba(6, 10, 18, 0.5);
+  --screen-overlay-strong: rgba(6, 10, 18, 0.66);
+  --screen-overlay-deep: rgba(6, 10, 18, 0.88);
+}
+
+/* ============================================
+   DARK: Royal (classic purple-tinted night + indigo brand from :root)
+   ============================================ */
+[data-theme="dark-royal"] {
+  --bg: #0f0f23;
+  --bg-primary: #0f0f23;
+  --surface: #1a1a35;
+  --surface-light: #2a2a4a;
+
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(255, 255, 255, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: rgba(0, 0, 0, 0.32);
+
+  --overlay: rgba(0, 0, 0, 0.52);
+  --divider: rgba(255, 255, 255, 0.08);
+
   --nav-bg: rgba(15, 15, 35, 0.95);
   --nav-border: rgba(255, 255, 255, 0.08);
 
@@ -64,10 +206,126 @@
 
   --chart-grid: rgba(255, 255, 255, 0.06);
   --chart-tooltip-bg: #1a1a35;
+
+  --screen-overlay-soft: rgba(15, 15, 35, 0.34);
+  --screen-overlay-md: rgba(15, 15, 35, 0.46);
+  --screen-overlay-strong: rgba(15, 15, 35, 0.64);
+  --screen-overlay-deep: rgba(15, 15, 35, 0.88);
 }
 
 /* ============================================
-   LIGHT MODE
+   DARK: Executive (black & gold — corporate)
+   ============================================ */
+[data-theme="dark-executive"] {
+  --brand-primary: #c9a227;
+  --brand-secondary: #a68b1d;
+  --primary: #c9a227;
+  --primary-hover: #8f7719;
+  --primary-alpha-20: rgba(201, 162, 39, 0.22);
+  --primary-alpha-40: rgba(201, 162, 39, 0.48);
+  --primary-alpha-90: rgba(201, 162, 39, 0.92);
+  --primary-hover-alpha-85: rgba(143, 119, 25, 0.88);
+  --brand-primary-r: 201;
+  --brand-primary-g: 162;
+  --brand-primary-b: 39;
+  --brand-secondary-r: 166;
+  --brand-secondary-g: 139;
+  --brand-secondary-b: 29;
+
+  --bg: #050505;
+  --bg-primary: #050505;
+  --surface: #0e0e0c;
+  --surface-light: #181812;
+
+  --text-primary: #faf9f5;
+  --text-secondary: #a8a29e;
+  --text-tertiary: rgba(250, 249, 245, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.045);
+  --glass-bg-hover: rgba(255, 255, 255, 0.085);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(201, 162, 39, 0.14);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.62);
+  --divider: rgba(201, 162, 39, 0.1);
+
+  --nav-bg: rgba(5, 5, 5, 0.94);
+  --nav-border: rgba(201, 162, 39, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(201, 162, 39, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-tooltip-bg: #0e0e0c;
+
+  --screen-overlay-soft: rgba(5, 5, 5, 0.42);
+  --screen-overlay-md: rgba(5, 5, 5, 0.55);
+  --screen-overlay-strong: rgba(5, 5, 5, 0.72);
+  --screen-overlay-deep: rgba(5, 5, 5, 0.92);
+}
+
+/* ============================================
+   DARK: Developer (black & cyan — tech / IDE)
+   ============================================ */
+[data-theme="dark-cyan"] {
+  --brand-primary: #22d3ee;
+  --brand-secondary: #06b6d4;
+  --primary: #22d3ee;
+  --primary-hover: #0891b2;
+  --primary-alpha-20: rgba(34, 211, 238, 0.22);
+  --primary-alpha-40: rgba(34, 211, 238, 0.48);
+  --primary-alpha-90: rgba(34, 211, 238, 0.92);
+  --primary-hover-alpha-85: rgba(8, 145, 178, 0.88);
+  --brand-primary-r: 34;
+  --brand-primary-g: 211;
+  --brand-primary-b: 238;
+  --brand-secondary-r: 6;
+  --brand-secondary-g: 182;
+  --brand-secondary-b: 212;
+
+  --bg: #030708;
+  --bg-primary: #030708;
+  --surface: #0a1012;
+  --surface-light: #121a1e;
+
+  --text-primary: #ecfeff;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(236, 254, 255, 0.4);
+
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-bg-hover: rgba(34, 211, 238, 0.08);
+  --glass-bg-strong: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(34, 211, 238, 0.14);
+  --glass-shadow: rgba(0, 0, 0, 0.42);
+
+  --overlay: rgba(0, 0, 0, 0.58);
+  --divider: rgba(34, 211, 238, 0.1);
+
+  --nav-bg: rgba(3, 7, 8, 0.94);
+  --nav-border: rgba(34, 211, 238, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(34, 211, 238, 0.18);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(34, 211, 238, 0.07);
+  --chart-tooltip-bg: #0a1012;
+
+  --screen-overlay-soft: rgba(3, 10, 12, 0.4);
+  --screen-overlay-md: rgba(3, 12, 14, 0.52);
+  --screen-overlay-strong: rgba(3, 14, 16, 0.68);
+  --screen-overlay-deep: rgba(2, 8, 10, 0.9);
+
+  /* Layered on cards (see Developer glow section below) */
+  --dev-glow-ambient: 0 0 56px -14px rgba(34, 211, 238, 0.075);
+  --dev-glow-rim: 0 0 1px rgba(34, 211, 238, 0.14);
+  --dev-glow-nav: 0 0 48px -12px rgba(34, 211, 238, 0.09);
+}
+
+/* ============================================
+   LIGHT
    ============================================ */
 [data-theme="light"] {
   --bg: #f4f4f8;
@@ -79,11 +337,11 @@
   --text-secondary: #64748b;
   --text-tertiary: rgba(0, 0, 0, 0.4);
 
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-bg-hover: rgba(255, 255, 255, 0.85);
-  --glass-bg-strong: rgba(255, 255, 255, 0.9);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-shadow: rgba(0, 0, 0, 0.06);
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(0, 0, 0, 0.11);
+  --glass-shadow: rgba(0, 0, 0, 0.1);
 
   --overlay: rgba(0, 0, 0, 0.3);
   --divider: rgba(0, 0, 0, 0.06);
@@ -97,4 +355,109 @@
 
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-tooltip-bg: #FFFFFF;
+
+  --screen-overlay-soft: rgba(255, 255, 255, 0.42);
+  --screen-overlay-md: rgba(255, 255, 255, 0.52);
+  --screen-overlay-strong: rgba(248, 248, 250, 0.78);
+  --screen-overlay-deep: rgba(244, 244, 248, 0.92);
+}
+
+/* ============================================
+   LIGHT: Parchment (warm)
+   ============================================ */
+[data-theme="light-warm"] {
+  --bg: #f5f1eb;
+  --bg-primary: #f5f1eb;
+  --surface: #fffdf9;
+  --surface-light: #faf6f0;
+
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: rgba(28, 25, 23, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-hover: rgba(255, 255, 255, 0.9);
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(87, 83, 78, 0.12);
+  --glass-shadow: rgba(28, 25, 23, 0.08);
+
+  --overlay: rgba(28, 25, 23, 0.25);
+  --divider: rgba(87, 83, 78, 0.08);
+
+  --nav-bg: rgba(255, 253, 249, 0.94);
+  --nav-border: rgba(87, 83, 78, 0.08);
+
+  --input-bg: rgba(255, 255, 255, 0.65);
+  --input-border: rgba(87, 83, 78, 0.14);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(87, 83, 78, 0.08);
+  --chart-tooltip-bg: #fffdf9;
+
+  --screen-overlay-soft: rgba(255, 252, 247, 0.5);
+  --screen-overlay-md: rgba(255, 252, 247, 0.62);
+  --screen-overlay-strong: rgba(245, 241, 235, 0.82);
+  --screen-overlay-deep: rgba(245, 241, 235, 0.94);
+}
+
+/* ============================================
+   Developer (dark-cyan): subtle cyan ambient glow
+   ============================================ */
+[data-theme="dark-cyan"] .glass-container {
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    var(--dev-glow-ambient),
+    var(--dev-glow-rim);
+}
+
+[data-theme="dark-cyan"] .nav-pill {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    var(--dev-glow-nav);
+}
+
+[data-theme="dark-cyan"] .nav-fab {
+  box-shadow:
+    0 4px 16px var(--primary-alpha-40),
+    0 0 0 1px var(--primary-alpha-20),
+    0 0 32px -6px rgba(34, 211, 238, 0.22);
+}
+
+[data-theme="dark-cyan"] .nav-fab:hover {
+  box-shadow:
+    0 6px 24px var(--primary-alpha-40),
+    0 0 0 1px var(--primary-alpha-40),
+    0 0 40px -4px rgba(34, 211, 238, 0.28);
+}
+
+[data-theme="dark-cyan"] .fab-menu {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.28),
+    0 0 52px -14px rgba(34, 211, 238, 0.08),
+    var(--dev-glow-rim);
+}
+
+[data-theme="dark-cyan"] .markets-stocks-list-wrap {
+  box-shadow:
+    0 0 44px -12px rgba(34, 211, 238, 0.065),
+    0 0 0 1px rgba(34, 211, 238, 0.11);
+}
+
+[data-theme="dark-cyan"] .glass-text-field__wrapper {
+  box-shadow:
+    0 0 28px -10px rgba(34, 211, 238, 0.06);
+}
+
+[data-theme="dark-cyan"] .glass-button--primary {
+  box-shadow:
+    0 4px 15px var(--primary-alpha-40),
+    0 0 36px -8px rgba(34, 211, 238, 0.18);
+}
+
+[data-theme="dark-cyan"] .glass-button--primary:hover:not(:disabled) {
+  box-shadow:
+    0 6px 20px var(--primary-alpha-40),
+    0 0 44px -6px rgba(34, 211, 238, 0.24);
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useTheme } from '../theme/ThemeContext'
+import { useTheme, themeToTradingViewColorTheme } from '../theme/ThemeContext'
+import { tradingViewBackgroundColor, isDarkTheme } from '../theme/themes'
 import './TradingViewChart.css'
 
 interface TradingViewChartProps {
@@ -56,8 +57,8 @@ export default function TradingViewChart({ symbol, onClose }: TradingViewChartPr
   const containerRef = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
   const [loading, setLoading] = useState(true)
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
-  const bgColor = theme === 'dark' ? '#0f0f23' : '#f4f4f8'
+  const colorTheme = themeToTradingViewColorTheme(theme)
+  const bgColor = tradingViewBackgroundColor(theme)
 
   const initChart = useCallback(async () => {
     if (!containerRef.current) return
@@ -97,10 +98,9 @@ export default function TradingViewChart({ symbol, onClose }: TradingViewChartPr
         save_image: false,
         container_id: chartId,
         backgroundColor: bgColor,
-        gridColor:
-          theme === 'dark'
-            ? 'rgba(255, 255, 255, 0.06)'
-            : 'rgba(0, 0, 0, 0.06)',
+        gridColor: isDarkTheme(theme)
+          ? 'rgba(255, 255, 255, 0.06)'
+          : 'rgba(0, 0, 0, 0.06)',
         withdateranges: true,
         allow_symbol_change: false,
         details: true,

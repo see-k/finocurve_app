@@ -27,6 +27,8 @@ import CloudStorageScreen from './screens/settings/CloudStorageScreen'
 import AIConfigScreen from './screens/settings/AIConfigScreen'
 import HelpFaqScreen from './screens/settings/HelpFaqScreen'
 import AboutScreen from './screens/settings/AboutScreen'
+import PluginsListPage from './screens/settings/plugins/PluginsListPage'
+import FmpPluginPage from './screens/settings/plugins/FmpPluginPage'
 
 function NewsPage() {
   return (
@@ -74,6 +76,8 @@ export default function App() {
       <Route path="/settings/currency" element={<CurrencyPickerScreen />} />
       <Route path="/settings/cloud-storage" element={<CloudStorageScreen />} />
       <Route path="/settings/ai-config" element={<AIConfigScreen />} />
+      <Route path="/settings/plugins" element={<PluginsListPage />} />
+      <Route path="/settings/plugins/fmp" element={<FmpPluginPage />} />
       <Route path="/settings/help" element={<HelpFaqScreen />} />
       <Route path="/settings/about" element={<AboutScreen />} />
       {/* Fallback */}

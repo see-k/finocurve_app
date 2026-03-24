@@ -20,7 +20,7 @@ import { getAIConfig, type AIConfig } from '../config'
 import { createChatModel } from '../createChatModel'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
-import { createFinocurveTools } from './tools'
+import { createFinocurveTools, type FinocurveToolContext } from './tools'
 
 /** Parse AIMessage content into reasoning + answer chunks for display. */
 function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
@@ -129,8 +129,11 @@ export interface LocalAIServiceOptions {
   getCongressCache?: () => Promise<{ senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string } | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
-  searchWeb?: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) => Promise<{ data: { results: string; answer?: string } | null; error: string | null }>
   getMCPTools?: () => StructuredToolInterface[]
+  /** Desktop: AI chat tool to save branded PDFs into documents storage */
+  saveCustomBrandedReport?: FinocurveToolContext['saveCustomBrandedReport']
+  /** Desktop: AI chat tool to save CSV files into documents storage */
+  saveCustomCsvDocument?: FinocurveToolContext['saveCustomCsvDocument']
   config?: Partial<AIConfig>
 }
 
@@ -238,17 +241,30 @@ export class LocalAIService implements AIService {
     context: ChatContext
   ): AsyncGenerator<ChatStreamChunk, void, unknown> {
     const systemParts: string[] = [
-      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio, documents, risk metrics, congressional financial disclosures (STOCK Act), SEC EDGAR filings, and current web data. Use the available tools when you need current data. Use search_web for news, market updates, recent events, or general web lookup.',
+      'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio and every holding they recorded (get_holdings), loans (get_user_loans), documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use get_current_datetime for the real-world "today" or current time. Holdings and loans come from app data — no document upload required. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
     ]
+    if (this.options.saveCustomBrandedReport) {
+      systemParts.push(
+        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. The PDF uses FinoCurve branding and is saved to their documents area automatically when storage is configured.'
+      )
+    }
+    if (this.options.saveCustomCsvDocument) {
+      systemParts.push(
+        'When the user asks for a spreadsheet, Excel-style export, table download, or CSV, use save_custom_csv_document with fileBaseName, headers (column names), and rows (array of rows matching header order). The file is UTF-8 with BOM for Excel compatibility and is saved under finocurve/documents/ when storage is configured.'
+      )
+    }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
 
     const toolContext = {
-      getPortfolioContext:
-        context.portfolioContext !== undefined
-          ? async () => context.portfolioContext ?? null
-          : this.options.getPortfolioContext,
+      // Prefer main-process cache (holdings, loans, topHoldings from portfolioSync) over the
+      // partial object the renderer may send with chat; fall back to inline context if no cache.
+      getPortfolioContext: async () => {
+        const cached = await this.options.getPortfolioContext()
+        if (cached) return cached
+        return context.portfolioContext ?? null
+      },
       getDocumentList: this.options.getDocumentList,
       getReportList: this.options.getReportList,
       getDocumentContent: this.options.getDocumentContent,
@@ -260,7 +276,8 @@ export class LocalAIService implements AIService {
       getCongressCache: this.options.getCongressCache,
       getSECSubmissions: this.options.getSECSubmissions,
       getSECFilingContent: this.options.getSECFilingContent,
-      searchWeb: this.options.searchWeb,
+      saveCustomBrandedReport: this.options.saveCustomBrandedReport,
+      saveCustomCsvDocument: this.options.saveCustomCsvDocument,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -378,8 +395,17 @@ export class LocalAIService implements AIService {
         description: 'Fetch full text of a specific SEC filing by accession number',
       })
     }
-    if (this.options.searchWeb) {
-      base.push({ name: 'search_web', description: 'Search the web for current info (news, finance)' })
+    if (this.options.saveCustomBrandedReport) {
+      base.push({
+        name: 'save_custom_branded_report_pdf',
+        description: 'Create branded PDF and save to finocurve/documents/ (local and/or cloud)',
+      })
+    }
+    if (this.options.saveCustomCsvDocument) {
+      base.push({
+        name: 'save_custom_csv_document',
+        description: 'Create UTF-8 CSV and save to finocurve/documents/ (local and/or cloud)',
+      })
     }
     // Include MCP tools in the reported tool list
     const mcpTools = this.options.getMCPTools?.() ?? []

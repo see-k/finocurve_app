@@ -40,8 +40,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
   localStorageOpenFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-open-file', payload),
   localStorageReadFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-read-file', payload),
   localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
-  portfolioSync: (payload: { portfolioName: string; totalValue: number; totalGainLossPercent: number; assetCount: number; riskScore?: number; riskLevel?: string } | null) =>
-    ipcRenderer.invoke('portfolio-sync', payload),
+  localStorageOpenDocumentsFolder: () => ipcRenderer.invoke('local-storage-open-documents-folder'),
+  portfolioSync: (
+    payload: {
+      portfolioName: string
+      totalValue: number
+      totalGainLossPercent: number
+      assetCount: number
+      riskScore?: number
+      riskLevel?: string
+      topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+      holdings?: Array<{
+        name: string
+        symbol?: string
+        type: string
+        category: string
+        value: number
+        percent?: number
+        quantity: number
+        costBasis: number
+        currency: string
+      }>
+      loans?: Array<{
+        name: string
+        loanType?: string
+        balance: number
+        principal?: number
+        interestRate?: number
+        monthlyPayment?: number
+        termMonths?: number
+        startDate?: string
+        extraMonthlyPayment?: number
+      }>
+    } | null
+  ) => ipcRenderer.invoke('portfolio-sync', payload),
   aiConfigGet: () => ipcRenderer.invoke('ai-config-get'),
   aiConfigSave: (payload: unknown) => ipcRenderer.invoke('ai-config-save', payload),
   aiCheckOllama: () => ipcRenderer.invoke('ai-check-ollama'),
@@ -86,6 +118,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   congressCacheGet: () => ipcRenderer.invoke('congress-cache-get'),
   congressPullLatest: () =>
     ipcRenderer.invoke('congress-pull-latest'),
+  pluginsFmpIsConfigured: () => ipcRenderer.invoke('plugins-fmp-is-configured'),
+  pluginsSettingsGet: () => ipcRenderer.invoke('plugins-settings-get'),
+  pluginsSettingsSave: (payload: { fmpApiKey: string }) =>
+    ipcRenderer.invoke('plugins-settings-save', payload),
   secSubmissions: (payload: { tickerOrCik: string }) =>
     ipcRenderer.invoke('sec-submissions', payload),
   secCompanyFacts: (payload: { tickerOrCik: string }) =>

@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, ChevronRight, Cloud, HardDrive, Eye, X, Sparkles } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Shield, Cloud, HardDrive, Eye, X, FolderOpen, RefreshCw, Loader2, FileChartColumnIncreasing, Calendar, ArrowDownAZ, Search, Pencil } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
-import { useDocumentInsights, setSharedDocumentInsights } from '../../store/useDocumentInsights'
-import { usePortfolio } from '../../store/usePortfolio'
+import GlassTextField from '../../components/glass/GlassTextField'
 import './ReportsScreen.css'
 
 const REPORTS_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -31,6 +30,39 @@ function fileNameFromKey(key: string): string {
   return parts[parts.length - 1] || key
 }
 
+function fileItemId(item: FileItem): string {
+  return `${item.source}:${item.key}`
+}
+
+function isDocumentKey(key: string): boolean {
+  return key.startsWith(DOCUMENTS_PREFIX)
+}
+
+/** Parent path including trailing slash (e.g. finocurve/documents/ or …/subfolder/). */
+function documentParentPrefix(key: string): string {
+  const lastSlash = key.lastIndexOf('/')
+  if (lastSlash < 0) return DOCUMENTS_PREFIX
+  return key.slice(0, lastSlash + 1)
+}
+
+type SortBy = 'date' | 'name'
+
+function sortFileItems(items: FileItem[], sortBy: SortBy): FileItem[] {
+  const out = [...items]
+  if (sortBy === 'name') {
+    out.sort((a, b) =>
+      fileNameFromKey(a.key).localeCompare(fileNameFromKey(b.key), undefined, { sensitivity: 'base' }),
+    )
+  } else {
+    out.sort((a, b) => {
+      const ta = a.lastModified ? new Date(a.lastModified).getTime() : 0
+      const tb = b.lastModified ? new Date(b.lastModified).getTime() : 0
+      return tb - ta
+    })
+  }
+  return out
+}
+
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
 }
@@ -52,10 +84,10 @@ function mimeFromKey(key: string): string {
 export default function ReportsScreen() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { insights, setDocumentInsights, loading: aiLoading, setLoading: setAiLoading, error: aiError, setError: setAiError } = useDocumentInsights()
-  const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const [subTab, setSubTab] = useState<'reports' | 'documents'>('reports')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'cloud' | 'local'>('all')
+  const [sortBy, setSortBy] = useState<SortBy>('date')
+  const [searchQuery, setSearchQuery] = useState('')
   const [s3Connected, setS3Connected] = useState<boolean | null>(null)
   const [reports, setReports] = useState<FileItem[]>([])
   const [documents, setDocuments] = useState<FileItem[]>([])
@@ -66,6 +98,14 @@ export default function ReportsScreen() {
   const [viewUrl, setViewUrl] = useState<string | null>(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError, setViewError] = useState<string | null>(null)
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([])
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [deletingBulk, setDeletingBulk] = useState(false)
+  const [renameItem, setRenameItem] = useState<FileItem | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renameBusy, setRenameBusy] = useState(false)
+  const selectAllReportsRef = useRef<HTMLInputElement>(null)
+  const selectAllDocumentsRef = useRef<HTMLInputElement>(null)
 
   const hasElectronS3 = typeof window !== 'undefined' && window.electronAPI?.s3List
   const hasElectronLocal = typeof window !== 'undefined' && window.electronAPI?.localStorageList
@@ -137,6 +177,23 @@ export default function ReportsScreen() {
     if (s3Connected || localConnected) loadAll()
   }, [s3Connected, localConnected, loadAll])
 
+  const reportIdSet = useMemo(() => new Set(reports.map((i) => fileItemId(i))), [reports])
+  const documentIdSet = useMemo(() => new Set(documents.map((i) => fileItemId(i))), [documents])
+
+  useEffect(() => {
+    setSelectedReportIds((prev) => prev.filter((id) => reportIdSet.has(id)))
+  }, [reportIdSet])
+
+  useEffect(() => {
+    setSelectedDocumentIds((prev) => prev.filter((id) => documentIdSet.has(id)))
+  }, [documentIdSet])
+
+  const setSubTabAndClearSelection = useCallback((tab: 'reports' | 'documents') => {
+    setSelectedReportIds([])
+    setSelectedDocumentIds([])
+    setSubTab(tab)
+  }, [])
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -183,6 +240,66 @@ export default function ReportsScreen() {
   const filteredReports = filterItems(reports)
   const filteredDocuments = filterItems(documents)
 
+  const searchNeedle = searchQuery.trim().toLowerCase()
+  const reportsMatchingSearch = useMemo(() => {
+    if (!searchNeedle) return filteredReports
+    return filteredReports.filter((i) => fileNameFromKey(i.key).toLowerCase().includes(searchNeedle))
+  }, [filteredReports, searchNeedle])
+  const documentsMatchingSearch = useMemo(() => {
+    if (!searchNeedle) return filteredDocuments
+    return filteredDocuments.filter((i) => fileNameFromKey(i.key).toLowerCase().includes(searchNeedle))
+  }, [filteredDocuments, searchNeedle])
+
+  const sortedReports = useMemo(() => sortFileItems(reportsMatchingSearch, sortBy), [reportsMatchingSearch, sortBy])
+  const sortedDocuments = useMemo(() => sortFileItems(documentsMatchingSearch, sortBy), [documentsMatchingSearch, sortBy])
+
+  const visibleReportIds = useMemo(() => sortedReports.map((i) => fileItemId(i)), [sortedReports])
+  const visibleDocumentIds = useMemo(() => sortedDocuments.map((i) => fileItemId(i)), [sortedDocuments])
+  const allReportsVisibleSelected =
+    visibleReportIds.length > 0 && visibleReportIds.every((id) => selectedReportIds.includes(id))
+  const someReportsVisibleSelected = visibleReportIds.some((id) => selectedReportIds.includes(id))
+  const allDocumentsVisibleSelected =
+    visibleDocumentIds.length > 0 && visibleDocumentIds.every((id) => selectedDocumentIds.includes(id))
+  const someDocumentsVisibleSelected = visibleDocumentIds.some((id) => selectedDocumentIds.includes(id))
+
+  useEffect(() => {
+    const el = selectAllReportsRef.current
+    if (el) el.indeterminate = someReportsVisibleSelected && !allReportsVisibleSelected
+  }, [someReportsVisibleSelected, allReportsVisibleSelected, sortedReports])
+
+  useEffect(() => {
+    const el = selectAllDocumentsRef.current
+    if (el) el.indeterminate = someDocumentsVisibleSelected && !allDocumentsVisibleSelected
+  }, [someDocumentsVisibleSelected, allDocumentsVisibleSelected, sortedDocuments])
+
+  const toggleSelectAllReports = useCallback(() => {
+    setSelectedReportIds((prev) => {
+      if (visibleReportIds.length === 0) return prev
+      if (visibleReportIds.every((id) => prev.includes(id))) {
+        return prev.filter((id) => !visibleReportIds.includes(id))
+      }
+      return Array.from(new Set([...prev, ...visibleReportIds]))
+    })
+  }, [visibleReportIds])
+
+  const toggleSelectAllDocuments = useCallback(() => {
+    setSelectedDocumentIds((prev) => {
+      if (visibleDocumentIds.length === 0) return prev
+      if (visibleDocumentIds.every((id) => prev.includes(id))) {
+        return prev.filter((id) => !visibleDocumentIds.includes(id))
+      }
+      return Array.from(new Set([...prev, ...visibleDocumentIds]))
+    })
+  }, [visibleDocumentIds])
+
+  const toggleReportSelection = useCallback((id: string) => {
+    setSelectedReportIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
+
+  const toggleDocumentSelection = useCallback((id: string) => {
+    setSelectedDocumentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
+
   const showSourceFilter = s3Connected && localConnected
 
   const handleDownload = async (item: FileItem) => {
@@ -228,44 +345,22 @@ export default function ReportsScreen() {
     setViewError(null)
   }
 
-  const handleAnalyzeWithAI = async () => {
-    if (!window.electronAPI?.aiGenerateInsights || !window.electronAPI?.aiCheckConnection) {
-      setAiError('AI features require the desktop app with an AI provider configured.')
-      return
-    }
-    const check = await window.electronAPI.aiCheckConnection()
-    if (!check.ok) {
-      setAiError(check.error ?? 'AI not available. Configure Ollama, AWS Bedrock, or Azure in Settings.')
-      return
-    }
-    const docs = documents.map((d) => ({
-      key: d.key,
-      fileName: fileNameFromKey(d.key),
-      source: d.source,
-    }))
-    if (docs.length === 0) {
-      setAiError('No documents to analyze.')
-      return
-    }
-    setAiError(null)
-    setAiLoading(true)
+  const handleOpenLocalDocumentsFolder = async () => {
+    if (!window.electronAPI?.localStorageOpenDocumentsFolder) return
+    setError(null)
     try {
-      const portfolioContext = portfolio && totalValue > 0 ? {
-        portfolioName: portfolio.name || 'Portfolio',
-        totalValue,
-        totalGainLossPercent,
-        assetCount: portfolio.assets.length,
-      } : undefined
-      const { insights: newInsights } = await window.electronAPI.aiGenerateInsights({
-        documents: docs,
-        portfolioContext,
-      })
-      setDocumentInsights(newInsights)
-      setSharedDocumentInsights(newInsights)
+      const res = await window.electronAPI.localStorageOpenDocumentsFolder()
+      if (!res.ok) {
+        if ('error' in res && res.error === 'not_configured') {
+          setError('Choose a local folder in Settings → Cloud Storage first.')
+        } else if ('message' in res && res.message) {
+          setError(res.message)
+        } else {
+          setError('Could not open the documents folder.')
+        }
+      }
     } catch (e) {
-      setAiError(e instanceof Error ? e.message : 'AI analysis failed')
-    } finally {
-      setAiLoading(false)
+      setError(e instanceof Error ? e.message : 'Could not open folder')
     }
   }
 
@@ -278,14 +373,165 @@ export default function ReportsScreen() {
       } else if (item.source === 'local' && window.electronAPI?.localStorageDeleteFile) {
         await window.electronAPI.localStorageDeleteFile({ key: item.key })
       }
+      const id = fileItemId(item)
+      setSelectedReportIds((p) => p.filter((x) => x !== id))
+      setSelectedDocumentIds((p) => p.filter((x) => x !== id))
       await loadAll()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete')
     }
   }
 
-  const FileRow = ({ item }: { item: FileItem }) => (
-    <div className={`reports-file-row reports-file-row--${item.source}`}>
+  const handleBulkDeleteReports = useCallback(async () => {
+    const byId = new Map(reports.map((i) => [fileItemId(i), i]))
+    const items = selectedReportIds.map((id) => byId.get(id)).filter((x): x is FileItem => !!x)
+    if (items.length === 0) return
+    if (!confirm(`Delete ${items.length} file(s)? This cannot be undone.`)) return
+    setDeletingBulk(true)
+    setError(null)
+    try {
+      for (const item of items) {
+        if (item.source === 'cloud' && window.electronAPI?.s3Delete) {
+          await window.electronAPI.s3Delete({ key: item.key })
+        } else if (item.source === 'local' && window.electronAPI?.localStorageDeleteFile) {
+          await window.electronAPI.localStorageDeleteFile({ key: item.key })
+        }
+      }
+      setSelectedReportIds([])
+      await loadAll()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete some files')
+    } finally {
+      setDeletingBulk(false)
+    }
+  }, [reports, selectedReportIds, loadAll])
+
+  const handleBulkDeleteDocuments = useCallback(async () => {
+    const byId = new Map(documents.map((i) => [fileItemId(i), i]))
+    const items = selectedDocumentIds.map((id) => byId.get(id)).filter((x): x is FileItem => !!x)
+    if (items.length === 0) return
+    if (!confirm(`Delete ${items.length} file(s)? This cannot be undone.`)) return
+    setDeletingBulk(true)
+    setError(null)
+    try {
+      for (const item of items) {
+        if (item.source === 'cloud' && window.electronAPI?.s3Delete) {
+          await window.electronAPI.s3Delete({ key: item.key })
+        } else if (item.source === 'local' && window.electronAPI?.localStorageDeleteFile) {
+          await window.electronAPI.localStorageDeleteFile({ key: item.key })
+        }
+      }
+      setSelectedDocumentIds([])
+      await loadAll()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete some files')
+    } finally {
+      setDeletingBulk(false)
+    }
+  }, [documents, selectedDocumentIds, loadAll])
+
+  const performRenameDocument = useCallback(async () => {
+    if (!renameItem || !isDocumentKey(renameItem.key)) return
+    const trimmed = renameDraft.trim()
+    if (!trimmed) {
+      setError('Enter a file name.')
+      return
+    }
+    const safe = sanitizeFileName(trimmed)
+    if (!safe) {
+      setError('Use letters, numbers, dots, dashes, and underscores in the file name.')
+      return
+    }
+    const parentPrefix = documentParentPrefix(renameItem.key)
+    const newKey = parentPrefix + safe
+    if (newKey === renameItem.key) {
+      setRenameItem(null)
+      return
+    }
+    const taken = documents.some(
+      (d) => d.source === renameItem.source && d.key === newKey && fileItemId(d) !== fileItemId(renameItem),
+    )
+    if (taken) {
+      setError('A file with that name already exists in this location.')
+      return
+    }
+    setRenameBusy(true)
+    setError(null)
+    try {
+      if (renameItem.source === 'cloud') {
+        if (!window.electronAPI?.s3GetFileBuffer || !window.electronAPI?.s3Upload || !window.electronAPI?.s3Delete) {
+          throw new Error('Cloud rename is not available.')
+        }
+        const { buffer, contentType } = await window.electronAPI.s3GetFileBuffer({ key: renameItem.key })
+        await window.electronAPI.s3Upload({
+          key: newKey,
+          buffer,
+          contentType: contentType || mimeFromKey(newKey),
+        })
+        await window.electronAPI.s3Delete({ key: renameItem.key })
+      } else {
+        if (
+          !window.electronAPI?.localStorageReadFile ||
+          !window.electronAPI?.localStorageSaveFile ||
+          !window.electronAPI?.localStorageDeleteFile
+        ) {
+          throw new Error('Local rename is not available.')
+        }
+        const { base64 } = await window.electronAPI.localStorageReadFile({ key: renameItem.key })
+        const binary = atob(base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        await window.electronAPI.localStorageSaveFile({ key: newKey, buffer: Array.from(bytes) })
+        await window.electronAPI.localStorageDeleteFile({ key: renameItem.key })
+      }
+      const oldId = fileItemId(renameItem)
+      setSelectedDocumentIds((prev) => prev.filter((id) => id !== oldId))
+      if (viewItem && fileItemId(viewItem) === oldId) {
+        setViewItem(null)
+        setViewUrl(null)
+        setViewError(null)
+      }
+      setRenameItem(null)
+      await loadAll()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename file')
+    } finally {
+      setRenameBusy(false)
+    }
+  }, [renameItem, renameDraft, documents, viewItem, loadAll])
+
+  const openRenameDocument = (item: FileItem) => {
+    if (!isDocumentKey(item.key)) return
+    setRenameDraft(fileNameFromKey(item.key))
+    setRenameItem(item)
+    setError(null)
+  }
+
+  const FileRow = ({
+    item,
+    listKind,
+    selected,
+    onToggleSelect,
+  }: {
+    item: FileItem
+    listKind: 'reports' | 'documents'
+    selected: boolean
+    onToggleSelect: () => void
+  }) => (
+    <div
+      className={`reports-file-row reports-file-row--${item.source}${selected ? ' reports-file-row--selected' : ''}`}
+    >
+      <label className="reports-file-row__check">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => {
+            e.stopPropagation()
+            onToggleSelect()
+          }}
+          aria-label={`Select ${fileNameFromKey(item.key)}`}
+        />
+      </label>
       <div className="reports-file-row__info">
         {item.source === 'cloud' ? (
           <Cloud size={20} className="reports-file-row__icon reports-file-row__icon--cloud" />
@@ -305,6 +551,14 @@ export default function ReportsScreen() {
         </div>
       </div>
       <div className="reports-file-row__actions">
+        {listKind === 'documents' && (
+          <GlassIconButton
+            icon={<Pencil size={16} aria-hidden />}
+            onClick={() => openRenameDocument(item)}
+            size={36}
+            title="Rename"
+          />
+        )}
         {isViewable(item.key) && (
           <GlassIconButton icon={<Eye size={16} />} onClick={() => handleView(item)} size={36} title="View" />
         )}
@@ -366,80 +620,125 @@ export default function ReportsScreen() {
       <div className="reports-content">
         <div className="reports-header">
           <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
+          {hasElectronLocal && localConnected && window.electronAPI?.localStorageOpenDocumentsFolder && (
+            <GlassIconButton
+              icon={<FolderOpen size={18} aria-hidden />}
+              onClick={() => void handleOpenLocalDocumentsFolder()}
+              title="Open documents folder"
+              size={40}
+            />
+          )}
         </div>
 
         {/* Sub-page menu */}
         <div className="reports-tabs">
-          <button className={`reports-tab ${subTab === 'reports' ? 'reports-tab--active' : ''}`} onClick={() => setSubTab('reports')}>
+          <button
+            type="button"
+            className={`reports-tab ${subTab === 'reports' ? 'reports-tab--active' : ''}`}
+            onClick={() => setSubTabAndClearSelection('reports')}
+          >
             <Shield size={16} /> Reports
           </button>
-          <button className={`reports-tab ${subTab === 'documents' ? 'reports-tab--active' : ''}`} onClick={() => setSubTab('documents')}>
+          <button
+            type="button"
+            className={`reports-tab ${subTab === 'documents' ? 'reports-tab--active' : ''}`}
+            onClick={() => setSubTabAndClearSelection('documents')}
+          >
             <FileText size={16} /> Documents
           </button>
         </div>
 
-        {showSourceFilter && (
-          <div className="reports-source-filter">
-            <span className="reports-source-filter__label">Show:</span>
-            <div className="reports-source-filter__pills">
-              <button
-                className={`reports-source-filter__pill ${sourceFilter === 'all' ? 'reports-source-filter__pill--active' : ''}`}
-                onClick={() => setSourceFilter('all')}
-              >
-                All
-              </button>
-              <button
-                className={`reports-source-filter__pill ${sourceFilter === 'cloud' ? 'reports-source-filter__pill--active' : ''}`}
-                onClick={() => setSourceFilter('cloud')}
-              >
-                <Cloud size={12} /> Cloud
-              </button>
-              <button
-                className={`reports-source-filter__pill ${sourceFilter === 'local' ? 'reports-source-filter__pill--active' : ''}`}
-                onClick={() => setSourceFilter('local')}
-              >
-                <HardDrive size={12} /> Device
-              </button>
-            </div>
-          </div>
-        )}
+        <div className="reports-layout">
+          <div className="reports-layout__main">
+            {error && <p className="reports-error">{error}</p>}
 
-        {(error || aiError) && <p className="reports-error">{error || aiError}</p>}
-
-        {/* Reports sub-page */}
+            {/* Reports sub-page */}
         {subTab === 'reports' && (
           <div className="reports-section">
             <div className="reports-section__header">
               <h2 className="reports-section__title"><Shield size={18} /> Risk Reports</h2>
-              <GlassButton text="Generate Report" onClick={() => navigate('/risk-analysis')} icon={<ChevronRight size={16} />} width="auto" />
+              <GlassIconButton
+                icon={<FileChartColumnIncreasing size={18} aria-hidden />}
+                onClick={() => navigate('/risk-analysis')}
+                title="Generate report"
+                size={40}
+              />
             </div>
             <GlassContainer padding="16px" borderRadius={16}>
               {loading ? (
                 <p className="reports-loading">Loading...</p>
-              ) : filteredReports.length === 0 ? (
+              ) : reportsMatchingSearch.length === 0 ? (
                 <div className="reports-empty-list">
                   <FileText size={32} style={{ opacity: 0.5 }} />
                   <p>
                     {reports.length === 0
                       ? 'No reports yet. Generate one from Risk Analysis.'
-                      : `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} reports. Try a different filter.`}
+                      : filteredReports.length === 0
+                        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} reports. Try a different filter.`
+                        : `No files match “${searchQuery.trim()}”.`}
                   </p>
                   {reports.length === 0 ? (
                     <GlassButton text="Go to Risk Analysis" onClick={() => navigate('/risk-analysis')} width="auto" />
-                  ) : (
+                  ) : filteredReports.length === 0 ? (
                     <GlassButton text="Show all" onClick={() => setSourceFilter('all')} width="auto" />
-                  )}
+                  ) : searchNeedle ? (
+                    <GlassButton text="Clear search" onClick={() => setSearchQuery('')} width="auto" />
+                  ) : null}
                 </div>
               ) : (
-                <div className="reports-list">
-                  {filteredReports.map((item) => <FileRow key={item.key} item={item} />)}
-                </div>
+                <>
+                  {selectedReportIds.length > 0 && (
+                    <div className="reports-bulk-bar">
+                      <span className="reports-bulk-bar__count">{selectedReportIds.length} selected</span>
+                      <div className="reports-bulk-bar__actions">
+                        <GlassButton
+                          text="Clear"
+                          onClick={() => setSelectedReportIds([])}
+                          width="auto"
+                          disabled={deletingBulk}
+                        />
+                        <GlassButton
+                          text={`Delete (${selectedReportIds.length})`}
+                          onClick={() => void handleBulkDeleteReports()}
+                          width="auto"
+                          icon={<Trash2 size={16} aria-hidden />}
+                          disabled={deletingBulk}
+                          isLoading={deletingBulk}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <label className="reports-select-all">
+                    <input
+                      ref={selectAllReportsRef}
+                      type="checkbox"
+                      checked={allReportsVisibleSelected}
+                      onChange={toggleSelectAllReports}
+                      aria-label="Select all reports in this list"
+                    />
+                    <span>Select all</span>
+                  </label>
+                  <div className="reports-list">
+                    {sortedReports.map((item) => {
+                      const id = fileItemId(item)
+                      return (
+                        <FileRow
+                          key={id}
+                          item={item}
+                          listKind="reports"
+                          selected={selectedReportIds.includes(id)}
+                          onToggleSelect={() => toggleReportSelection(id)}
+                        />
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </GlassContainer>
           </div>
         )}
 
-        {/* Documents sub-page */}
+            {/* Documents sub-page */}
         {subTab === 'documents' && (
           <div className="reports-section">
             <div className="reports-section__header">
@@ -452,48 +751,224 @@ export default function ReportsScreen() {
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt"
                   onChange={handleUpload}
                 />
-                <GlassButton
-                  text={uploading ? 'Uploading...' : 'Upload'}
+                <GlassIconButton
+                  icon={
+                    uploading ? (
+                      <Loader2 size={18} className="reports-toolbar-icon--spin" aria-hidden />
+                    ) : (
+                      <Upload size={18} aria-hidden />
+                    )
+                  }
                   onClick={() => fileInputRef.current?.click()}
-                  icon={<Upload size={16} />}
-                  isPrimary
+                  title={uploading ? 'Uploading…' : 'Upload document'}
                   disabled={uploading}
-                  width="auto"
+                  size={40}
                 />
-                <GlassButton
-                  text={aiLoading ? 'Analyzing...' : 'Analyze with AI'}
-                  onClick={handleAnalyzeWithAI}
-                  icon={<Sparkles size={16} />}
-                  disabled={aiLoading || filteredDocuments.length === 0}
-                  width="auto"
+                <GlassIconButton
+                  icon={<RefreshCw size={18} aria-hidden />}
+                  onClick={() => void loadAll()}
+                  title="Refresh list"
+                  disabled={loading}
+                  size={40}
                 />
-                <GlassButton text="Refresh" onClick={loadAll} disabled={loading} width="auto" />
               </div>
             </div>
             <GlassContainer padding="16px" borderRadius={16}>
               {loading ? (
                 <p className="reports-loading">Loading...</p>
-              ) : filteredDocuments.length === 0 ? (
+              ) : documentsMatchingSearch.length === 0 ? (
                 <div className="reports-empty-list">
                   <FileText size={32} style={{ opacity: 0.5 }} />
                   <p>
                     {documents.length === 0
                       ? `No documents yet. Upload tax files, financial statements, etc. Max ${MAX_FILE_SIZE_MB} MB per file.`
-                      : `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} documents. Try a different filter.`}
+                      : filteredDocuments.length === 0
+                        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} documents. Try a different filter.`
+                        : `No files match “${searchQuery.trim()}”.`}
                   </p>
-                  {documents.length > 0 && (
+                  {documents.length > 0 && filteredDocuments.length === 0 && (
                     <GlassButton text="Show all" onClick={() => setSourceFilter('all')} width="auto" />
+                  )}
+                  {documents.length > 0 && filteredDocuments.length > 0 && searchNeedle && (
+                    <GlassButton text="Clear search" onClick={() => setSearchQuery('')} width="auto" />
                   )}
                 </div>
               ) : (
-                <div className="reports-list">
-                  {filteredDocuments.map((item) => <FileRow key={item.key} item={item} />)}
-                </div>
+                <>
+                  {selectedDocumentIds.length > 0 && (
+                    <div className="reports-bulk-bar">
+                      <span className="reports-bulk-bar__count">{selectedDocumentIds.length} selected</span>
+                      <div className="reports-bulk-bar__actions">
+                        <GlassButton
+                          text="Clear"
+                          onClick={() => setSelectedDocumentIds([])}
+                          width="auto"
+                          disabled={deletingBulk}
+                        />
+                        <GlassButton
+                          text={`Delete (${selectedDocumentIds.length})`}
+                          onClick={() => void handleBulkDeleteDocuments()}
+                          width="auto"
+                          icon={<Trash2 size={16} aria-hidden />}
+                          disabled={deletingBulk}
+                          isLoading={deletingBulk}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <label className="reports-select-all">
+                    <input
+                      ref={selectAllDocumentsRef}
+                      type="checkbox"
+                      checked={allDocumentsVisibleSelected}
+                      onChange={toggleSelectAllDocuments}
+                      aria-label="Select all documents in this list"
+                    />
+                    <span>Select all</span>
+                  </label>
+                  <div className="reports-list">
+                    {sortedDocuments.map((item) => {
+                      const id = fileItemId(item)
+                      return (
+                        <FileRow
+                          key={id}
+                          item={item}
+                          listKind="documents"
+                          selected={selectedDocumentIds.includes(id)}
+                          onToggleSelect={() => toggleDocumentSelection(id)}
+                        />
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </GlassContainer>
           </div>
         )}
+          </div>
+
+          <aside className="reports-layout__side" aria-label="Search and filters">
+            <div className="reports-controls-panel">
+              <div className="reports-toolbar-row">
+                <div className="reports-search">
+                  <GlassTextField
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search by file name…"
+                    prefixIcon={<Search size={18} aria-hidden />}
+                    suffixIcon={
+                      searchQuery ? (
+                        <button
+                          type="button"
+                          className="reports-search__clear"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Clear search"
+                        >
+                          <X size={16} aria-hidden />
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                </div>
+                {showSourceFilter && (
+                  <div className="reports-source-filter">
+                    <span className="reports-source-filter__label">Show:</span>
+                    <div className="reports-source-filter__pills">
+                      <button
+                        type="button"
+                        className={`reports-source-filter__pill ${sourceFilter === 'all' ? 'reports-source-filter__pill--active' : ''}`}
+                        onClick={() => setSourceFilter('all')}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        className={`reports-source-filter__pill ${sourceFilter === 'cloud' ? 'reports-source-filter__pill--active' : ''}`}
+                        onClick={() => setSourceFilter('cloud')}
+                      >
+                        <Cloud size={12} /> Cloud
+                      </button>
+                      <button
+                        type="button"
+                        className={`reports-source-filter__pill ${sourceFilter === 'local' ? 'reports-source-filter__pill--active' : ''}`}
+                        onClick={() => setSourceFilter('local')}
+                      >
+                        <HardDrive size={12} /> Device
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="reports-sort">
+                  <span className="reports-sort__label">Sort:</span>
+                  <div className="reports-sort__pills">
+                    <button
+                      type="button"
+                      className={`reports-sort__pill ${sortBy === 'date' ? 'reports-sort__pill--active' : ''}`}
+                      onClick={() => setSortBy('date')}
+                      title="Newest first"
+                    >
+                      <Calendar size={12} aria-hidden /> Date
+                    </button>
+                    <button
+                      type="button"
+                      className={`reports-sort__pill ${sortBy === 'name' ? 'reports-sort__pill--active' : ''}`}
+                      onClick={() => setSortBy('name')}
+                      title="Alphabetical by file name"
+                    >
+                      <ArrowDownAZ size={12} aria-hidden /> A–Z
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
+
+      {renameItem && (
+        <div
+          className="reports-rename-overlay"
+          onClick={() => {
+            if (!renameBusy) setRenameItem(null)
+          }}
+          role="presentation"
+        >
+          <div
+            className="reports-rename-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="reports-rename-title"
+            aria-modal="true"
+          >
+            <h3 id="reports-rename-title" className="reports-rename-title">
+              Rename document
+            </h3>
+            <p className="reports-rename-hint">
+              Include the extension (e.g. <code className="reports-rename-code">.pdf</code>). Only letters, numbers, dots,
+              dashes, and underscores are kept.
+            </p>
+            <GlassTextField value={renameDraft} onChange={setRenameDraft} placeholder="File name" />
+            <div className="reports-rename-actions">
+              <GlassButton
+                text="Cancel"
+                onClick={() => {
+                  if (!renameBusy) setRenameItem(null)
+                }}
+                width="auto"
+                disabled={renameBusy}
+              />
+              <GlassButton
+                text="Save"
+                onClick={() => void performRenameDocument()}
+                width="auto"
+                isPrimary
+                isLoading={renameBusy}
+                disabled={renameBusy}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Viewer modal */}
       {viewItem && (

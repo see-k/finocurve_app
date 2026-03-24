@@ -128,18 +128,14 @@ This is intended for **local / operator-controlled workflows**.
 
 - Core desktop usage can be local-first
 - AI features are optional
-- Web search features require explicit API keys
+- Optional integrations (e.g. FMP for congressional data) use keys you enter in the app
 - A2A is optional and intended for local use
 - MCP integrations depend on user-configured local MCP servers
 - Cloud / managed service behavior is not fully represented by this repo alone
 
-## Environment variables
+## Configuration
 
-See `.env.example` for optional values such as:
-- `FMP_API_KEY`
-- `TAVILY_API_KEY`
-
-These are **not required** for basic local development of the core app surface.
+There is **no** app-level `.env` file for secrets or feature flags. Use **Settings** in the desktop app (AI models, cloud/local storage, **Plugins** for Financial Modeling Prep, MCP, etc.) for all configuration.
 
 ## Data persistence
 

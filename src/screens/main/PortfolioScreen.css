@@ -29,7 +29,7 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(15, 15, 35, 0.3) 0%,
+    var(--screen-overlay-soft) 0%,
     var(--bg-primary) 300px
   );
 }
@@ -44,12 +44,13 @@
   justify-content: space-between;
 }
 .portfolio-header__title {
-  font-size: 24px;
+  font-size: var(--text-2xl);
   font-weight: 700;
+  line-height: var(--leading-tight);
   color: var(--text-primary);
 }
 .portfolio-header__subtitle {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
   margin-top: 2px;
 }
@@ -63,12 +64,17 @@
   border: none;
   background: var(--brand-primary);
   color: white;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s;
+  outline: none;
 }
 .portfolio-add-btn:hover { opacity: 0.9; }
+.portfolio-add-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
 
 /* TPV + Allocation two-column row */
 .portfolio-tpv-alloc-row {
@@ -96,16 +102,19 @@
   letter-spacing: 0.04em;
 }
 .portfolio-summary__value {
-  font-size: 32px;
+  font-size: 2rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
   color: var(--text-primary);
 }
 .portfolio-summary__change {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .portfolio-summary__change--up { color: var(--status-success); }
 .portfolio-summary__change--down { color: var(--status-error); }
@@ -186,14 +195,16 @@
   text-transform: capitalize;
 }
 .sankey-detail-bar__value {
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
   white-space: nowrap;
 }
 .sankey-detail-bar__pct {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--brand-primary);
   padding: 2px 8px;
   border-radius: 6px;
@@ -209,10 +220,15 @@
   padding: 4px 6px;
   border-radius: 8px;
   transition: background 0.15s;
+  outline: none;
 }
 .sankey-detail-bar__close:hover {
   background: var(--glass-bg);
   color: var(--text-primary);
+}
+.sankey-detail-bar__close:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* Empty loans placeholder */
@@ -253,8 +269,8 @@
   font-size: 10px; text-transform: uppercase;
 }
 .port-asset-card__right { text-align: right; }
-.port-asset-card__value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.port-asset-card__change { font-size: 12px; font-weight: 600; }
+.port-asset-card__value { font-size: var(--text-md); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.port-asset-card__change { font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 .port-asset-card__change--up { color: var(--status-success); }
 .port-asset-card__change--down { color: var(--status-error); }
 
@@ -271,7 +287,8 @@
 .period-btn {
   padding: 6px 16px; border: none; border-radius: 999px;
   background: transparent; color: var(--text-secondary);
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+  font-size: var(--text-xs); font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+  outline: none;
 }
 .period-btn:hover { color: var(--text-primary); }
 .period-btn--active { background: var(--brand-primary); color: white; }
@@ -305,6 +322,21 @@
 .portfolio-empty__cta {
   margin-top: 8px; padding: 12px 32px; border: none; border-radius: 999px;
   background: var(--brand-primary); color: white;
-  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-size: var(--text-md); font-weight: 600; cursor: pointer;
+  outline: none;
 }
 .portfolio-empty__cta:hover { opacity: 0.9; }
+.portfolio-empty__cta:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .port-asset-card {
+    transition: none;
+  }
+
+  .port-asset-card:hover {
+    transform: none;
+  }
+}

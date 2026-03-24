@@ -43,7 +43,9 @@ export type AssetSector =
 
 export type InvestmentGoal = 'growth' | 'income' | 'preservation' | 'speculation'
 export type DataEntryMethod = 'manual' | 'csv' | 'demo'
-export type ThemeMode = 'light' | 'dark'
+export type { AppThemeId } from '../theme/themes'
+/** Alias for preferences / legacy references */
+export type ThemeMode = import('../theme/themes').AppThemeId
 
 // ============================================
 // Asset

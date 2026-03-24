@@ -48,6 +48,9 @@ interface ElectronAPI {
   localStorageOpenFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
   localStorageReadFile?: (payload: { key: string }) => Promise<{ base64: string }>
   localStorageDeleteFile?: (payload: { key: string }) => Promise<{ ok: boolean }>
+  localStorageOpenDocumentsFolder?: () => Promise<
+    { ok: true } | { ok: false; error?: 'not_configured'; message?: string }
+  >
   // Portfolio sync (for A2A / main process)
   portfolioSync?: (payload: {
     portfolioName: string
@@ -57,6 +60,28 @@ interface ElectronAPI {
     riskScore?: number
     riskLevel?: string
     topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
+    holdings?: Array<{
+      name: string
+      symbol?: string
+      type: string
+      category: string
+      value: number
+      percent?: number
+      quantity: number
+      costBasis: number
+      currency: string
+    }>
+    loans?: Array<{
+      name: string
+      loanType?: string
+      balance: number
+      principal?: number
+      interestRate?: number
+      monthlyPayment?: number
+      termMonths?: number
+      startDate?: string
+      extraMonthlyPayment?: number
+    }>
   } | null) => Promise<{ ok: boolean }>
   // AI
   aiConfigGet?: () => Promise<AIConfigFromMain>
@@ -96,6 +121,9 @@ interface ElectronAPI {
   congressHouse?: (payload?: { page?: number; limit?: number }) => Promise<{ data: Record<string, unknown>[]; error: string | null }>
   congressCacheGet?: () => Promise<{ data: { senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string }; error: string | null }>
   congressPullLatest?: () => Promise<{ data: { senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string }; error: string | null }>
+  pluginsFmpIsConfigured?: () => Promise<{ configured: boolean }>
+  pluginsSettingsGet?: () => Promise<{ fmpApiKey: string }>
+  pluginsSettingsSave?: (payload: { fmpApiKey: string }) => Promise<{ ok: boolean }>
   secSubmissions?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
   secCompanyFacts?: (payload: { tickerOrCik: string }) => Promise<{ data: unknown; error: string | null }>
   secFilingContent?: (payload: {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useTheme } from '../theme/ThemeContext'
+import { useTheme, themeToTradingViewColorTheme } from '../theme/ThemeContext'
 
 interface WidgetProps {
   height?: number | string
@@ -45,7 +45,7 @@ function mountWidget(
 export function TickerTapeWidget({ height = 46, className = '' }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
+  const colorTheme = themeToTradingViewColorTheme(theme)
 
   useEffect(() => {
     if (!ref.current) return
@@ -82,7 +82,7 @@ export function TickerTapeWidget({ height = 46, className = '' }: WidgetProps) {
 export function HotlistsWidget({ height = 420, className = '' }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
+  const colorTheme = themeToTradingViewColorTheme(theme)
 
   useEffect(() => {
     if (!ref.current) return
@@ -112,7 +112,7 @@ export function HotlistsWidget({ height = 420, className = '' }: WidgetProps) {
 export function TimelineWidget({ height = 500, className = '' }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
+  const colorTheme = themeToTradingViewColorTheme(theme)
 
   useEffect(() => {
     if (!ref.current) return
@@ -139,7 +139,7 @@ export function TimelineWidget({ height = 500, className = '' }: WidgetProps) {
 export function EventsWidget({ height = 500, className = '' }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
+  const colorTheme = themeToTradingViewColorTheme(theme)
 
   useEffect(() => {
     if (!ref.current) return
@@ -170,7 +170,7 @@ export function ForexCrossRatesWidget({
 }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
-  const colorTheme = theme === 'dark' ? 'dark' : 'light'
+  const colorTheme = themeToTradingViewColorTheme(theme)
 
   useEffect(() => {
     if (!ref.current) return

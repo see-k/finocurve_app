@@ -172,16 +172,19 @@ export default function MarketsScreen() {
             </div>
           </div>
 
-          <div className="markets-section">
-            <h2 className="section-title">Market Movers</h2>
-            <GlassContainer padding="0" borderRadius={16} className="markets-hotlists-container">
-              <HotlistsWidget height={420} />
-            </GlassContainer>
-          </div>
-
-          <div className="markets-section">
-            <h2 className="section-title">Stocks</h2>
-            {renderMarketList(filteredItems)}
+          <div className="markets-movers-stocks-row">
+            <section className="markets-section markets-movers-stocks-row__movers">
+              <h2 className="section-title">Market Movers</h2>
+              <GlassContainer padding="0" borderRadius={16} className="markets-hotlists-container">
+                <HotlistsWidget height={560} />
+              </GlassContainer>
+            </section>
+            <section className="markets-section markets-movers-stocks-row__stocks">
+              <h2 className="section-title">Stocks</h2>
+              <div className="markets-stocks-list-wrap">
+                {renderMarketList(filteredItems)}
+              </div>
+            </section>
           </div>
         </>
       )}

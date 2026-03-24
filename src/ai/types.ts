@@ -16,6 +16,34 @@ export interface PortfolioHolding {
   percent?: number
 }
 
+/** Non-loan assets synced for AI tools (full list, excluding loans). */
+export interface PortfolioAssetRecord {
+  name: string
+  symbol?: string
+  type: string
+  category: string
+  value: number
+  percent?: number
+  quantity: number
+  costBasis: number
+  currency: string
+}
+
+/** Loans synced from the portfolio for AI tools (category === loan). */
+export interface LoanContextRecord {
+  name: string
+  loanType?: string
+  /** Outstanding balance (positive number, USD or portfolio currency) */
+  balance: number
+  /** Original principal when available */
+  principal?: number
+  interestRate?: number
+  monthlyPayment?: number
+  termMonths?: number
+  startDate?: string
+  extraMonthlyPayment?: number
+}
+
 export interface PortfolioContext {
   portfolioName: string
   totalValue: number
@@ -23,8 +51,12 @@ export interface PortfolioContext {
   assetCount: number
   riskScore?: number
   riskLevel?: string
-  /** Top holdings for news matching and context */
+  /** Top holdings for news matching and context (legacy; prefer holdings) */
   topHoldings?: PortfolioHolding[]
+  /** All non-loan holdings, sorted by value descending */
+  holdings?: PortfolioAssetRecord[]
+  /** Liabilities the user recorded as loans in FinoCurve */
+  loans?: LoanContextRecord[]
 }
 
 export interface DocumentInsight {

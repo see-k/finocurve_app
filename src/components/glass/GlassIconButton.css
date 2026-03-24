@@ -4,12 +4,18 @@
   justify-content: center;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-soft));
+  -webkit-backdrop-filter: blur(var(--glass-blur-soft));
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--text-primary);
   flex-shrink: 0;
+  outline: none;
+}
+
+.glass-icon-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .glass-icon-button:hover {
@@ -19,4 +25,15 @@
 
 .glass-icon-button:active {
   transform: scale(0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-icon-button {
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .glass-icon-button:hover,
+  .glass-icon-button:active {
+    transform: none;
+  }
 }

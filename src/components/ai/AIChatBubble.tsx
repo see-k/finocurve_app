@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,13 +24,133 @@ interface ChatMessage {
   reasoning?: string
 }
 
+const PREFS_STORAGE_KEY = 'finocurve-preferences'
+const PANEL_SIZE_KEY = 'finocurve-ai-chat-panel-size'
+const MAX_PERSISTED_MESSAGES = 200
+
+const PANEL_DEFAULT_W = 380
+const PANEL_DEFAULT_H = 520
+const PANEL_LARGE_W = 520
+const PANEL_LARGE_H = 700
+const PANEL_MIN_W = 280
+const PANEL_MIN_H = 280
+
+type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se'
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n))
+}
+
+function loadPanelSize(): { w: number; h: number } {
+  try {
+    const raw = localStorage.getItem(PANEL_SIZE_KEY)
+    if (!raw) return { w: PANEL_DEFAULT_W, h: PANEL_DEFAULT_H }
+    const o = JSON.parse(raw) as { w?: number; h?: number }
+    if (typeof o.w === 'number' && typeof o.h === 'number' && o.w >= PANEL_MIN_W && o.h >= PANEL_MIN_H) {
+      return { w: o.w, h: o.h }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { w: PANEL_DEFAULT_W, h: PANEL_DEFAULT_H }
+}
+
+function persistPanelSize(w: number, h: number) {
+  try {
+    localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify({ w, h }))
+  } catch {
+    /* ignore */
+  }
+}
+
+function maxPanelDimensions() {
+  const maxW = Math.min(920, typeof window !== 'undefined' ? window.innerWidth - 48 : 920)
+  const maxH =
+    typeof window !== 'undefined' ? Math.max(PANEL_MIN_H, window.innerHeight - 80) : 900
+  return { maxW, maxH }
+}
+
+function chatStorageKeyForUser(userEmail?: string, isGuest?: boolean): string {
+  const id = userEmail?.trim() || (isGuest ? 'guest' : 'local')
+  return `finocurve-ai-chat-messages-${id}`
+}
+
+function readPrefsIdentity(): { userEmail?: string; isGuest?: boolean } {
+  try {
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as { userEmail?: string; isGuest?: boolean }
+  } catch {
+    return {}
+  }
+}
+
+function loadChatMessages(storageKey: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (m): m is ChatMessage =>
+          !!m &&
+          typeof m === 'object' &&
+          (m as ChatMessage).role !== undefined &&
+          ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
+          typeof (m as ChatMessage).content === 'string'
+      )
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(typeof m.reasoning === 'string' && m.reasoning ? { reasoning: m.reasoning } : {}),
+      }))
+  } catch {
+    return []
+  }
+}
+
+function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
+  const trimmed = messages.length > MAX_PERSISTED_MESSAGES ? messages.slice(-MAX_PERSISTED_MESSAGES) : messages
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(trimmed))
+  } catch {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(trimmed.slice(-80)))
+    } catch {
+      /* quota or private mode */
+    }
+  }
+}
+
 export default function AIChatBubble() {
   const location = useLocation()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
+  const chatStorageKey = useMemo(
+    () => chatStorageKeyForUser(prefs.userEmail, prefs.isGuest),
+    [prefs.userEmail, prefs.isGuest]
+  )
+
+  const initialPanelDims = useMemo(() => {
+    const loaded = loadPanelSize()
+    if (typeof window === 'undefined') return loaded
+    const { maxW, maxH } = maxPanelDimensions()
+    return {
+      w: clamp(loaded.w, PANEL_MIN_W, maxW),
+      h: clamp(loaded.h, PANEL_MIN_H, maxH),
+    }
+  }, [])
+
   const [expanded, setExpanded] = useState(false)
   const [large, setLarge] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [panelWidth, setPanelWidth] = useState(initialPanelDims.w)
+  const [panelHeight, setPanelHeight] = useState(initialPanelDims.h)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const { userEmail, isGuest } = readPrefsIdentity()
+    return loadChatMessages(chatStorageKeyForUser(userEmail, isGuest))
+  })
+  const lastHandledStorageKeyRef = useRef<string | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
@@ -57,7 +177,71 @@ export default function AIChatBubble() {
     resizeTextarea()
   }, [input])
 
+  useEffect(() => {
+    const onResize = () => {
+      const { maxW, maxH } = maxPanelDimensions()
+      setPanelWidth((w) => clamp(w, PANEL_MIN_W, maxW))
+      setPanelHeight((h) => clamp(h, PANEL_MIN_H, maxH))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (lastHandledStorageKeyRef.current !== chatStorageKey) {
+      lastHandledStorageKeyRef.current = chatStorageKey
+      setMessages(loadChatMessages(chatStorageKey))
+      return
+    }
+    persistChatMessages(chatStorageKey, messages)
+  }, [chatStorageKey, messages])
+
   const visible = isAuthenticatedPath(location.pathname)
+
+  const startPanelResize = useCallback((edge: ResizeEdge, e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const target = e.currentTarget
+    target.setPointerCapture(e.pointerId)
+    const startX = e.clientX
+    const startY = e.clientY
+    const startW = panelWidth
+    const startH = panelHeight
+    let lastW = startW
+    let lastH = startH
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX
+      const dy = ev.clientY - startY
+      let w = startW
+      let h = startH
+      if (edge.includes('e')) w = startW + dx
+      if (edge.includes('w')) w = startW - dx
+      if (edge.includes('s')) h = startH + dy
+      if (edge.includes('n')) h = startH - dy
+      const { maxW, maxH } = maxPanelDimensions()
+      lastW = clamp(w, PANEL_MIN_W, maxW)
+      lastH = clamp(h, PANEL_MIN_H, maxH)
+      setPanelWidth(lastW)
+      setPanelHeight(lastH)
+    }
+
+    const onUp = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId)
+      } catch {
+        /* ignore */
+      }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      persistPanelSize(lastW, lastH)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }, [panelWidth, panelHeight])
 
   const portfolioSummary = portfolio && totalValue > 0
     ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
@@ -67,6 +251,11 @@ export default function AIChatBubble() {
     setMessages([])
     setInput('')
     setError(null)
+    try {
+      localStorage.removeItem(chatStorageKey)
+    } catch {
+      /* ignore */
+    }
   }
 
   const handleSend = async () => {
@@ -134,8 +323,12 @@ export default function AIChatBubble() {
   if (!visible) return null
 
   return (
-    <div className={`ai-chat-bubble ${expanded ? 'ai-chat-bubble--expanded' : ''} ${large ? 'ai-chat-bubble--large' : ''}`}>
+    <div className={`ai-chat-bubble ${expanded ? 'ai-chat-bubble--expanded' : ''}`}>
       {expanded ? (
+        <div
+          className="ai-chat-panel-wrap"
+          style={{ width: panelWidth, height: panelHeight }}
+        >
         <GlassContainer padding="16px" borderRadius={16} className="ai-chat-panel">
           <div className="ai-chat-header">
             <span className="ai-chat-title">AI Assistant</span>
@@ -149,7 +342,21 @@ export default function AIChatBubble() {
               </button>
               <button
                 className="ai-chat-header-btn"
-                onClick={() => setLarge(!large)}
+                onClick={() => {
+                  setLarge((prev) => {
+                    const next = !prev
+                    if (next) {
+                      setPanelWidth(PANEL_LARGE_W)
+                      setPanelHeight(PANEL_LARGE_H)
+                      persistPanelSize(PANEL_LARGE_W, PANEL_LARGE_H)
+                    } else {
+                      setPanelWidth(PANEL_DEFAULT_W)
+                      setPanelHeight(PANEL_DEFAULT_H)
+                      persistPanelSize(PANEL_DEFAULT_W, PANEL_DEFAULT_H)
+                    }
+                    return next
+                  })
+                }}
                 aria-label={large ? 'Shrink' : 'Expand'}
               >
                 {large ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -253,6 +460,59 @@ export default function AIChatBubble() {
             </button>
           </div>
         </GlassContainer>
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize chat height from top"
+            className="ai-chat-resize ai-chat-resize--n"
+            onPointerDown={(e) => startPanelResize('n', e)}
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat width from left"
+            className="ai-chat-resize ai-chat-resize--w"
+            onPointerDown={(e) => startPanelResize('w', e)}
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat width from right"
+            className="ai-chat-resize ai-chat-resize--e"
+            onPointerDown={(e) => startPanelResize('e', e)}
+          />
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize chat height from bottom"
+            className="ai-chat-resize ai-chat-resize--s"
+            onPointerDown={(e) => startPanelResize('s', e)}
+          />
+          <div
+            role="separator"
+            aria-label="Resize chat from top-left corner"
+            className="ai-chat-resize ai-chat-resize--nw"
+            onPointerDown={(e) => startPanelResize('nw', e)}
+          />
+          <div
+            role="separator"
+            aria-label="Resize chat from top-right corner"
+            className="ai-chat-resize ai-chat-resize--ne"
+            onPointerDown={(e) => startPanelResize('ne', e)}
+          />
+          <div
+            role="separator"
+            aria-label="Resize chat from bottom-left corner"
+            className="ai-chat-resize ai-chat-resize--sw"
+            onPointerDown={(e) => startPanelResize('sw', e)}
+          />
+          <div
+            role="separator"
+            aria-label="Resize chat from bottom-right corner"
+            className="ai-chat-resize ai-chat-resize--se"
+            onPointerDown={(e) => startPanelResize('se', e)}
+          />
+        </div>
       ) : (
         <button
           className="ai-chat-fab"

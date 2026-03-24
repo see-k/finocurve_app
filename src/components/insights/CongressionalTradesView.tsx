@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Loader2, Users, Building2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2, Users, Building2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, TrendingUp, TrendingDown, ExternalLink, KeyRound } from 'lucide-react'
 import GlassContainer from '../glass/GlassContainer'
+import GlassButton from '../glass/GlassButton'
 import './CongressionalTradesView.css'
 
 type Chamber = 'senate' | 'house'
@@ -68,12 +70,21 @@ function formatDate(val: unknown): string {
 }
 
 export default function CongressionalTradesView() {
+  const navigate = useNavigate()
   const [chamber, setChamber] = useState<Chamber>('senate')
   const [cache, setCache] = useState<CongressCache | null>(null)
   const [loading, setLoading] = useState(false)
   const [pulling, setPulling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
+  const [fmpConfigured, setFmpConfigured] = useState<boolean | null>(null)
+
+  const canCheckFmp = typeof window !== 'undefined' && !!window.electronAPI?.pluginsFmpIsConfigured
+
+  useEffect(() => {
+    if (!canCheckFmp) return
+    window.electronAPI!.pluginsFmpIsConfigured!().then((r) => setFmpConfigured(r.configured))
+  }, [canCheckFmp])
 
   const loadCache = useCallback(async () => {
     if (!window.electronAPI?.congressCacheGet) {
@@ -102,15 +113,21 @@ export default function CongressionalTradesView() {
       const result = await window.electronAPI.congressPullLatest()
       if (result.error) {
         setError(result.error)
+        if (/not configured|Plugins/i.test(result.error) && canCheckFmp) {
+          setFmpConfigured(false)
+        }
       } else if (result.data) {
         setCache(result.data)
+        if (canCheckFmp) {
+          window.electronAPI!.pluginsFmpIsConfigured!().then((r) => setFmpConfigured(r.configured))
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to pull latest')
     } finally {
       setPulling(false)
     }
-  }, [])
+  }, [canCheckFmp])
 
   useEffect(() => {
     loadCache()
@@ -133,9 +150,25 @@ export default function CongressionalTradesView() {
   }, [rawList])
 
   const fetchedAt = chamber === 'senate' ? cache?.senateFetchedAt : cache?.houseFetchedAt
+  const showFmpKeyPrompt = canCheckFmp && fmpConfigured === false
 
   return (
     <div className="congressional-trades-view">
+      {showFmpKeyPrompt && (
+        <GlassContainer padding="18px 20px" className="ct-fmp-key-prompt">
+          <KeyRound size={22} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
+          <div className="ct-fmp-key-prompt__text">
+            <strong>Add your Financial Modeling Prep API key</strong>
+            <span>
+              Congressional Trades uses FMP&apos;s Senate and House disclosure endpoints. Go to{' '}
+              <strong>Settings → Plugins</strong>, open <strong>Financial Modeling Prep</strong>, and paste your key
+              (free tier on their site).
+            </span>
+          </div>
+          <GlassButton text="Configure FMP" onClick={() => navigate('/settings/plugins/fmp')} isPrimary />
+        </GlassContainer>
+      )}
+
       <div className="ct-header">
         <div className="ct-chamber-tabs">
           <button
@@ -158,8 +191,12 @@ export default function CongressionalTradesView() {
           <button
             className="ct-refresh-btn"
             onClick={pullLatest}
-            disabled={pulling}
-            title="Fetch latest from FMP (2 API calls)"
+            disabled={pulling || showFmpKeyPrompt}
+            title={
+              showFmpKeyPrompt
+                ? 'Add an FMP API key in Settings → Plugins first'
+                : 'Fetch latest from FMP (2 API calls)'
+            }
           >
             {pulling ? <Loader2 size={14} className="ct-spin" /> : <RefreshCw size={14} />}
             Refresh
@@ -183,16 +220,28 @@ export default function CongressionalTradesView() {
       ) : membersByKey.length === 0 ? (
         <GlassContainer padding="48px" className="ct-empty">
           <Users size={48} style={{ color: 'var(--text-tertiary)', marginBottom: 16 }} />
-          <p>No cached disclosures.</p>
-          <p className="ct-empty-hint">Click Refresh to fetch data (2 API calls).</p>
-          <button
-            className="ct-refresh-btn ct-refresh-btn--primary"
-            onClick={pullLatest}
-            disabled={pulling}
-          >
-            {pulling ? <Loader2 size={18} className="ct-spin" /> : <RefreshCw size={18} />}
-            Refresh
-          </button>
+          {showFmpKeyPrompt ? (
+            <>
+              <p>API key required</p>
+              <p className="ct-empty-hint">
+                Add your Financial Modeling Prep key under Settings → Plugins, then refresh to load disclosures.
+              </p>
+              <GlassButton text="Configure FMP" onClick={() => navigate('/settings/plugins/fmp')} isPrimary />
+            </>
+          ) : (
+            <>
+              <p>No cached disclosures.</p>
+              <p className="ct-empty-hint">Click Refresh to fetch data (2 API calls).</p>
+              <button
+                className="ct-refresh-btn ct-refresh-btn--primary"
+                onClick={pullLatest}
+                disabled={pulling}
+              >
+                {pulling ? <Loader2 size={18} className="ct-spin" /> : <RefreshCw size={18} />}
+                Refresh
+              </button>
+            </>
+          )}
         </GlassContainer>
       ) : (
         <div className="ct-members">

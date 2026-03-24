@@ -3,7 +3,9 @@
  * Uses react-simple-maps for professional-grade geographic visualization.
  * Color-codes countries by portfolio exposure percentage.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useTheme } from '../theme/ThemeContext'
+import { isDarkTheme } from '../theme/themes'
 import {
   ComposableMap,
   Geographies,
@@ -80,15 +82,40 @@ function resolveCountryToNum(name: string): string | null {
   return null
 }
 
-// Color scale: 0% → base gray, 100% → deep brand
-function getExposureColor(pct: number, isDark: boolean): string {
+type BrandRgb = {
+  pr: number
+  pg: number
+  pb: number
+  sr: number
+  sg: number
+  sb: number
+}
+
+function readBrandRgb(): BrandRgb {
+  const s = getComputedStyle(document.documentElement)
+  const n = (name: string, fallback: number) => {
+    const v = parseInt(s.getPropertyValue(name).trim(), 10)
+    return Number.isFinite(v) ? v : fallback
+  }
+  return {
+    pr: n('--brand-primary-r', 99),
+    pg: n('--brand-primary-g', 102),
+    pb: n('--brand-primary-b', 241),
+    sr: n('--brand-secondary-r', 139),
+    sg: n('--brand-secondary-g', 92),
+    sb: n('--brand-secondary-b', 246),
+  }
+}
+
+// Color scale: 0% → base gray, mid → theme brand, 100% → heat
+function getExposureColor(pct: number, isDark: boolean, brand: BrandRgb): string {
   if (pct <= 0) return isDark ? '#1e293b' : '#e2e8f0'
   const stops = [
     { at: 0,  r: isDark ? 71 : 199, g: isDark ? 85 : 210, b: isDark ? 105 : 235 },
-    { at: 15, r: 99,  g: 102, b: 241 },  // indigo
-    { at: 40, r: 139, g: 92,  b: 246 },  // violet
-    { at: 70, r: 236, g: 72,  b: 153 },  // pink
-    { at: 100, r: 239, g: 68, b: 68  },  // red
+    { at: 15, r: brand.pr, g: brand.pg, b: brand.pb },
+    { at: 40, r: brand.sr, g: brand.sg, b: brand.sb },
+    { at: 70, r: 236, g: 72,  b: 153 },
+    { at: 100, r: 239, g: 68, b: 68  },
   ]
   const clamped = Math.min(pct, 100)
   let lo = stops[0], hi = stops[stops.length - 1]
@@ -115,10 +142,25 @@ interface WorldMapProps {
 export default function WorldMap({ countryExposure, totalValue, onCountryClick }: WorldMapProps) {
   const [tooltipContent, setTooltipContent] = useState('')
   const [hovered, setHovered] = useState<string | null>(null)
+  const { theme: appTheme } = useTheme()
+  const [themeEpoch, setThemeEpoch] = useState(0)
 
-  const isDark = useMemo(() => {
-    return document.documentElement.getAttribute('data-theme') === 'dark'
+  useEffect(() => {
+    const el = document.documentElement
+    const obs = new MutationObserver(() => setThemeEpoch((e) => e + 1))
+    obs.observe(el, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => obs.disconnect()
   }, [])
+
+  const { isDark, brand, brandStroke } = useMemo(() => {
+    const dark = isDarkTheme(appTheme)
+    const b = readBrandRgb()
+    return {
+      isDark: dark,
+      brand: b,
+      brandStroke: `rgb(${b.pr},${b.pg},${b.pb})`,
+    }
+  }, [themeEpoch, appTheme])
 
   // Build numeric-id → pct lookup
   const numericExposure = useMemo(() => {
@@ -163,7 +205,7 @@ export default function WorldMap({ countryExposure, totalValue, onCountryClick }
                   onClick={() => pct > 0 && onCountryClick?.(entry?.name || countryName, pct)}
                   style={{
                     default: {
-                      fill: getExposureColor(pct, isDark),
+                      fill: getExposureColor(pct, isDark, brand),
                       stroke: isDark ? '#334155' : '#cbd5e1',
                       strokeWidth: 0.5,
                       outline: 'none',
@@ -171,16 +213,16 @@ export default function WorldMap({ countryExposure, totalValue, onCountryClick }
                     },
                     hover: {
                       fill: pct > 0
-                        ? getExposureColor(Math.min(pct + 15, 100), isDark)
+                        ? getExposureColor(Math.min(pct + 15, 100), isDark, brand)
                         : isDark ? '#334155' : '#cbd5e1',
-                      stroke: '#6366f1',
+                      stroke: brandStroke,
                       strokeWidth: 1,
                       outline: 'none',
                       cursor: pct > 0 ? 'pointer' : 'default',
                     },
                     pressed: {
-                      fill: '#6366f1',
-                      stroke: '#6366f1',
+                      fill: brandStroke,
+                      stroke: brandStroke,
                       strokeWidth: 1,
                       outline: 'none',
                     },

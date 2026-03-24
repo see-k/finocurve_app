@@ -24,7 +24,14 @@ export interface FinocurveToolContext {
   getCongressCache?: () => Promise<CongressCache | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
   getSECFilingContent?: (tickerOrCik: string, accessionNumber: string) => Promise<{ content: string | null; error: string | null }>
-  searchWeb?: (query: string, options?: { maxResults?: number; topic?: 'general' | 'news' | 'finance' }) => Promise<{ data: { results: string; answer?: string } | null; error: string | null }>
+  /** Desktop: build branded PDF and save to finocurve/documents/ (local and/or S3). */
+  saveCustomBrandedReport?: (payload: {
+    title: string
+    subtitle?: string
+    sections: { heading: string; body: string }[]
+  }) => Promise<string>
+  /** Desktop: save UTF-8 CSV (Excel-friendly) to finocurve/documents/ (local and/or S3). */
+  saveCustomCsvDocument?: (payload: { fileBaseName: string; headers: string[]; rows: string[][] }) => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -34,16 +41,20 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
       if (!portfolio) {
         return 'No portfolio data available. The user has not set up a portfolio yet.'
       }
-      const holdings = portfolio.topHoldings ?? []
-      const topHoldings =
-        holdings.length > 0
-          ? holdings
+      const topList = (portfolio.holdings?.length ? portfolio.holdings : portfolio.topHoldings ?? []).slice(0, 10)
+      const topHoldingsBlock =
+        topList.length > 0
+          ? topList
               .map(
                 (h) =>
                   `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
               )
               .join('\n')
           : 'Top holdings not available in current context.'
+      const more =
+        (portfolio.holdings?.length ?? 0) > 10
+          ? `\n(Showing 10 largest by value. Use get_holdings for the full list.)`
+          : ''
       return `[Source: Portfolio data - ${portfolio.portfolioName}]
 Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
@@ -52,12 +63,106 @@ Asset count: ${portfolio.assetCount}
 Risk score: ${portfolio.riskScore ?? 'N/A'}
 Risk level: ${portfolio.riskLevel ?? 'N/A'}
 
-Top holdings:
-${topHoldings}`
+Top holdings (non-loan assets by value):
+${topHoldingsBlock}${more}`
     },
     {
       name: 'get_portfolio_summary',
-      description: 'Get the user\'s portfolio summary including total value, gain/loss percentage, asset count, risk score, and top holdings. Use this when the user asks about their portfolio, investments, or net worth.',
+      description:
+        'Get the user\'s portfolio summary: totals, gain/loss, asset count, risk score, and the 10 largest non-loan holdings by value. Use get_holdings for every holding. Use this for net worth, portfolio overview, or allocation questions at a glance.',
+    }
+  )
+
+  const getHoldings = tool(
+    async () => {
+      const portfolio = await ctx.getPortfolioContext()
+      if (!portfolio) {
+        return 'No portfolio data available. The user has not set up a portfolio yet.'
+      }
+      const list = portfolio.holdings ?? []
+      if (list.length === 0) {
+        const legacy = portfolio.topHoldings ?? []
+        if (legacy.length === 0) {
+          return 'No investable holdings (non-loan assets) in the portfolio, or data not synced yet. The user can add assets from Portfolio or Add Asset.'
+        }
+        return (
+          `[Source: FinoCurve — portfolio holdings (partial cache)]\n` +
+          `Only a short holdings snapshot is available; open the app or change the portfolio to refresh full data.\n\n` +
+          legacy
+            .map(
+              (h, i) =>
+                `${i + 1}. ${h.symbol ? `${h.symbol} (${h.name})` : h.name} — $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
+            )
+            .join('\n')
+        )
+      }
+      const lines = list.map((h, i) => {
+        const label = h.symbol ? `${h.symbol} (${h.name})` : h.name
+        const pct = h.percent != null ? ` (${h.percent.toFixed(1)}% of portfolio)` : ''
+        return (
+          `${i + 1}. ${label}${pct}\n` +
+          `   Type: ${h.type} · Category: ${h.category} · Value: $${h.value.toLocaleString()}\n` +
+          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}`
+        )
+      })
+      return `[Source: FinoCurve — all recorded holdings (non-loan assets)]\nPortfolio: ${portfolio.portfolioName}\nCount: ${list.length}\n\n${lines.join('\n\n')}`
+    },
+    {
+      name: 'get_holdings',
+      description:
+        'List every investable holding the user recorded in FinoCurve (stocks, ETFs, crypto, manual assets, etc.) — not loans. Includes symbol, name, type, value, weight, quantity, and cost basis. Use when the user asks for their full list of positions, every stock, all assets, or details beyond the top-10 summary. Does not read uploaded documents.',
+    }
+  )
+
+  const getUserLoans = tool(
+    async () => {
+      const portfolio = await ctx.getPortfolioContext()
+      if (!portfolio) {
+        return 'No portfolio data available. The user has not set up a portfolio yet.'
+      }
+      const loans = portfolio.loans ?? []
+      if (loans.length === 0) {
+        return 'The user has not recorded any loans in FinoCurve. Loans can be added from Portfolio or Add Asset → Loan.'
+      }
+      const lines = loans.map((l, i) => {
+        const bits: string[] = [
+          `${i + 1}. ${l.name}`,
+          l.loanType ? `   Type: ${l.loanType.replace(/_/g, ' ')}` : '',
+          `   Outstanding balance: $${l.balance.toLocaleString()}`,
+        ]
+        if (l.principal != null && l.principal > 0) {
+          bits.push(`   Original principal: $${l.principal.toLocaleString()}`)
+        }
+        if (l.interestRate != null) bits.push(`   Interest rate: ${l.interestRate}% APR`)
+        if (l.monthlyPayment != null) bits.push(`   Monthly payment: $${l.monthlyPayment.toLocaleString()}`)
+        if (l.extraMonthlyPayment != null && l.extraMonthlyPayment > 0) {
+          bits.push(`   Extra monthly payment: $${l.extraMonthlyPayment.toLocaleString()}`)
+        }
+        if (l.termMonths != null) bits.push(`   Term: ${l.termMonths} months`)
+        if (l.startDate) bits.push(`   Start date: ${l.startDate}`)
+        return bits.filter(Boolean).join('\n')
+      })
+      return `[Source: FinoCurve — loans recorded in app]\nPortfolio: ${portfolio.portfolioName}\n\n${lines.join('\n\n')}`
+    },
+    {
+      name: 'get_user_loans',
+      description:
+        'List all loans and debt the user has recorded in FinoCurve (mortgage, auto, student, credit card, etc.) with balances, APR, payments, and term when available. Use when the user asks about their loans, debt, mortgage, liabilities tracked in the app, or monthly loan payments.',
+    }
+  )
+
+  const getCurrentDateTime = tool(
+    async () => {
+      const now = new Date()
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
+      const localLong = now.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })
+      const utc = now.toUTCString()
+      return `[Source: Device clock — FinoCurve runtime]\nISO 8601 (UTC): ${now.toISOString()}\nUTC string: ${utc}\nLocal (${tz}): ${localLong}\nUnix ms: ${now.getTime()}`
+    },
+    {
+      name: 'get_current_datetime',
+      description:
+        'Get the current date and time from the user\'s device (the computer running FinoCurve), including ISO UTC, local timezone, and Unix time. Use whenever the user asks what day or time it is, "today", "now", timezone, year, or any question that needs the real-world current date/time. Models do not know the live clock without this tool.',
     }
   )
 
@@ -166,7 +271,7 @@ ${topHoldings}`
       }
       const cache = await ctx.getCongressCache()
       if (!cache) {
-        return 'No congressional disclosure data cached. The user should go to Insights > Congressional Trades and click Refresh to fetch data.'
+        return 'No congressional disclosure data cached. The user needs a Financial Modeling Prep API key (Settings > Plugins), then Insights > Congressional Trades > Refresh.'
       }
       const list = chamber === 'house' ? cache.house : cache.senate
       const chamberName = chamber === 'house' ? 'House' : 'Senate'
@@ -235,6 +340,86 @@ ${topHoldings}`
     }
   )
 
+  const saveCustomBrandedReportPdf = tool(
+    async ({
+      title,
+      subtitle,
+      sections,
+    }: {
+      title: string
+      subtitle?: string
+      sections: { heading: string; body: string }[]
+    }) => {
+      if (!ctx.saveCustomBrandedReport) {
+        return 'Branded PDF export is only available in the FinoCurve desktop app with storage configured.'
+      }
+      return ctx.saveCustomBrandedReport({ title, subtitle, sections })
+    },
+    {
+      name: 'save_custom_branded_report_pdf',
+      description:
+        'Create a PDF with FinoCurve letterhead, logo, and brand styling (same look as app risk reports), using your written sections as the body. Saves automatically to the user\'s documents folder (local device directory and/or cloud S3 when configured). Use when the user wants a downloadable report, memo, brief, or formal write-up. Write professional plain text; use blank lines between paragraphs in each section body.',
+      schema: z.object({
+        title: z.string().min(1).max(200).describe('Main title on the cover'),
+        subtitle: z.string().max(400).optional().describe('Optional subtitle shown under the title'),
+        sections: z
+          .array(
+            z.object({
+              heading: z.string().min(1).max(160).describe('Section heading'),
+              body: z
+                .string()
+                .min(1)
+                .max(14000)
+                .describe('Section content as plain text (double newline between paragraphs)'),
+            })
+          )
+          .min(1)
+          .max(30)
+          .describe('Ordered sections'),
+      }),
+    }
+  )
+
+  const saveCustomCsvDocument = tool(
+    async ({
+      fileBaseName,
+      headers,
+      rows,
+    }: {
+      fileBaseName: string
+      headers: string[]
+      rows: string[][]
+    }) => {
+      if (!ctx.saveCustomCsvDocument) {
+        return 'CSV export is only available in the FinoCurve desktop app with storage configured.'
+      }
+      return ctx.saveCustomCsvDocument({ fileBaseName, headers, rows })
+    },
+    {
+      name: 'save_custom_csv_document',
+      description:
+        'Create a UTF-8 CSV file (opens in Excel, Google Sheets, Numbers) from a header row and data rows, and save it to the user\'s documents folder (local and/or S3). Use when the user wants spreadsheet-style output: tables, holdings lists, comparison matrices, export of numeric series, etc. Use plain strings for every cell (format numbers as text the user would expect, e.g. "1,234.56" or "12.5%"). Row order must match headers: each row is one array of cell values in column order. Do not include markdown or formulas—values only.',
+      schema: z.object({
+        fileBaseName: z
+          .string()
+          .min(1)
+          .max(100)
+          .describe('Short file name without extension, e.g. portfolio_holdings_march or risk_comparison'),
+        headers: z
+          .array(z.string().max(200))
+          .min(1)
+          .max(50)
+          .describe('Column names, first row of the CSV'),
+        rows: z
+          .array(z.array(z.string().max(8000)))
+          .max(2000)
+          .describe(
+            'Data rows; each inner array has one string per column in the same order as headers (use empty string for missing cells)'
+          ),
+      }),
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -257,32 +442,11 @@ ${topHoldings}`
     }
   )
 
-  const searchWeb = tool(
-    async ({ query, topic }: { query: string; topic?: 'general' | 'news' | 'finance' }) => {
-      if (!ctx.searchWeb) {
-        return 'Web search is not available. Add TAVILY_API_KEY to .env to enable it.'
-      }
-      const { data, error } = await ctx.searchWeb(query, { maxResults: 6, topic })
-      if (error) {
-        return `[Source: Web search]\nError: ${error}`
-      }
-      if (!data) return 'No search results.'
-      const parts: string[] = [`[Source: Tavily web search]\n\n${data.results}`]
-      if (data.answer) parts.push(`\nSummary: ${data.answer}`)
-      return parts.join('')
-    },
-    {
-      name: 'search_web',
-      description: 'Search the web for current information. Use when the user asks about news, market updates, recent events, company info, or anything that requires up-to-date web data. Optional topic: general (default), news, or finance.',
-      schema: z.object({
-        query: z.string().describe('Search query - be specific for better results'),
-        topic: z.enum(['general', 'news', 'finance']).optional().describe('Topic: general, news (real-time), or finance'),
-      }),
-    }
-  )
-
   const baseTools: StructuredToolInterface[] = [
     getPortfolioSummary,
+    getHoldings,
+    getUserLoans,
+    getCurrentDateTime,
     getDocumentList,
     getDocumentContent,
     getReportList,
@@ -292,6 +456,7 @@ ${topHoldings}`
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
-  if (ctx.searchWeb) baseTools.push(searchWeb)
+  if (ctx.saveCustomBrandedReport) baseTools.push(saveCustomBrandedReportPdf)
+  if (ctx.saveCustomCsvDocument) baseTools.push(saveCustomCsvDocument)
   return baseTools
 }

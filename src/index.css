@@ -82,3 +82,23 @@ a:hover {
 button, a, input, select, textarea, [role="button"] {
   -webkit-app-region: no-drag;
 }
+
+/* Tabular figures for currency and metrics (apply via class or grouped selectors in screen CSS) */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shared focus for pill tabs / period chips (outline none reset in screen CSS) */
+.markets-tab:focus-visible,
+.tab-btn:focus-visible,
+.period-btn:focus-visible,
+.risk-tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

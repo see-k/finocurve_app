@@ -20,9 +20,11 @@ export default function GlassIconButton({
 }: GlassIconButtonProps) {
   return (
     <button
+      type="button"
       className={`glass-icon-button ${className}`}
       onClick={onClick}
       title={title}
+      aria-label={title}
       disabled={disabled}
       style={{
         width: `${size}px`,
