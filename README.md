@@ -135,7 +135,15 @@ This is intended for **local / operator-controlled workflows**.
 
 ## Configuration
 
-There is **no** app-level `.env` file for secrets or feature flags. Use **Settings** in the desktop app (AI models, cloud/local storage, **Plugins** for Financial Modeling Prep, MCP, etc.) for all configuration.
+There is **no** app-level `.env` file for secrets or feature flags. Use **Settings** in the desktop app for configuration, including:
+- AI models/providers
+- cloud vs local storage preferences
+- **Plugins** such as Financial Modeling Prep
+- MCP-related setup
+
+Where supported, secrets are intended to stay local to the device and out of the renderer surface.
+
+For basic local development of the core app surface, these optional integrations are **not required**.
 
 ## Data persistence
 
