@@ -135,7 +135,7 @@ This is intended for **local / operator-controlled workflows**.
 
 ## Configuration
 
-There is **no** app-level `.env` file for secrets or feature flags. Use **Settings** in the desktop app (AI models, cloud/local storage, **Plugins** for Financial Modeling Prep, MCP, etc.). See `.env.example` for a short note only.
+There is **no** app-level `.env` file for secrets or feature flags. Use **Settings** in the desktop app (AI models, cloud/local storage, **Plugins** for Financial Modeling Prep, MCP, etc.) for all configuration.
 
 ## Data persistence
 

@@ -7,8 +7,7 @@ import GlassTextField from '../../../components/glass/GlassTextField'
 import GlassIconButton from '../../../components/glass/GlassIconButton'
 import '../SettingsSubScreen.css'
 import './plugins.css'
-
-const MASK = '••••••••'
+import { FMP_PLUGIN_API_KEY_MASK } from '../../../shared/fmpPluginMask'
 const FMP_DOCS = 'https://site.financialmodelingprep.com/developer/docs/'
 const FMP_LOGO_SRC = '/images/fmp-new-logo.svg'
 
@@ -45,10 +44,10 @@ export default function FmpPluginPage() {
   }, [])
 
   useEffect(() => {
-    if (fmpApiKey === MASK) setShowApiKey(false)
+    if (fmpApiKey === FMP_PLUGIN_API_KEY_MASK) setShowApiKey(false)
   }, [fmpApiKey])
 
-  const canToggleKeyVisibility = fmpApiKey !== MASK
+  const canToggleKeyVisibility = fmpApiKey !== FMP_PLUGIN_API_KEY_MASK
 
   const handleSave = async () => {
     if (!hasPluginsApi) return
@@ -136,7 +135,7 @@ export default function FmpPluginPage() {
                 Leave empty and save to remove the key. If a key is already saved, you will see a masked value; replace
                 it to update.
               </p>
-              {fmpApiKey === MASK && (
+              {fmpApiKey === FMP_PLUGIN_API_KEY_MASK && (
                 <p className="plugin-detail__hint" style={{ color: 'var(--text-secondary)' }}>
                   Placeholder for your saved key — it isn&apos;t shown here for security. Enter a new key to replace it,
                   or clear and save to remove.

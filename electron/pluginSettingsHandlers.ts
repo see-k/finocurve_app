@@ -5,7 +5,8 @@
 import { ipcMain } from 'electron'
 import { loadPluginSettings, savePluginSettings, isFmpApiKeyConfigured } from './pluginSettingsStorage'
 
-const MASK = '••••••••'
+/** Must match `src/shared/fmpPluginMask.ts` (renderer uses that module). */
+const FMP_PLUGIN_API_KEY_MASK = '••••••••' as const
 
 export function registerPluginSettingsHandlers(): void {
   ipcMain.handle('plugins-fmp-is-configured', async () => ({
@@ -16,18 +17,19 @@ export function registerPluginSettingsHandlers(): void {
     const s = loadPluginSettings()
     const has = !!(s.fmpApiKey && s.fmpApiKey.trim())
     return {
-      fmpApiKey: has ? MASK : '',
+      fmpApiKey: has ? FMP_PLUGIN_API_KEY_MASK : '',
     }
   })
 
   ipcMain.handle(
     'plugins-settings-save',
-    async (_event, payload: { fmpApiKey: string }) => {
+    async (_event, payload: { fmpApiKey: unknown }) => {
       const existing = loadPluginSettings()
-      const incoming = (payload.fmpApiKey ?? '').trim()
+      const raw = payload?.fmpApiKey
+      const incoming = typeof raw === 'string' ? raw.trim() : ''
       if (!incoming) {
         savePluginSettings({ ...existing, fmpApiKey: undefined })
-      } else if (incoming === MASK) {
+      } else if (incoming === FMP_PLUGIN_API_KEY_MASK) {
         /* unchanged masked value — keep stored key */
       } else {
         savePluginSettings({ ...existing, fmpApiKey: incoming })
