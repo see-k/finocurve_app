@@ -53,19 +53,17 @@ export const DASHBOARD_WIDGET_CATALOG: DashboardWidgetCatalogEntry[] = [
   { type: 'forex_cross_rates', label: 'Forex cross rates', description: 'Major FX matrix', defaultW: 6, defaultH: 10, minW: 4, minH: 6 },
 ]
 
-/** Ticker, movers + list, full-width stock heatmap at the bottom (no indices row). */
+/** Market movers + stock list, full-width stock heatmap at the bottom (no ticker in default). */
 const DEFAULT_INSTANCES: DashboardInstance[] = [
-  { id: 'w-ticker', type: 'ticker_tape' },
   { id: 'w-hotlists', type: 'hotlists' },
   { id: 'w-stocks', type: 'stocks' },
   { id: 'w-heatmap-stock', type: 'heatmap_stock' },
 ]
 
 const DEFAULT_LAYOUT: Layout = [
-  { i: 'w-ticker', x: 0, y: 0, w: 12, h: 2, minW: 6, minH: 2 },
-  { i: 'w-hotlists', x: 0, y: 2, w: 7, h: 14, minW: 4, minH: 8 },
-  { i: 'w-stocks', x: 7, y: 2, w: 5, h: 14, minW: 3, minH: 8 },
-  { i: 'w-heatmap-stock', x: 0, y: 16, w: 12, h: 17, minW: 6, minH: 10 },
+  { i: 'w-hotlists', x: 0, y: 0, w: 7, h: 14, minW: 4, minH: 8 },
+  { i: 'w-stocks', x: 7, y: 0, w: 5, h: 14, minW: 3, minH: 8 },
+  { i: 'w-heatmap-stock', x: 0, y: 14, w: 12, h: 17, minW: 6, minH: 10 },
 ]
 
 interface StoredDashboard {
