@@ -353,7 +353,7 @@ export interface AmortizationEntry {
 // Navigation
 // ============================================
 
-export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'insights' | 'reports' | 'settings'
+export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'risk' | 'insights' | 'reports' | 'settings'
 
 // ============================================
 // Display helpers

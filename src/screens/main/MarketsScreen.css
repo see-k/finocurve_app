@@ -252,3 +252,123 @@
   min-height: 500px;
   overflow: hidden;
 }
+
+/* TradingView heatmaps & screener */
+.markets-tradingview-tools .section-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.markets-tools-intro {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  max-width: 52rem;
+}
+
+.markets-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.markets-subtab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  outline: none;
+}
+
+.markets-subtab:hover {
+  color: var(--text-secondary);
+  border-color: var(--glass-border);
+}
+
+.markets-subtab--active {
+  color: var(--brand-primary);
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--glass-border));
+  background: color-mix(in srgb, var(--brand-primary) 8%, var(--glass-bg));
+}
+
+.markets-subtab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.markets-tv-embed-wrap {
+  overflow: hidden;
+  min-height: 400px;
+}
+
+/* Advanced chart tab */
+.markets--chart-tab .markets-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.markets-section--advanced-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.markets-section--advanced-chart .section-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markets-chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.markets-chart-toolbar .glass-text-field {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 240px;
+  min-width: 0;
+}
+
+.markets-chart-toolbar .glass-text-field__wrapper {
+  border-radius: 12px;
+}
+
+.markets-chart-toolbar .glass-text-field__prefix {
+  padding-left: 10px;
+  padding-right: 0;
+}
+
+.markets-chart-toolbar .glass-text-field__prefix svg {
+  width: 14px;
+  height: 14px;
+}
+
+.markets-chart-toolbar .glass-text-field__input {
+  font-size: 13px;
+  padding: 8px 12px 8px 6px;
+}
+
+.markets-chart-toolbar .glass-icon-button {
+  flex-shrink: 0;
+}
+
+.markets-chart-toolbar__load {
+  color: var(--brand-primary);
+}
