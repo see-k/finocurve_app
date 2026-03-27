@@ -16,18 +16,28 @@ export function portfolioTotalDebt(portfolio: Portfolio | null): number {
 }
 
 /**
- * Same risk score as Dashboard / Risk analysis: non-loan holdings only, 0–100.
+ * Same risk score and level as Dashboard / Risk analysis: non-loan holdings only, 0–100.
+ * Used when syncing portfolio to the main process (AI tools, Tracker goal summaries).
  */
-export function currentRiskScore(portfolio: Portfolio | null): number {
-  if (!portfolio?.assets?.length) return 0
+export function currentRiskSnapshot(portfolio: Portfolio | null): {
+  riskScore: number
+  riskLevel?: string
+} {
+  if (!portfolio?.assets?.length) return { riskScore: 0 }
   const nonLoanAssets = portfolio.assets.filter((a) => !isLoan(a))
   const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
   const totalInvestableCost = nonLoanAssets.reduce((s, a) => s + a.costBasis, 0)
   const totalInvestableGainLossPercent =
     totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0
-  if (nonLoanAssets.length === 0 || totalInvestableValue <= 0) return 0
+  if (nonLoanAssets.length === 0 || totalInvestableValue <= 0) return { riskScore: 0 }
   const r = analyzePortfolio(nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent)
-  return r?.riskScore ?? 0
+  if (!r) return { riskScore: 0 }
+  return { riskScore: r.riskScore, riskLevel: r.riskLevel }
+}
+
+/** Same risk score as Dashboard / Risk analysis: non-loan holdings only, 0–100. */
+export function currentRiskScore(portfolio: Portfolio | null): number {
+  return currentRiskSnapshot(portfolio).riskScore
 }
 
 export function currentValueForGoalSource(

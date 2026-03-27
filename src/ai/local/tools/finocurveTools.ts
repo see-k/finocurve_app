@@ -44,6 +44,23 @@ export interface FinocurveToolContext {
   /** Desktop: append user-logged net worth entry (Tracker tab; not portfolio total). */
   appendNetWorthEntry?: (args: { amount: number; note?: string; recordedAt?: string }) => Promise<string>
   getNetWorthLogSummary?: () => Promise<string>
+  /** Desktop: list Tracker goals with approximate progress (uses synced portfolio cache). */
+  getTrackerGoalsSummary?: () => Promise<string>
+  /** Desktop: create a Tracker goal; baseline is derived like the Tracker UI. */
+  createTrackerGoal?: (args: {
+    title: string
+    targetAmount: number
+    targetDate?: string
+    progressSource?: string
+  }) => Promise<string>
+  /** Desktop: update an existing Tracker goal by id (from get_tracker_goals). */
+  updateTrackerGoal?: (args: {
+    goalId: string
+    title?: string
+    targetAmount?: number
+    targetDate?: string | null
+    progressSource?: string
+  }) => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -536,6 +553,121 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const getTrackerGoals = tool(
+    async () => {
+      if (!ctx.getTrackerGoalsSummary) {
+        return 'Tracker goals are only available in the FinoCurve desktop app.'
+      }
+      return ctx.getTrackerGoalsSummary()
+    },
+    {
+      name: 'get_tracker_goals',
+      description:
+        'List the user\'s Tracker financial goals (title, target, metric type, approximate current progress). Use when they ask about their goals, savings targets, debt payoff, or risk targets. Progress uses the latest logged net worth and synced portfolio data where applicable.',
+    }
+  )
+
+  const createTrackerGoal = tool(
+    async ({
+      title,
+      target_amount,
+      target_date,
+      progress_source,
+    }: {
+      title: string
+      target_amount: number
+      target_date?: string
+      progress_source?: string
+    }) => {
+      if (!ctx.createTrackerGoal) {
+        return 'Creating Tracker goals is only available in the FinoCurve desktop app.'
+      }
+      if (!Number.isFinite(target_amount)) {
+        return 'target_amount must be a finite number.'
+      }
+      return ctx.createTrackerGoal({
+        title,
+        targetAmount: target_amount,
+        targetDate: target_date,
+        progressSource: progress_source,
+      })
+    },
+    {
+      name: 'create_tracker_goal',
+      description:
+        'Create a new goal in Tracker. Set progress_source to match what the user wants to track: net_worth (true logged net worth — user should have entries from add_net_worth_entry or the Tracker tab), portfolio_balance (investable holdings total from synced portfolio), debt_loans (sum of loan balances), risk_score (0–100 from app risk; baseline starts at 100 toward a lower target). Title is required; target_date optional (ISO date). Baseline is chosen automatically like the Tracker UI.',
+      schema: z.object({
+        title: z.string().min(1).max(200).describe('Short goal name, e.g. "Emergency fund $50k"'),
+        target_amount: z
+          .number()
+          .describe(
+            'Target value in the same units as the metric: dollars for net worth / portfolio / debt; 0–100 for risk_score'
+          ),
+        target_date: z
+          .string()
+          .max(40)
+          .optional()
+          .describe('Optional target date as ISO date or datetime'),
+        progress_source: z
+          .enum(['net_worth', 'portfolio_balance', 'debt_loans', 'risk_score'])
+          .optional()
+          .describe('Which metric drives progress; default net_worth'),
+      }),
+    }
+  )
+
+  const updateTrackerGoal = tool(
+    async ({
+      goal_id,
+      title,
+      target_amount,
+      target_date,
+      progress_source,
+    }: {
+      goal_id: string
+      title?: string
+      target_amount?: number
+      progress_source?: string
+      target_date?: string | null
+    }) => {
+      if (!ctx.updateTrackerGoal) {
+        return 'Updating Tracker goals is only available in the FinoCurve desktop app.'
+      }
+      let td: string | null | undefined
+      if (target_date === undefined) td = undefined
+      else if (target_date === null || target_date === '') td = null
+      else td = target_date
+      return ctx.updateTrackerGoal({
+        goalId: goal_id,
+        title,
+        targetAmount: target_amount,
+        targetDate: td,
+        progressSource: progress_source,
+      })
+    },
+    {
+      name: 'update_tracker_goal',
+      description:
+        'Update an existing Tracker goal. Use get_tracker_goals first to obtain goal_id. Provide one or more of: title, target_amount, target_date, progress_source. Omit target_date to leave unchanged; use null or empty string to clear the date. If progress_source changes, the baseline is reset automatically like the Tracker tab.',
+      schema: z.object({
+        goal_id: z.string().min(1).describe('Goal id exactly as shown in get_tracker_goals'),
+        title: z.string().min(1).max(200).optional().describe('New goal title'),
+        target_amount: z
+          .number()
+          .optional()
+          .describe('New target (same units as the metric: dollars or 0–100 for risk_score)'),
+        target_date: z
+          .union([z.string().max(40), z.null()])
+          .optional()
+          .describe('Omit to keep; ISO date string to set; null to clear'),
+        progress_source: z
+          .enum(['net_worth', 'portfolio_balance', 'debt_loans', 'risk_score'])
+          .optional()
+          .describe('Change which metric drives progress; changing this resets baseline'),
+      }),
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -576,5 +708,8 @@ ${topHoldingsBlock}${more}`
   if (ctx.saveCustomCsvDocument) baseTools.push(saveCustomCsvDocument)
   if (ctx.appendNetWorthEntry) baseTools.push(addNetWorthEntry)
   if (ctx.getNetWorthLogSummary) baseTools.push(getNetWorthLog)
+  if (ctx.getTrackerGoalsSummary) baseTools.push(getTrackerGoals)
+  if (ctx.createTrackerGoal) baseTools.push(createTrackerGoal)
+  if (ctx.updateTrackerGoal) baseTools.push(updateTrackerGoal)
   return baseTools
 }

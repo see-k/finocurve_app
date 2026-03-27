@@ -8,6 +8,7 @@ import {
   loanBalance,
   loanPrincipal,
 } from '../types'
+import { currentRiskSnapshot } from '../lib/trackerGoalMetrics'
 
 const STORAGE_KEY = 'finocurve-portfolio'
 
@@ -137,11 +138,14 @@ export function usePortfolio() {
       startDate: a.loanStartDate,
       extraMonthlyPayment: a.extraMonthlyPayment,
     }))
+    const { riskScore, riskLevel } = currentRiskSnapshot(portfolio)
     window.electronAPI.portfolioSync({
       portfolioName: portfolio.name || 'Portfolio',
       totalValue: totalVal,
       totalGainLossPercent: gainLossPct,
       assetCount: portfolio.assets?.length ?? 0,
+      riskScore,
+      riskLevel,
       topHoldings,
       holdings,
       loans,

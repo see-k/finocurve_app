@@ -22,7 +22,13 @@ import {
 import { buildCsvDocument, safeCsvBaseName } from '../src/services/csvDocumentExport'
 import { writeLocalStorageFile } from './localStorageHandlers'
 import { uploadS3IfConfigured } from './s3Handlers'
-import { trackerAppendNetWorthAI, trackerGetNetWorthLogSummary } from './trackerHandlers'
+import {
+  trackerAppendNetWorthAI,
+  trackerGetNetWorthLogSummary,
+  trackerGetGoalsSummary,
+  trackerCreateGoalAI,
+  trackerUpdateGoalAI,
+} from './trackerHandlers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -313,6 +319,17 @@ export function registerAIHandlers(): void {
         saveCustomCsvDocument: saveCustomCsvForChat,
         appendNetWorthEntry: trackerAppendNetWorthAI,
         getNetWorthLogSummary: trackerGetNetWorthLogSummary,
+        getTrackerGoalsSummary: async () => trackerGetGoalsSummary(loadPortfolioCache()),
+        createTrackerGoal: async (args) =>
+          trackerCreateGoalAI({
+            ...args,
+            portfolio: loadPortfolioCache(),
+          }),
+        updateTrackerGoal: async (args) =>
+          trackerUpdateGoalAI({
+            ...args,
+            portfolio: loadPortfolioCache(),
+          }),
         config: storedConfigToAIConfig(stored),
       })
     }

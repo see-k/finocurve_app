@@ -137,6 +137,9 @@ export interface LocalAIServiceOptions {
   /** Desktop: log a net worth snapshot to Tracker (separate from portfolio book value) */
   appendNetWorthEntry?: FinocurveToolContext['appendNetWorthEntry']
   getNetWorthLogSummary?: FinocurveToolContext['getNetWorthLogSummary']
+  getTrackerGoalsSummary?: FinocurveToolContext['getTrackerGoalsSummary']
+  createTrackerGoal?: FinocurveToolContext['createTrackerGoal']
+  updateTrackerGoal?: FinocurveToolContext['updateTrackerGoal']
   config?: Partial<AIConfig>
 }
 
@@ -259,10 +262,24 @@ export class LocalAIService implements AIService {
     }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
-    if (this.options.appendNetWorthEntry) {
-      systemParts.push(
-        'Tracker net worth: The user can log their true net worth separately from portfolio holdings. When they ask to log, record, or save a net worth figure for tracking, use add_net_worth_entry with the amount they state. Use get_net_worth_log to read what they logged. Do not infer logged net worth from portfolio holdings alone—those are not the same as full net worth.'
-      )
+    if (
+      this.options.appendNetWorthEntry ||
+      this.options.getTrackerGoalsSummary ||
+      this.options.createTrackerGoal ||
+      this.options.updateTrackerGoal
+    ) {
+      const trackerBits: string[] = []
+      if (this.options.appendNetWorthEntry) {
+        trackerBits.push(
+          'Net worth: they can log true net worth separately from portfolio holdings. To log a figure use add_net_worth_entry; to read the log use get_net_worth_log. Do not treat portfolio total as logged net worth.'
+        )
+      }
+      if (this.options.getTrackerGoalsSummary || this.options.createTrackerGoal || this.options.updateTrackerGoal) {
+        trackerBits.push(
+          'Goals: use get_tracker_goals to list goals (includes goal id). Use create_tracker_goal for new goals (title, target_amount, optional target_date, progress_source). Use update_tracker_goal with goal_id to change title, target_amount, target_date, and/or progress_source; changing progress_source resets baseline like the Tracker tab. For net_worth goals they need at least one logged net worth entry before create or before switching an existing goal to net_worth.'
+        )
+      }
+      systemParts.push(`Tracker: ${trackerBits.join(' ')}`)
     }
 
     const toolContext = {
@@ -288,6 +305,9 @@ export class LocalAIService implements AIService {
       saveCustomCsvDocument: this.options.saveCustomCsvDocument,
       appendNetWorthEntry: this.options.appendNetWorthEntry,
       getNetWorthLogSummary: this.options.getNetWorthLogSummary,
+      getTrackerGoalsSummary: this.options.getTrackerGoalsSummary,
+      createTrackerGoal: this.options.createTrackerGoal,
+      updateTrackerGoal: this.options.updateTrackerGoal,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -417,6 +437,15 @@ export class LocalAIService implements AIService {
         name: 'save_custom_csv_document',
         description: 'Create UTF-8 CSV and save to finocurve/documents/ (local and/or cloud)',
       })
+    }
+    if (this.options.getTrackerGoalsSummary) {
+      base.push({ name: 'get_tracker_goals', description: 'List Tracker goals and approximate progress' })
+    }
+    if (this.options.createTrackerGoal) {
+      base.push({ name: 'create_tracker_goal', description: 'Create a Tracker financial goal' })
+    }
+    if (this.options.updateTrackerGoal) {
+      base.push({ name: 'update_tracker_goal', description: 'Update an existing Tracker goal by id' })
     }
     // Include MCP tools in the reported tool list
     const mcpTools = this.options.getMCPTools?.() ?? []
