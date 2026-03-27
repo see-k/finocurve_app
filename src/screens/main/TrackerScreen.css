@@ -471,6 +471,36 @@
   margin-top: 8px;
 }
 
+.tracker-goals-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 4px;
+}
+
+.tracker-goals-panel-head__title {
+  margin: 0;
+}
+
+.tracker-goals-collapse-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tracker-goals-collapse-default input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand-primary);
+  cursor: pointer;
+}
+
 .tracker-goals-list {
   display: flex;
   flex-direction: column;
@@ -485,11 +515,58 @@
   background: rgba(0, 0, 0, 0.12);
 }
 
+.tracker-goal-card--collapsed {
+  padding-bottom: 14px;
+}
+
 .tracker-goal-card__head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
+}
+
+.tracker-goal-card__toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: -4px 0 0 -6px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.tracker-goal-card__toggle:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.06));
+}
+
+.tracker-goal-card__chevron {
+  transition: transform 0.2s ease;
+}
+
+.tracker-goal-card__chevron--open {
+  transform: rotate(180deg);
+}
+
+.tracker-goal-card__head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tracker-goal-card--collapsed .tracker-goal-title {
+  margin-bottom: 0;
+}
+
+.tracker-goal-card--collapsed .tracker-progress-bar {
+  margin-top: 10px;
 }
 
 .tracker-goal-title {

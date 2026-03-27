@@ -18,6 +18,7 @@ const DEFAULT_PREFS: UserPreferences = {
   marketNews: false,
   trackerS3AutoBackup: false,
   trackerS3AutoSync: false,
+  trackerGoalsCollapsedByDefault: false,
 }
 
 function loadPreferences(): UserPreferences {

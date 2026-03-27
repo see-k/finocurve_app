@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line,
 } from 'recharts'
-import { Target, Plus, Trash2, TrendingUp, Wallet, Pencil, X } from 'lucide-react'
+import { Target, Plus, Trash2, TrendingUp, Wallet, Pencil, X, ChevronDown } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -29,6 +29,29 @@ const TRACKER_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937
 
 /** Matches Dashboard default — same `getPerformanceChartData` window + API priority */
 const TRACKER_PORTFOLIO_CHART_PERIOD: PerformancePeriod = '1M'
+
+const GOAL_EXPAND_OVERRIDES_KEY = 'finocurve-tracker-goal-expanded-overrides'
+
+function loadGoalExpandOverrides(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GOAL_EXPAND_OVERRIDES_KEY)
+    if (raw) {
+      const o = JSON.parse(raw) as Record<string, boolean>
+      if (o && typeof o === 'object' && !Array.isArray(o)) return o
+    }
+  } catch {
+    /* ignore */
+  }
+  return {}
+}
+
+function saveGoalExpandOverrides(map: Record<string, boolean>) {
+  try {
+    localStorage.setItem(GOAL_EXPAND_OVERRIDES_KEY, JSON.stringify(map))
+  } catch {
+    /* ignore */
+  }
+}
 
 type TrackerTab = 'netWorth' | 'goals'
 
@@ -77,7 +100,7 @@ function toDatetimeLocalValue(iso: string): string {
 }
 
 export default function TrackerScreen() {
-  const { prefs } = usePreferences()
+  const { prefs, updatePreferences } = usePreferences()
   const cur = prefs.defaultCurrency || 'USD'
   const { portfolio, totalValue: portfolioTotalValue } = usePortfolio()
   const {
@@ -136,6 +159,37 @@ export default function TrackerScreen() {
   const [editGoalTarget, setEditGoalTarget] = useState('')
   const [editGoalDate, setEditGoalDate] = useState('')
   const [editGoalSource, setEditGoalSource] = useState<TrackerGoalProgressSource>('net_worth')
+  const [goalExpandOverrides, setGoalExpandOverrides] = useState<Record<string, boolean>>(loadGoalExpandOverrides)
+
+  useEffect(() => {
+    saveGoalExpandOverrides(goalExpandOverrides)
+  }, [goalExpandOverrides])
+
+  useEffect(() => {
+    const ids = new Set(goals.map((x) => x.id))
+    setGoalExpandOverrides((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const k of Object.keys(next)) {
+        if (!ids.has(k)) {
+          delete next[k]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [goals])
+
+  const goalCardExpanded = (id: string) => {
+    const o = goalExpandOverrides[id]
+    if (o !== undefined) return o
+    return !(prefs.trackerGoalsCollapsedByDefault ?? false)
+  }
+
+  const toggleGoalCardExpanded = (id: string) => {
+    const cur = goalCardExpanded(id)
+    setGoalExpandOverrides((prev) => ({ ...prev, [id]: !cur }))
+  }
 
   useEffect(() => {
     if (tab !== 'netWorth') setEditingEntryId(null)
@@ -656,7 +710,17 @@ export default function TrackerScreen() {
         </GlassContainer>
 
         <GlassContainer padding="20px 24px" borderRadius={20} blur={0} className="tracker-card tracker-goals-panel-card">
-          <h2 className="tracker-section-title">Your goals</h2>
+          <div className="tracker-goals-panel-head">
+            <h2 className="tracker-section-title tracker-goals-panel-head__title">Your goals</h2>
+            <label className="tracker-goals-collapse-default">
+              <input
+                type="checkbox"
+                checked={prefs.trackerGoalsCollapsedByDefault ?? false}
+                onChange={(e) => updatePreferences({ trackerGoalsCollapsedByDefault: e.target.checked })}
+              />
+              <span>Collapse by default</span>
+            </label>
+          </div>
           {goals.length === 0 ? (
             <p className="tracker-muted">
               No goals yet. Add one above—portfolio, debt, and risk score come from the Portfolio and Risk tabs; net worth comes from logged entries.
@@ -678,8 +742,12 @@ export default function TrackerScreen() {
                   : Math.abs(currentMetric - g.baselineAmount) < 0.01
               const reducingGoal = g.baselineAmount > g.targetAmount
               const editing = editingGoalId === g.id
+              const expanded = editing || goalCardExpanded(g.id)
               return (
-                <div key={g.id} className="tracker-goal-card">
+                <div
+                  key={g.id}
+                  className={`tracker-goal-card ${!expanded ? 'tracker-goal-card--collapsed' : ''}`}
+                >
                   {editing ? (
                     <div className="tracker-goal-edit">
                       <div className="tracker-form-grid tracker-goal-form tracker-form-grid--single">
@@ -750,19 +818,37 @@ export default function TrackerScreen() {
                   ) : (
                     <>
                   <div className="tracker-goal-card__head">
-                    <div>
+                    <button
+                      type="button"
+                      className="tracker-goal-card__toggle"
+                      aria-expanded={expanded}
+                      aria-label={expanded ? 'Collapse goal details' : 'Expand goal details'}
+                      onClick={() => toggleGoalCardExpanded(g.id)}
+                    >
+                      <ChevronDown
+                        size={22}
+                        className={expanded ? 'tracker-goal-card__chevron tracker-goal-card__chevron--open' : 'tracker-goal-card__chevron'}
+                        aria-hidden
+                      />
+                    </button>
+                    <div className="tracker-goal-card__head-main">
                       <h3 className="tracker-goal-title">{g.title}</h3>
-                      <p className="tracker-goal-meta">
-                        {goalSourceLabel(g.progressSource)} · Target {fmtGoalMetric(g.targetAmount, cur, g.progressSource)}
-                        {g.targetDate ? ` by ${g.targetDate}` : ''}
-                      </p>
-                      <p className="tracker-goal-current">
-                        Now {fmtGoalMetric(currentMetric, cur, g.progressSource)}
-                        <span className="tracker-goal-baseline-hint">
-                          {' '}
-                          (from {fmtGoalMetric(g.baselineAmount, cur, g.progressSource)} at start)
-                        </span>
-                      </p>
+                      {expanded ? (
+                        <>
+                          <p className="tracker-goal-meta">
+                            {goalSourceLabel(g.progressSource)} · Target{' '}
+                            {fmtGoalMetric(g.targetAmount, cur, g.progressSource)}
+                            {g.targetDate ? ` by ${g.targetDate}` : ''}
+                          </p>
+                          <p className="tracker-goal-current">
+                            Now {fmtGoalMetric(currentMetric, cur, g.progressSource)}
+                            <span className="tracker-goal-baseline-hint">
+                              {' '}
+                              (from {fmtGoalMetric(g.baselineAmount, cur, g.progressSource)} at start)
+                            </span>
+                          </p>
+                        </>
+                      ) : null}
                     </div>
                     <div className="tracker-entry-actions">
                       <button
@@ -789,7 +875,7 @@ export default function TrackerScreen() {
                         <div className="tracker-progress-bar__fill" style={{ width: `${pct}%` }} />
                       </div>
                       <p className="tracker-progress-label">{pct.toFixed(1)}% toward target</p>
-                      {pct === 0 && atBaseline ? (
+                      {expanded && pct === 0 && atBaseline ? (
                         <p className="tracker-muted tracker-progress-zero-hint">
                           {reducingGoal
                             ? 'Fill increases as this measure moves down toward your target.'
@@ -800,7 +886,7 @@ export default function TrackerScreen() {
                   ) : (
                     <p className="tracker-muted">Target must differ from your starting value.</p>
                   )}
-                  {mini.length >= 2 ? (
+                  {expanded && mini.length >= 2 ? (
                     <div className="tracker-mini-chart">
                       <ResponsiveContainer width="100%" height={100}>
                         <LineChart data={mini} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -829,11 +915,11 @@ export default function TrackerScreen() {
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : (
+                  ) : expanded && g.progressSource === 'net_worth' ? (
                     <p className="tracker-muted tracker-mini-chart-hint">
                       Add another net worth log entry to see the trend chart.
                     </p>
-                  )}
+                  ) : null}
                     </>
                   )}
                 </div>

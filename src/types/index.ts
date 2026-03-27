@@ -199,6 +199,8 @@ export interface UserPreferences {
   trackerS3AutoBackup: boolean
   /** Pull newer Tracker DB from S3 when remote manifest is newer (requires S3 configured) */
   trackerS3AutoSync: boolean
+  /** When true, Tracker goal cards start collapsed (per-goal expand state is remembered separately) */
+  trackerGoalsCollapsedByDefault: boolean
 }
 
 // ============================================
