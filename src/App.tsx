@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AIChatBubble from './components/ai/AIChatBubble'
 import SplashScreen from './screens/SplashScreen'
@@ -24,11 +25,27 @@ import NotificationsScreen from './screens/main/NotificationsScreen'
 import AccountScreen from './screens/settings/AccountScreen'
 import CurrencyPickerScreen from './screens/settings/CurrencyPickerScreen'
 import CloudStorageScreen from './screens/settings/CloudStorageScreen'
+import TrackerStorageScreen from './screens/settings/TrackerStorageScreen'
 import AIConfigScreen from './screens/settings/AIConfigScreen'
 import HelpFaqScreen from './screens/settings/HelpFaqScreen'
 import AboutScreen from './screens/settings/AboutScreen'
 import PluginsListPage from './screens/settings/plugins/PluginsListPage'
 import FmpPluginPage from './screens/settings/plugins/FmpPluginPage'
+import { usePreferences } from './store/usePreferences'
+
+function TrackerS3PrefsSync() {
+  const { prefs } = usePreferences()
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api?.trackerSetS3Options) return
+    void api.trackerSetS3Options({
+      autoBackup: prefs.trackerS3AutoBackup,
+      autoSync: prefs.trackerS3AutoSync,
+    })
+    void api.trackerRunStartupSync?.()
+  }, [prefs.trackerS3AutoBackup, prefs.trackerS3AutoSync])
+  return null
+}
 
 function NewsPage() {
   return (
@@ -49,6 +66,7 @@ function NotificationsPage() {
 export default function App() {
   return (
     <>
+    <TrackerS3PrefsSync />
     <Routes>
       <Route path="/" element={<SplashScreen />} />
       <Route path="/welcome" element={<WelcomeScreen />} />
@@ -75,6 +93,7 @@ export default function App() {
       <Route path="/settings/account" element={<AccountScreen />} />
       <Route path="/settings/currency" element={<CurrencyPickerScreen />} />
       <Route path="/settings/cloud-storage" element={<CloudStorageScreen />} />
+      <Route path="/settings/tracker-storage" element={<TrackerStorageScreen />} />
       <Route path="/settings/ai-config" element={<AIConfigScreen />} />
       <Route path="/settings/plugins" element={<PluginsListPage />} />
       <Route path="/settings/plugins/fmp" element={<FmpPluginPage />} />

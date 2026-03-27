@@ -52,8 +52,9 @@ export default function DashboardScreen() {
   const hasAssets = portfolio && portfolio.assets.length > 0
   const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
   const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
+  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
 
-  const { history } = usePortfolioValueHistory(totalValue, !!hasAssets)
+  const { history } = usePortfolioValueHistory(totalValue, totalInvestableValue, !!hasAssets)
   const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
     portfolio?.assets ?? [],
     selectedPeriod,
@@ -85,7 +86,6 @@ export default function DashboardScreen() {
   }, [hasAssets, nonLoanAssets])
 
   // Risk analysis uses investable assets only (excludes loans) to avoid negative weights when liabilities dominate
-  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
   const totalInvestableCost = nonLoanAssets.reduce((s, a) => s + a.costBasis, 0)
   const totalInvestableGainLossPercent = totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0
   const riskResult = useMemo(

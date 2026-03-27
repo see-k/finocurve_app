@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { registerS3Handlers } from './s3Handlers'
 import { registerLocalStorageHandlers } from './localStorageHandlers'
+import { registerTrackerHandlers } from './trackerHandlers'
 import { registerAIHandlers } from './aiHandlers'
 import { registerPriceHandlers } from './priceHandlers'
 import { registerCongressHandlers } from './congressHandlers'
@@ -117,6 +118,7 @@ app.whenReady().then(() => {
   registerAppProtocol()
   registerS3Handlers()
   registerLocalStorageHandlers()
+  registerTrackerHandlers()
   registerAIHandlers()
   registerPriceHandlers()
   registerCongressHandlers()

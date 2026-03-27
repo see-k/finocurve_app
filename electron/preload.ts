@@ -128,6 +128,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('sec-company-facts', payload),
   secFilingContent: (payload: { tickerOrCik: string; accessionNumber: string }) =>
     ipcRenderer.invoke('sec-filing-content', payload),
+  // Tracker (net worth + goals, SQLite in main)
+  trackerGetState: () => ipcRenderer.invoke('tracker-get-state'),
+  trackerAppendNetWorth: (payload: {
+    amount: number
+    recordedAt?: string
+    note?: string | null
+    source: 'manual' | 'ai'
+  }) => ipcRenderer.invoke('tracker-append-net-worth', payload),
+  trackerDeleteNetWorth: (id: string) => ipcRenderer.invoke('tracker-delete-net-worth', id),
+  trackerUpdateNetWorth: (payload: {
+    id: string
+    amount: number
+    note?: string | null
+    recordedAt: string
+  }) => ipcRenderer.invoke('tracker-update-net-worth', payload),
+  trackerCreateGoal: (payload: {
+    title: string
+    targetAmount: number
+    targetDate?: string | null
+    progressSource: 'net_worth' | 'portfolio_balance' | 'debt_loans' | 'risk_score'
+    baselineAmount: number
+  }) => ipcRenderer.invoke('tracker-create-goal', payload),
+  trackerUpdateGoal: (payload: {
+    id: string
+    title: string
+    targetAmount: number
+    targetDate: string | null
+    progressSource: 'net_worth' | 'portfolio_balance' | 'debt_loans' | 'risk_score'
+    baselineAmount: number
+  }) => ipcRenderer.invoke('tracker-update-goal', payload),
+  trackerDeleteGoal: (id: string) => ipcRenderer.invoke('tracker-delete-goal', id),
+  trackerSetS3Options: (opts: { autoBackup: boolean; autoSync: boolean }) =>
+    ipcRenderer.invoke('tracker-set-s3-options', opts),
+  trackerBackupNow: () => ipcRenderer.invoke('tracker-backup-now'),
+  trackerSyncNow: () => ipcRenderer.invoke('tracker-sync-now'),
+  trackerRunStartupSync: () => ipcRenderer.invoke('tracker-run-startup-sync'),
 })
 
 // Expose MCP API for Model Context Protocol server management
