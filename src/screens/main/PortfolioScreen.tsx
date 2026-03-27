@@ -40,8 +40,9 @@ export default function PortfolioScreen() {
   const hasAssets = portfolio && portfolio.assets.length > 0
   const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
   const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
+  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
 
-  const { history } = usePortfolioValueHistory(totalValue, !!hasAssets)
+  const { history } = usePortfolioValueHistory(totalValue, totalInvestableValue, !!hasAssets)
   const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
     portfolio?.assets ?? [],
     selectedPeriod,

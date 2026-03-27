@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder --mac",
     "dist:arm": "npm run build && electron-builder --mac --arm64",
@@ -40,6 +42,7 @@
     "@langchain/openai": "^1.2.8",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@vnedyalk0v/react19-simple-maps": "^2.0.2",
+    "better-sqlite3": "^12.8.0",
     "country-list": "^2.4.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -58,6 +61,8 @@
     "yahoo-finance2": "^3.13.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/country-list": "^2.1.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

@@ -1,0 +1,603 @@
+/* Match Dashboard: full-width header image + comfortable page padding */
+.tracker {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 100%;
+  padding: 32px;
+  padding-top: 24px;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+.tracker-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 340px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tracker-bg__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.25;
+}
+.tracker-bg__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--screen-overlay-soft) 0%,
+    var(--bg-primary) 300px
+  );
+}
+.tracker > *:not(.tracker-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+.tracker-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Chart = full-width top half; log + recent entries = side by side below */
+.tracker-networth-layout {
+  display: grid;
+  /* minmax(0,1fr) so row height is not forced up by long entry lists */
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  flex: 1;
+  min-height: min(900px, calc(100vh - 200px));
+  min-width: 0;
+}
+
+.tracker-networth-top {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tracker-networth-chart-card.glass-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tracker-networth-bottom {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
+.tracker-networth-bottom .tracker-networth-log-card {
+  align-self: start;
+}
+
+@media (max-width: 900px) {
+  .tracker-networth-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .tracker-networth-layout {
+    grid-template-rows: minmax(320px, auto) auto;
+    min-height: 0;
+  }
+
+  .tracker-chart--fill {
+    flex: none;
+    height: 280px;
+    min-height: 280px;
+  }
+}
+
+.tracker-networth-log-card,
+.tracker-networth-entries-card {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* No diagonal gradient + no backdrop blur: avoids compositor seams (“light shaders”)
+   with scrolling / charts inside (Chromium/WebKit). */
+.tracker-networth-log-card.glass-container,
+.tracker-networth-entries-card.glass-container,
+.tracker-goals-form-card.glass-container,
+.tracker-goals-panel-card.glass-container {
+  background: var(--glass-bg);
+}
+
+/* Entries panel: fixed to bottom row height; only the list scrolls (log form stays compact) */
+.tracker-networth-entries-card.tracker-entries-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.tracker-networth-entries-card > .tracker-section-title {
+  flex-shrink: 0;
+}
+
+.tracker-networth-entries-card > .tracker-entry-list,
+.tracker-networth-entries-card > .tracker-muted {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  isolation: isolate;
+}
+
+@media (max-width: 900px) {
+  .tracker-networth-entries-card.tracker-entries-card {
+    height: auto;
+    max-height: min(50vh, 480px);
+  }
+}
+
+.tracker-goals-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .tracker-goals-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tracker-header {
+  margin-bottom: 0;
+}
+
+.tracker-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0;
+  margin-bottom: 4px;
+}
+
+.tracker-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.tracker-tab:hover {
+  color: var(--text-secondary);
+}
+
+.tracker-tab--active {
+  color: var(--brand-primary);
+}
+
+.tracker-tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--brand-primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.tracker-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tracker-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+
+.tracker-title__icon {
+  color: var(--brand-primary);
+}
+
+.tracker-subtitle {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.tracker-muted {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.tracker-error {
+  color: var(--status-error);
+  font-size: 14px;
+}
+
+.tracker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tracker-nw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tracker-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin: 0 0 4px 0;
+}
+
+.tracker-hero {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tracker-hero__icon {
+  color: var(--brand-primary);
+  opacity: 0.5;
+}
+
+.tracker-chart {
+  margin-top: 8px;
+}
+
+.tracker-chart--tall {
+  min-height: 280px;
+}
+
+/* Fills remaining space in the top chart card (split viewport with bottom row) */
+.tracker-chart--fill {
+  flex: 1;
+  min-height: 220px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.tracker-chart-hint {
+  margin-top: 4px;
+}
+
+.tracker-log-time-hint {
+  margin: -4px 0 0 0;
+}
+
+.tracker-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.tracker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tracker-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.tracker-field--full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 560px) {
+  .tracker-form-grid:not(.tracker-form-grid--single) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.tracker-form-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.tracker-section-title--sm {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.tracker-section-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tracker-entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tracker-entry-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--glass-bg-subtle, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--glass-border);
+}
+
+.tracker-entry-row--editing {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.tracker-entry-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tracker-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tracker-entry-edit {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tracker-entry-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.tracker-text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tracker-text-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.06));
+}
+
+.tracker-text-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tracker-entry-amount {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.tracker-entry-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.tracker-icon-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.tracker-icon-btn--edit:hover {
+  color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.tracker-icon-btn--delete:hover {
+  color: var(--status-error);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.tracker-goals-intro {
+  margin-top: -8px;
+}
+
+.tracker-goal-form {
+  margin-top: 8px;
+}
+
+.tracker-goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.tracker-goal-card {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.tracker-goal-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tracker-goal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tracker-goal-meta {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.tracker-progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--glass-border);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.tracker-progress-bar__fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--brand-primary), #8b5cf6);
+  transition: width 0.35s ease;
+}
+
+.tracker-progress-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 6px 0 0 0;
+}
+
+.tracker-progress-zero-hint {
+  font-size: 12px;
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+}
+
+.tracker-mini-chart {
+  margin-top: 12px;
+  height: 100px;
+}
+
+.tracker-select {
+  width: 100%;
+  padding: 14px 40px 14px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: var(--font-family);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  transition: border-color 0.2s ease;
+}
+
+.tracker-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.tracker-select option {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.tracker-goal-form-error {
+  font-size: 13px;
+  margin: 8px 0 0 0;
+}
+
+.tracker-goal-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tracker-goal-edit-hint {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tracker-goal-current {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tracker-goal-baseline-hint {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.tracker-mini-chart-hint {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.tracker-goal-card__head .tracker-entry-actions {
+  align-self: flex-start;
+}

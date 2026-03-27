@@ -7,7 +7,10 @@ import { useState, useCallback, useEffect } from 'react'
 
 export interface PortfolioValuePoint {
   timestamp: string
+  /** Total portfolio economic value (all assets, same as Dashboard total). */
   value: number
+  /** Non-loan holdings only — matches Tracker "Portfolio holdings" goals and API chart basis. */
+  holdingsValue?: number
 }
 
 const STORAGE_KEY = 'finocurve-portfolio-value-history'
@@ -31,28 +34,33 @@ function saveHistory(history: PortfolioValuePoint[]): void {
   } catch { /* ignore */ }
 }
 
-export function usePortfolioValueHistory(totalValue: number, hasAssets: boolean) {
+export function usePortfolioValueHistory(
+  totalValue: number,
+  holdingsValue: number,
+  hasAssets: boolean
+) {
   const [history, setHistory] = useState<PortfolioValuePoint[]>(() => loadHistory())
 
-  const recordValue = useCallback((value: number) => {
+  const recordValue = useCallback((value: number, holdings: number) => {
+    if (!Number.isFinite(value) || !Number.isFinite(holdings)) return
     const now = new Date().toISOString()
     setHistory((prev) => {
       const last = prev[0]
       if (last && new Date(now).getTime() - new Date(last.timestamp).getTime() < MIN_INTERVAL_MS) {
         return prev
       }
-      const next = [{ timestamp: now, value }, ...prev].slice(0, MAX_POINTS)
+      const next = [{ timestamp: now, value, holdingsValue: holdings }, ...prev].slice(0, MAX_POINTS)
       saveHistory(next)
       return next
     })
   }, [])
 
-  // Record on mount when we have assets (called from Dashboard/Portfolio)
+  // Record on mount when we have assets (called from Dashboard/Portfolio/Tracker)
   useEffect(() => {
-    if (hasAssets && totalValue > 0) {
-      recordValue(totalValue)
-    }
-  }, [hasAssets, totalValue, recordValue])
+    if (!hasAssets) return
+    if (totalValue <= 0 && holdingsValue <= 0) return
+    recordValue(totalValue, holdingsValue)
+  }, [hasAssets, totalValue, holdingsValue, recordValue])
 
   const clearHistory = useCallback(() => {
     setHistory([])

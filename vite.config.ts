@@ -20,6 +20,7 @@ export default defineConfig({
                 'pdf-parse/worker',
                 '@napi-rs/canvas',
                 /^@napi-rs\/canvas-.*/,
+                'better-sqlite3',
                 // AWS SDK + Smithy: bundling breaks tslib/__extends interop in Electron main
                 /^@aws-sdk\/.*/,
                 /^@smithy\/.*/,

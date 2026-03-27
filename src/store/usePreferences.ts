@@ -16,6 +16,8 @@ const DEFAULT_PREFS: UserPreferences = {
   priceAlerts: true,
   portfolioUpdates: true,
   marketNews: false,
+  trackerS3AutoBackup: false,
+  trackerS3AutoSync: false,
 }
 
 function loadPreferences(): UserPreferences {

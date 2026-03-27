@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Briefcase, BarChart3, Shield, Landmark, FileText, Settings, Plus, Search, PenLine } from 'lucide-react'
+import { LayoutDashboard, Briefcase, BarChart3, Shield, Landmark, FileText, Settings, Plus, Search, PenLine, Target } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
 import PortfolioScreen from './PortfolioScreen'
@@ -8,6 +8,7 @@ import MarketsScreen from './MarketsScreen'
 import InsightsScreen from './InsightsScreen'
 import ReportsScreen from './ReportsScreen'
 import SettingsScreen from './SettingsScreen'
+import TrackerScreen from './TrackerScreen'
 import RiskAnalysisScreen from '../detail/RiskAnalysisScreen'
 import { TickerTapeWidget } from '../../components/TradingViewWidgets'
 import type { MainTab } from '../../types'
@@ -20,6 +21,7 @@ const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
   { id: 'risk', label: 'Risk analysis', icon: <Shield size={20} /> },
   { id: 'insights', label: 'Insights', icon: <Landmark size={20} /> },
   { id: 'reports', label: 'Reports', icon: <FileText size={20} /> },
+  { id: 'tracker', label: 'Tracker', icon: <Target size={20} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
 ]
 
@@ -36,6 +38,7 @@ export default function MainShell() {
       case 'risk': return <RiskAnalysisScreen embeddedInShell />
       case 'insights': return <InsightsScreen />
       case 'reports': return <ReportsScreen />
+      case 'tracker': return <TrackerScreen />
       case 'settings': return <SettingsScreen />
     }
   }

@@ -20,14 +20,18 @@ export default function GlassContainer({
   style,
   onClick,
 }: GlassContainerProps) {
+  const blurStyle: CSSProperties =
+    blur > 0
+      ? { backdropFilter: `blur(${blur}px)`, WebkitBackdropFilter: `blur(${blur}px)` }
+      : {}
+
   return (
     <div
       className={`glass-container ${className}`}
       style={{
         padding,
         borderRadius: `${borderRadius}px`,
-        backdropFilter: `blur(${blur}px)`,
-        WebkitBackdropFilter: `blur(${blur}px)`,
+        ...blurStyle,
         ...style,
       }}
       onClick={onClick}

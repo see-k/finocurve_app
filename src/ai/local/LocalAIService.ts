@@ -134,6 +134,9 @@ export interface LocalAIServiceOptions {
   saveCustomBrandedReport?: FinocurveToolContext['saveCustomBrandedReport']
   /** Desktop: AI chat tool to save CSV files into documents storage */
   saveCustomCsvDocument?: FinocurveToolContext['saveCustomCsvDocument']
+  /** Desktop: log a net worth snapshot to Tracker (separate from portfolio book value) */
+  appendNetWorthEntry?: FinocurveToolContext['appendNetWorthEntry']
+  getNetWorthLogSummary?: FinocurveToolContext['getNetWorthLogSummary']
   config?: Partial<AIConfig>
 }
 
@@ -256,6 +259,11 @@ export class LocalAIService implements AIService {
     }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
+    if (this.options.appendNetWorthEntry) {
+      systemParts.push(
+        'Tracker net worth: The user can log their true net worth separately from portfolio holdings. When they ask to log, record, or save a net worth figure for tracking, use add_net_worth_entry with the amount they state. Use get_net_worth_log to read what they logged. Do not infer logged net worth from portfolio holdings alone—those are not the same as full net worth.'
+      )
+    }
 
     const toolContext = {
       // Prefer main-process cache (holdings, loans, topHoldings from portfolioSync) over the
@@ -278,6 +286,8 @@ export class LocalAIService implements AIService {
       getSECFilingContent: this.options.getSECFilingContent,
       saveCustomBrandedReport: this.options.saveCustomBrandedReport,
       saveCustomCsvDocument: this.options.saveCustomCsvDocument,
+      appendNetWorthEntry: this.options.appendNetWorthEntry,
+      getNetWorthLogSummary: this.options.getNetWorthLogSummary,
     }
 
     const finocurveTools = createFinocurveTools(toolContext)

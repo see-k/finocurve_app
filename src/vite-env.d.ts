@@ -130,6 +130,73 @@ interface ElectronAPI {
     tickerOrCik: string
     accessionNumber: string
   }) => Promise<{ content: string | null; error: string | null }>
+  trackerGetState?: () => Promise<TrackerStatePayload>
+  trackerAppendNetWorth?: (payload: {
+    amount: number
+    recordedAt?: string
+    note?: string | null
+    source: 'manual' | 'ai'
+  }) => Promise<{ entry: TrackerNetWorthEntryPayload }>
+  trackerDeleteNetWorth?: (id: string) => Promise<{ ok: boolean }>
+  trackerUpdateNetWorth?: (payload: {
+    id: string
+    amount: number
+    note?: string | null
+    recordedAt: string
+  }) => Promise<{ entry: TrackerNetWorthEntryPayload | null }>
+  trackerCreateGoal?: (payload: {
+    title: string
+    targetAmount: number
+    targetDate?: string | null
+    progressSource: 'net_worth' | 'portfolio_balance' | 'debt_loans' | 'risk_score'
+    baselineAmount: number
+  }) => Promise<{ goal: TrackerGoalPayload }>
+  trackerUpdateGoal?: (payload: {
+    id: string
+    title: string
+    targetAmount: number
+    targetDate: string | null
+    progressSource: 'net_worth' | 'portfolio_balance' | 'debt_loans' | 'risk_score'
+    baselineAmount: number
+  }) => Promise<{ goal: TrackerGoalPayload | null }>
+  trackerDeleteGoal?: (id: string) => Promise<{ ok: boolean }>
+  trackerSetS3Options?: (opts: { autoBackup: boolean; autoSync: boolean }) => Promise<{ ok: boolean }>
+  trackerBackupNow?: () => Promise<{ ok: boolean; error?: string }>
+  trackerSyncNow?: () => Promise<{ ok: boolean; reason?: string }>
+  trackerRunStartupSync?: () => Promise<{ ok: boolean; reason?: string }>
+}
+
+interface TrackerNetWorthEntryPayload {
+  id: string
+  amount: number
+  recordedAt: string
+  source: 'manual' | 'ai'
+  note: string | null
+}
+
+interface TrackerGoalPayload {
+  id: string
+  title: string
+  targetAmount: number
+  baselineAmount: number
+  createdAt: string
+  targetDate: string | null
+  progressSource: 'net_worth' | 'portfolio_balance' | 'debt_loans' | 'risk_score'
+}
+
+interface TrackerStatePayload {
+  netWorthEntries: TrackerNetWorthEntryPayload[]
+  goals: TrackerGoalPayload[]
+  latestNetWorth: number | null
+  sync: {
+    lastPushedAt: string | null
+    lastPulledAt: string | null
+    lastRemoteUpdatedAt: string | null
+    lastLocalMutationAt: string | null
+    lastBackupError: string | null
+    lastSyncError: string | null
+    s3Options: { autoBackup: boolean; autoSync: boolean }
+  }
 }
 
 interface MCPServerDefinition {

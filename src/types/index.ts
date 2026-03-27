@@ -195,6 +195,41 @@ export interface UserPreferences {
   s3Bucket?: string
   s3Region?: string
   s3AccessKeyId?: string
+  /** Auto-upload Tracker SQLite snapshot to S3 after changes (requires S3 configured) */
+  trackerS3AutoBackup: boolean
+  /** Pull newer Tracker DB from S3 when remote manifest is newer (requires S3 configured) */
+  trackerS3AutoSync: boolean
+}
+
+// ============================================
+// Tracker (logged net worth + goals)
+// ============================================
+
+export type NetWorthSource = 'manual' | 'ai'
+
+export interface NetWorthEntry {
+  id: string
+  amount: number
+  recordedAt: string
+  source: NetWorthSource
+  note: string | null
+}
+
+/** What metric this goal measures progress against */
+export type TrackerGoalProgressSource =
+  | 'net_worth'
+  | 'portfolio_balance'
+  | 'debt_loans'
+  | 'risk_score'
+
+export interface TrackerGoal {
+  id: string
+  title: string
+  targetAmount: number
+  baselineAmount: number
+  createdAt: string
+  targetDate: string | null
+  progressSource: TrackerGoalProgressSource
 }
 
 // ============================================
@@ -353,7 +388,7 @@ export interface AmortizationEntry {
 // Navigation
 // ============================================
 
-export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'risk' | 'insights' | 'reports' | 'settings'
+export type MainTab = 'dashboard' | 'portfolio' | 'markets' | 'risk' | 'insights' | 'reports' | 'tracker' | 'settings'
 
 // ============================================
 // Display helpers

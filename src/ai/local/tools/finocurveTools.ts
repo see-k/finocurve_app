@@ -41,6 +41,9 @@ export interface FinocurveToolContext {
   }) => Promise<string>
   /** Desktop: save UTF-8 CSV (Excel-friendly) to finocurve/documents/ (local and/or S3). */
   saveCustomCsvDocument?: (payload: { fileBaseName: string; headers: string[]; rows: string[][] }) => Promise<string>
+  /** Desktop: append user-logged net worth entry (Tracker tab; not portfolio total). */
+  appendNetWorthEntry?: (args: { amount: number; note?: string; recordedAt?: string }) => Promise<string>
+  getNetWorthLogSummary?: () => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -78,7 +81,7 @@ ${topHoldingsBlock}${more}`
     {
       name: 'get_portfolio_summary',
       description:
-        'Get the user\'s portfolio summary: totals, gain/loss, asset count, risk score, and the 10 largest non-loan holdings by value. Use get_holdings for every holding. Use this for net worth, portfolio overview, or allocation questions at a glance.',
+        'Get the user\'s portfolio summary: totals, gain/loss, asset count, risk score, and the 10 largest non-loan holdings by value. Use get_holdings for every holding. Use for portfolio overview or allocation. For the user\'s separately logged true net worth (Tracker), use get_net_worth_log — portfolio total is not the same as logged net worth.',
     }
   )
 
@@ -497,6 +500,42 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const addNetWorthEntry = tool(
+    async ({ amount, note, recorded_at }: { amount: number; note?: string; recorded_at?: string }) => {
+      if (!ctx.appendNetWorthEntry) {
+        return 'Net worth logging is only available in the FinoCurve desktop app.'
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return 'Amount must be a positive number (total net worth in the user\'s default currency).'
+      }
+      return ctx.appendNetWorthEntry({ amount, note, recordedAt: recorded_at })
+    },
+    {
+      name: 'add_net_worth_entry',
+      description:
+        'Append a net worth snapshot to the user\'s Tracker log (true net worth they want recorded — not the same as portfolio book value). Use when they explicitly ask to log or record their net worth or give a figure for tracking. Optional note and recorded_at (ISO 8601); omit recorded_at to use now.',
+      schema: z.object({
+        amount: z.number().positive().describe('Total net worth amount in the user\'s default currency'),
+        note: z.string().max(500).optional().describe('Optional short note'),
+        recorded_at: z.string().optional().describe('ISO 8601 timestamp; default is current time'),
+      }),
+    }
+  )
+
+  const getNetWorthLog = tool(
+    async () => {
+      if (!ctx.getNetWorthLogSummary) {
+        return 'Net worth log is only available in the FinoCurve desktop app.'
+      }
+      return ctx.getNetWorthLogSummary()
+    },
+    {
+      name: 'get_net_worth_log',
+      description:
+        'List user-logged net worth entries from Tracker (manual or AI-logged). Use when the user asks what they logged, their logged net worth history, or before adding duplicate entries.',
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -535,5 +574,7 @@ ${topHoldingsBlock}${more}`
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)
   if (ctx.saveCustomBrandedReport) baseTools.push(saveCustomBrandedReportPdf)
   if (ctx.saveCustomCsvDocument) baseTools.push(saveCustomCsvDocument)
+  if (ctx.appendNetWorthEntry) baseTools.push(addNetWorthEntry)
+  if (ctx.getNetWorthLogSummary) baseTools.push(getNetWorthLog)
   return baseTools
 }
