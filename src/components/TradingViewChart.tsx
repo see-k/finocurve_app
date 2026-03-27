@@ -1,11 +1,40 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme, themeToTradingViewColorTheme } from '../theme/ThemeContext'
 import { tradingViewBackgroundColor, isDarkTheme } from '../theme/themes'
 import './TradingViewChart.css'
 
+export interface ChartSymbolLookup {
+  symbol: string
+  type: string
+}
+
 interface TradingViewChartProps {
   symbol: string
   onClose?: () => void
+  /** `overlay` = fullscreen modal (portaled to `document.body` so it sits above the shell nav). `embedded` = in-page chart. */
+  variant?: 'overlay' | 'embedded'
+}
+
+/**
+ * Turn user input into a TradingView symbol. Pass `lookup` to resolve tickers from your watchlists.
+ * - Empty → NASDAQ:AAPL
+ * - Contains `:` → used as-is (trimmed)
+ * - Matches `lookup` → getTradingViewSymbol
+ * - Otherwise simple 1–5 letter ticker → NASDAQ:TICKER
+ */
+export function resolveChartSymbolInput(
+  raw: string,
+  lookup?: (upperTicker: string) => ChartSymbolLookup | undefined,
+): string {
+  const t = raw.trim()
+  if (!t) return 'NASDAQ:AAPL'
+  if (t.includes(':')) return t.replace(/\s/g, '').toUpperCase()
+  const u = t.replace(/\s/g, '').toUpperCase()
+  const found = lookup?.(u)
+  if (found) return getTradingViewSymbol(found.symbol, found.type)
+  if (/^[A-Z]{1,5}$/.test(u)) return `NASDAQ:${u}`
+  return u
 }
 
 const CRYPTO_MAP: Record<string, string> = {
@@ -53,7 +82,11 @@ function loadTvJs(): Promise<void> {
   return tvPromise
 }
 
-export default function TradingViewChart({ symbol, onClose }: TradingViewChartProps) {
+export default function TradingViewChart({
+  symbol,
+  onClose,
+  variant = 'overlay',
+}: TradingViewChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
   const [loading, setLoading] = useState(true)
@@ -120,23 +153,40 @@ export default function TradingViewChart({ symbol, onClose }: TradingViewChartPr
     initChart()
   }, [initChart])
 
-  return (
-    <div className="tv-chart-overlay">
+  const rootClass =
+    variant === 'overlay'
+      ? 'tv-chart-overlay tv-chart-overlay--on-body'
+      : 'tv-chart-embedded'
+
+  const inner = (
+    <div className={rootClass}>
       <div className="tv-chart-header">
         <span className="tv-chart-symbol">{symbol}</span>
         {onClose && (
-          <button className="tv-chart-close" onClick={onClose}>
+          <button
+            type="button"
+            className="tv-chart-close"
+            onClick={onClose}
+          >
             Close
           </button>
         )}
       </div>
-      <div className="tv-chart-container" ref={containerRef} />
-      {loading && (
-        <div className="tv-chart-loading">
-          <div className="tv-chart-spinner" />
-          <span>Loading TradingView chart…</span>
-        </div>
-      )}
+      <div className="tv-chart-container">
+        <div className="tv-chart-widget-mount" ref={containerRef} />
+        {loading && (
+          <div className="tv-chart-loading">
+            <div className="tv-chart-spinner" />
+            <span>Loading TradingView chart…</span>
+          </div>
+        )}
+      </div>
     </div>
   )
+
+  if (variant === 'overlay' && typeof document !== 'undefined') {
+    return createPortal(inner, document.body)
+  }
+
+  return inner
 }

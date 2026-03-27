@@ -134,7 +134,7 @@ export function TimelineWidget({ height = 500, className = '' }: WidgetProps) {
   return <div ref={ref} className={className} style={{ height, overflow: 'hidden' }} />
 }
 
-// ─── Events (Economic Calendar) ─────────────────────────────────────────────
+// ─── Events (Economic calendar — https://www.tradingview.com/widget-docs/widgets/calendars/economic-calendar/ ) ─
 
 export function EventsWidget({ height = 500, className = '' }: WidgetProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -187,6 +187,167 @@ export function ForexCrossRatesWidget({
       },
     )
   }, [colorTheme, height])
+
+  return <div ref={ref} className={className} style={{ height, overflow: 'hidden' }} />
+}
+
+// ─── Heatmaps (Stock, Crypto, Forex, ETF) ───────────────────────────────────
+
+export type HeatmapKind = 'stock' | 'crypto' | 'forex' | 'etf'
+
+const HEATMAP_SCRIPT: Record<HeatmapKind, string> = {
+  stock: 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js',
+  crypto: 'https://s3.tradingview.com/external-embedding/embed-widget-crypto-coins-heatmap.js',
+  forex: 'https://s3.tradingview.com/external-embedding/embed-widget-forex-heat-map.js',
+  etf: 'https://s3.tradingview.com/external-embedding/embed-widget-etf-heatmap.js',
+}
+
+export function HeatmapWidget({
+  kind,
+  height = 560,
+  className = '',
+}: WidgetProps & { kind: HeatmapKind }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const { theme } = useTheme()
+  const colorTheme = themeToTradingViewColorTheme(theme)
+
+  useEffect(() => {
+    if (!ref.current) return
+    const common = {
+      width: '100%',
+      height,
+      autosize: false,
+      colorTheme,
+      isTransparent: true,
+      locale: 'en',
+    }
+
+    let config: Record<string, unknown>
+    switch (kind) {
+      case 'stock':
+        config = {
+          ...common,
+          dataSource: 'SPX500',
+          exchanges: [],
+          grouping: 'sector',
+          blockSize: 'market_cap_basic',
+          blockColor: 'change',
+          hasTopBar: true,
+          isDataSetEnabled: false,
+          isZoomEnabled: true,
+          hasSymbolTooltip: true,
+          symbolUrl: '',
+          isMonoSize: false,
+        }
+        break
+      case 'crypto':
+        config = {
+          ...common,
+          dataSource: 'Crypto',
+          blockSize: 'market_cap_calc',
+          blockColor: '24h_close_change|5',
+          hasTopBar: true,
+          isDataSetEnabled: false,
+          isZoomEnabled: true,
+          hasSymbolTooltip: true,
+          symbolUrl: '',
+          isMonoSize: false,
+        }
+        break
+      case 'forex':
+        config = {
+          ...common,
+          currencies: [
+            'EUR',
+            'USD',
+            'JPY',
+            'GBP',
+            'CHF',
+            'AUD',
+            'CAD',
+            'NZD',
+            'CNY',
+          ],
+          frameElementId: null,
+        }
+        break
+      case 'etf':
+        config = {
+          ...common,
+          dataSource: 'AllUSEtf',
+          grouping: 'asset_class',
+          blockSize: 'volume',
+          blockColor: 'change',
+          hasTopBar: true,
+          isDataSetEnabled: false,
+          isZoomEnabled: true,
+          hasSymbolTooltip: true,
+          symbolUrl: '',
+          isMonoSize: false,
+        }
+        break
+    }
+
+    mountWidget(ref.current, HEATMAP_SCRIPT[kind], config)
+  }, [kind, colorTheme, height])
+
+  return <div ref={ref} className={className} style={{ height, overflow: 'hidden' }} />
+}
+
+// ─── Screener ───────────────────────────────────────────────────────────────
+
+export type ScreenerMarket = 'us' | 'forex' | 'crypto_mkt'
+
+export function ScreenerWidget({
+  market,
+  height = 560,
+  className = '',
+}: WidgetProps & { market: ScreenerMarket }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const { theme } = useTheme()
+  const colorTheme = themeToTradingViewColorTheme(theme)
+
+  useEffect(() => {
+    if (!ref.current) return
+
+    const base: Record<string, unknown> = {
+      width: '100%',
+      height,
+      colorTheme,
+      isTransparent: true,
+      locale: 'en',
+      showToolbar: true,
+      defaultColumn: 'overview',
+    }
+
+    let config: Record<string, unknown>
+    if (market === 'crypto_mkt') {
+      config = {
+        ...base,
+        market: 'crypto',
+        screener_type: 'crypto_mkt',
+        displayCurrency: 'USD',
+      }
+    } else if (market === 'forex') {
+      config = {
+        ...base,
+        market: 'forex',
+        defaultScreen: 'general',
+      }
+    } else {
+      config = {
+        ...base,
+        market: 'us',
+        defaultScreen: 'most_capitalized',
+      }
+    }
+
+    mountWidget(
+      ref.current,
+      'https://s3.tradingview.com/external-embedding/embed-widget-screener.js',
+      config,
+    )
+  }, [market, colorTheme, height])
 
   return <div ref={ref} className={className} style={{ height, overflow: 'hidden' }} />
 }

@@ -1,4 +1,4 @@
-import type { ReactNode, ChangeEvent } from 'react'
+import type { ReactNode, ChangeEvent, KeyboardEvent } from 'react'
 import './GlassTextField.css'
 
 interface GlassTextFieldProps {
@@ -11,6 +11,7 @@ interface GlassTextFieldProps {
   disabled?: boolean
   error?: string
   maxLines?: number
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void
 }
 
 export default function GlassTextField({
@@ -23,6 +24,7 @@ export default function GlassTextField({
   disabled = false,
   error,
   maxLines,
+  onKeyDown,
 }: GlassTextFieldProps) {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     onChange?.(e.target.value)
@@ -39,6 +41,7 @@ export default function GlassTextField({
             className="glass-text-field__input"
             value={value}
             onChange={handleChange}
+            onKeyDown={onKeyDown}
             placeholder={placeholder}
             disabled={disabled}
             rows={maxLines}
@@ -49,6 +52,7 @@ export default function GlassTextField({
             type={type}
             value={value}
             onChange={handleChange}
+            onKeyDown={onKeyDown}
             placeholder={placeholder}
             disabled={disabled}
           />

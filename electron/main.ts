@@ -32,6 +32,12 @@ process.env.VITE_PUBLIC = app.isPackaged
   ? process.env.DIST
   : path.join(process.env.DIST, '../public')
 
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+
 let win: BrowserWindow | null
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -94,6 +100,13 @@ app.on('before-quit', () => {
   stopMCPServers().catch(() => {})
 })
 
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+})
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
@@ -112,3 +125,5 @@ app.whenReady().then(() => {
   registerMCPHandlers()
   createWindow()
 })
+
+} // end single-instance lock guard

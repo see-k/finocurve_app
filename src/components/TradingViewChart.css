@@ -6,14 +6,37 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Portaled to body — escapes main-content stacking context so we sit above shell nav (z-index 100) */
+.tv-chart-overlay--on-body {
+  z-index: 10000;
+}
+
+.tv-chart-embedded {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: min(72vh, 820px);
+  width: 100%;
+  max-width: 100%;
+  background: var(--bg-primary);
+  border-radius: 16px;
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+}
+
 .tv-chart-header {
+  position: relative;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 12px 20px;
   background: var(--glass-bg);
   border-bottom: 1px solid var(--glass-border);
   backdrop-filter: blur(20px);
+  flex-shrink: 0;
 }
 .tv-chart-symbol {
   font-size: 16px;
@@ -21,6 +44,8 @@
   color: var(--text-primary);
 }
 .tv-chart-close {
+  position: relative;
+  z-index: 5;
   padding: 6px 16px;
   border-radius: 8px;
   border: 1px solid var(--glass-border);
@@ -37,10 +62,20 @@
 .tv-chart-container {
   flex: 1;
   position: relative;
+  min-height: 0;
+  z-index: 1;
 }
+
+.tv-chart-widget-mount {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
 .tv-chart-loading {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -120,7 +120,12 @@ const CONFIDENCE_META: Record<string, { color: string; label: string }> = {
   low:    { color: '#64748b', label: 'Low confidence' },
 }
 
-export default function RiskAnalysisScreen() {
+interface RiskAnalysisScreenProps {
+  /** When true, rendered inside MainShell: hide back control (shell nav is used instead). */
+  embeddedInShell?: boolean
+}
+
+export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnalysisScreenProps) {
   const navigate = useNavigate()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { snapshots, lastSnapshot, addSnapshot } = useRiskSnapshots()
@@ -534,7 +539,9 @@ export default function RiskAnalysisScreen() {
         </div>
         <div className="risk-page__inner risk-page__inner--visible">
         <div className="risk-page__header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          {!embeddedInShell && (
+            <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          )}
           <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
         </div>
         <GlassContainer padding="48px" borderRadius={20} className="risk-empty">
@@ -556,7 +563,9 @@ export default function RiskAnalysisScreen() {
       <div className={`risk-page__inner ${visible ? 'risk-page__inner--visible' : ''}`}>
         {/* Header */}
         <div className="risk-page__header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          {!embeddedInShell && (
+            <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          )}
           <h1 className="risk-page__title"><Shield size={22} /> Risk Analysis</h1>
           <div className="risk-page__header-right">
             {s3Connected && (

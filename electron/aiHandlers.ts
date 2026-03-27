@@ -177,7 +177,16 @@ function getFinocurveLogoDataUrlForMain(): string | null {
 async function saveCustomBrandedReportForChat(payload: {
   title: string
   subtitle?: string
-  sections: { heading: string; body: string }[]
+  sections: {
+    heading: string
+    body: string
+    tables?: { title?: string; headers: string[]; rows: string[][] }[]
+    charts?: (
+      | { type: 'bar'; title?: string; labels: string[]; values: number[] }
+      | { type: 'line'; title?: string; labels: string[]; values: number[] }
+      | { type: 'pie'; title?: string; labels: string[]; values: number[] }
+    )[]
+  }[]
 }): Promise<string> {
   const logo = getFinocurveLogoDataUrlForMain()
   const pdf = generateBrandedCustomReportPdf({

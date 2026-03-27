@@ -315,8 +315,28 @@ export default function ReportsScreen() {
     }
   }
 
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+
+  const lockScroll = useCallback(() => {
+    const el = document.querySelector<HTMLElement>('.main-content__inner')
+    if (el) {
+      scrollContainerRef.current = el
+      el.style.overflow = 'hidden'
+    }
+  }, [])
+
+  const unlockScroll = useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.overflow = ''
+      scrollContainerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => () => unlockScroll(), [unlockScroll])
+
   const handleView = async (item: FileItem) => {
     if (!isViewable(item.key)) return
+    lockScroll()
     setViewItem(item)
     setViewUrl(null)
     setViewError(null)
@@ -328,7 +348,11 @@ export default function ReportsScreen() {
       } else if (item.source === 'local' && window.electronAPI?.localStorageReadFile) {
         const { base64 } = await window.electronAPI.localStorageReadFile({ key: item.key })
         const mime = mimeFromKey(item.key)
-        setViewUrl(`data:${mime};base64,${base64}`)
+        const binary = atob(base64)
+        const len = binary.length
+        const bytes = new Uint8Array(len)
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i)
+        setViewUrl(URL.createObjectURL(new Blob([bytes], { type: mime })))
       } else {
         setViewError('Cannot load file for preview')
       }
@@ -340,6 +364,8 @@ export default function ReportsScreen() {
   }
 
   const closeViewer = () => {
+    if (viewUrl && viewUrl.startsWith('blob:')) URL.revokeObjectURL(viewUrl)
+    unlockScroll()
     setViewItem(null)
     setViewUrl(null)
     setViewError(null)
@@ -487,6 +513,8 @@ export default function ReportsScreen() {
       const oldId = fileItemId(renameItem)
       setSelectedDocumentIds((prev) => prev.filter((id) => id !== oldId))
       if (viewItem && fileItemId(viewItem) === oldId) {
+        if (viewUrl && viewUrl.startsWith('blob:')) URL.revokeObjectURL(viewUrl)
+        unlockScroll()
         setViewItem(null)
         setViewUrl(null)
         setViewError(null)
@@ -498,7 +526,7 @@ export default function ReportsScreen() {
     } finally {
       setRenameBusy(false)
     }
-  }, [renameItem, renameDraft, documents, viewItem, loadAll])
+  }, [renameItem, renameDraft, documents, viewItem, viewUrl, loadAll, unlockScroll])
 
   const openRenameDocument = (item: FileItem) => {
     if (!isDocumentKey(item.key)) return
@@ -980,17 +1008,19 @@ export default function ReportsScreen() {
                 <X size={24} />
               </button>
             </div>
-            <div className="reports-viewer-body">
+            <div className={`reports-viewer-body${viewLoading || viewError ? ' reports-viewer-body--centered' : ''}`}>
               {viewLoading && <p className="reports-viewer-loading">Loading...</p>}
               {viewError && <p className="reports-viewer-error">{viewError}</p>}
               {viewUrl && !viewLoading && !viewError && (
                 <>
                   {viewItem.key.toLowerCase().endsWith('.pdf') ? (
-                    <iframe
-                      src={viewUrl}
-                      title={fileNameFromKey(viewItem.key)}
-                      className="reports-viewer-iframe"
-                    />
+                    <div className="reports-viewer-iframe-wrap">
+                      <iframe
+                        src={viewUrl}
+                        title={fileNameFromKey(viewItem.key)}
+                        className="reports-viewer-iframe"
+                      />
+                    </div>
                   ) : (
                     <img
                       src={viewUrl}
