@@ -4,6 +4,7 @@
  * Supports tool-calling for portfolio, documents, and risk metrics.
  */
 
+import { Buffer } from 'node:buffer'
 import type { BaseMessage } from '@langchain/core/messages'
 import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
 import type {
@@ -60,6 +61,152 @@ function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
   if (answerPart) chunks.push({ type: 'answer', content: answerPart })
 
   return chunks.length > 0 ? chunks : [{ type: 'answer', content: raw }]
+}
+
+const MAX_VISION_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_ATTACHMENT_TEXT_CHARS = 80_000
+
+function isVisionImageMime(mime: string): boolean {
+  const m = mime.toLowerCase().split(';')[0].trim()
+  return (
+    m === 'image/png' ||
+    m === 'image/jpeg' ||
+    m === 'image/jpg' ||
+    m === 'image/gif' ||
+    m === 'image/webp'
+  )
+}
+
+const TEXT_LIKE_EXTENSIONS = new Set([
+  '.json',
+  '.md',
+  '.markdown',
+  '.html',
+  '.htm',
+  '.xml',
+  '.txt',
+  '.csv',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.sql',
+  '.yaml',
+  '.yml',
+  '.log',
+])
+
+function fileExtLower(name: string): string {
+  const i = name.lastIndexOf('.')
+  return i >= 0 ? name.slice(i).toLowerCase() : ''
+}
+
+function isProbablyUtf8TextFile(fileName: string, mime: string): boolean {
+  const m = mime.toLowerCase()
+  if (m.startsWith('text/') || m.includes('json') || m.includes('xml') || m.includes('javascript')) {
+    return true
+  }
+  return TEXT_LIKE_EXTENSIONS.has(fileExtLower(fileName))
+}
+
+/** Build a LangChain user message with optional vision blocks and inlined document text. */
+async function chatUserToHumanMessage(message: ChatMessage): Promise<HumanMessage> {
+  const attachments = message.attachments
+  if (!attachments?.length) {
+    return new HumanMessage(message.content)
+  }
+
+  const supplemental: string[] = []
+  const imageBlocks: { type: 'image_url'; image_url: { url: string } }[] = []
+
+  for (const att of attachments) {
+    const name = att.name?.trim() || 'attachment'
+    let buf: Uint8Array
+    try {
+      buf = new Uint8Array(Buffer.from(att.dataBase64, 'base64'))
+    } catch {
+      supplemental.push(`[Attached ${name}: invalid base64 encoding]`)
+      continue
+    }
+    if (buf.length === 0) {
+      supplemental.push(`[Attached ${name}: empty file]`)
+      continue
+    }
+
+    const mime = (att.mimeType || 'application/octet-stream').toLowerCase().split(';')[0].trim()
+
+    if (isVisionImageMime(mime)) {
+      if (buf.length > MAX_VISION_IMAGE_BYTES) {
+        supplemental.push(
+          `[Image ${name} skipped: file exceeds ${MAX_VISION_IMAGE_BYTES / 1024 / 1024}MB limit]`
+        )
+        continue
+      }
+      const b64 = Buffer.from(buf).toString('base64')
+      imageBlocks.push({
+        type: 'image_url',
+        image_url: { url: `data:${mime};base64,${b64}` },
+      })
+      continue
+    }
+
+    let extracted = ''
+    try {
+      extracted = (await extractTextFromDocument(buf, mime, name)).trim()
+    } catch (e) {
+      supplemental.push(
+        `[Attached ${name}: text extraction failed — ${e instanceof Error ? e.message : 'unknown error'}]`
+      )
+      continue
+    }
+
+    if (!extracted && isProbablyUtf8TextFile(name, mime)) {
+      extracted = new TextDecoder('utf-8', { fatal: false }).decode(buf).trim()
+    }
+
+    if (extracted) {
+      const body =
+        extracted.length > MAX_ATTACHMENT_TEXT_CHARS
+          ? `${extracted.slice(0, MAX_ATTACHMENT_TEXT_CHARS)}\n… [truncated]`
+          : extracted
+      supplemental.push(`--- ${name} ---\n${body}`)
+    } else {
+      supplemental.push(
+        `[Attached ${name}: no extractable text. Supported: images (PNG, JPEG, GIF, WebP), PDF, CSV, TXT, and common text/code formats.]`
+      )
+    }
+  }
+
+  const textBody = [message.content.trim(), supplemental.filter(Boolean).join('\n\n')]
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
+  const finalText = textBody || '(User attached files only.)'
+
+  if (imageBlocks.length === 0) {
+    return new HumanMessage(finalText)
+  }
+
+  return new HumanMessage({
+    content: [{ type: 'text', text: finalText }, ...imageBlocks],
+  })
+}
+
+async function messagesToLangChain(messages: ChatMessage[]): Promise<BaseMessage[]> {
+  const out: BaseMessage[] = []
+  for (const m of messages) {
+    if (m.role === 'user') {
+      out.push(await chatUserToHumanMessage(m))
+    } else if (m.role === 'assistant') {
+      out.push(new AIMessage(m.content))
+    } else {
+      out.push(new SystemMessage(m.content))
+    }
+  }
+  return out
 }
 
 function normalizeChatFollowUps(items: { label: string; prompt: string }[]): ChatFollowUp[] {
@@ -280,6 +427,13 @@ export class LocalAIService implements AIService {
     }
     if (context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
+    const hasAttachments = messages.some((m) => m.role === 'user' && (m.attachments?.length ?? 0) > 0)
+    if (hasAttachments) {
+      systemParts.push(
+        'The user can attach images and files to messages. Use image content when answering questions about screenshots or charts. Use inlined document excerpts (marked with --- filename ---) for PDFs, CSV, and text files. If an attachment could not be read, say so briefly and ask for a different format or pasted text.'
+      )
+    }
+
     if (
       this.options.appendNetWorthEntry ||
       this.options.getTrackerGoalsSummary ||
@@ -342,13 +496,7 @@ export class LocalAIService implements AIService {
 
     const langchainMessages = [
       new SystemMessage(systemParts.join('\n')),
-      ...messages.map((m) =>
-        m.role === 'user'
-          ? new HumanMessage(m.content)
-          : m.role === 'assistant'
-            ? new AIMessage(m.content)
-            : new SystemMessage(m.content)
-      ),
+      ...(await messagesToLangChain(messages)),
     ]
 
     const MAX_TOOL_ROUNDS = 5

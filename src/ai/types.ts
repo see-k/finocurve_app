@@ -73,9 +73,19 @@ export interface ChatFollowUp {
   prompt: string
 }
 
+/** File included with a user chat turn (serialized over IPC as base64). */
+export interface ChatAttachment {
+  name: string
+  mimeType: string
+  /** Raw base64 payload (no `data:` URL prefix). */
+  dataBase64: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
+  /** User messages only: images (vision) and/or documents inlined as text after extraction. */
+  attachments?: ChatAttachment[]
 }
 
 export interface ChatContext {
