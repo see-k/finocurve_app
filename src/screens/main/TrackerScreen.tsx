@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line,
+  ComposedChart,
 } from 'recharts'
 import { Target, Plus, Trash2, TrendingUp, Wallet, Pencil, X, ChevronDown } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
@@ -22,6 +23,7 @@ import {
   naturalBaselineForGoalSource,
   portfolioHoldingsValue,
 } from '../../lib/trackerGoalMetrics'
+import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
 import './TrackerScreen.css'
 
 /** Same hero image treatment as Dashboard */
@@ -205,6 +207,27 @@ export default function TrackerScreen() {
       })),
     [netWorthEntries]
   )
+
+  const netWorthChartWithTrend = useMemo(
+    () =>
+      augmentSeriesWithLinearTrend(chartData, {
+        forecastSteps: 2,
+        minPoints: 3,
+        extrapolationPaddingFraction: 0.22,
+      }),
+    [chartData]
+  )
+
+  /** Y scale from logged net worth only so trend/projection can't blow up the axis. */
+  const netWorthYDomain = useMemo((): [number, number] | undefined => {
+    const vals = chartData.map((d) => d.value).filter((v) => Number.isFinite(v))
+    if (vals.length === 0) return undefined
+    const lo = Math.min(...vals)
+    const hi = Math.max(...vals)
+    const span = hi - lo || Math.max(Math.abs(hi) * 0.08, 1)
+    const pad = Math.max(span * 0.12, Math.abs(hi) * 0.03, 1)
+    return [lo - pad, hi + pad]
+  }, [chartData])
 
   const newGoalLiveValue = useMemo(
     () => currentValueForGoalSource(goalProgressSource, latestNetWorth, portfolio, liveRiskScore),
@@ -493,34 +516,73 @@ export default function TrackerScreen() {
           </div>
 
           {chartData.length >= 2 ? (
-            <div className="tracker-chart tracker-chart--fill">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                  <defs>
-                    <linearGradient id="trackerGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="dateLabel" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => fmtMoney(Number(v), cur)}
-                    width={80}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--glass-bg)',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: 12,
-                    }}
-                    formatter={(value: number) => [fmtMoney(value, cur), 'Net worth']}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#trackerGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="tracker-chart tracker-nw-chart">
+              <div className="tracker-nw-chart__plot">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={netWorthChartWithTrend} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="trackerGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="dateLabel"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={netWorthYDomain ?? ['auto', 'auto']}
+                      allowDataOverflow={netWorthYDomain != null}
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => fmtMoney(Number(v), cur)}
+                      width={80}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--glass-bg)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: 12,
+                      }}
+                      formatter={(value: number | string, name: string) => {
+                        if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name]
+                        return [fmtMoney(value, cur), name]
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--brand-primary)"
+                      strokeWidth={2}
+                      fill="url(#trackerGrad)"
+                      connectNulls={false}
+                      name="Net worth"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="histTrend"
+                      stroke="var(--text-tertiary)"
+                      strokeWidth={1.5}
+                      dot={false}
+                      name="Linear trend"
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="futTrend"
+                      stroke="#f59e0b"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 4"
+                      dot={false}
+                      name="Projection"
+                      connectNulls
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           ) : (
             <p className="tracker-muted tracker-chart-hint">
@@ -736,6 +798,11 @@ export default function TrackerScreen() {
               )
               const pct = goalProgressPercent(g, currentMetric)
               const mini = goalChartData(g, currentMetric)
+              const miniWithTrend = augmentSeriesWithLinearTrend(mini, {
+                forecastSteps: 2,
+                minPoints: 2,
+                ...(g.progressSource === 'risk_score' ? { valueClamp: [0, 100] as const } : {}),
+              })
               const atBaseline =
                 g.progressSource === 'risk_score'
                   ? Math.round(currentMetric) === Math.round(g.baselineAmount)
@@ -889,7 +956,7 @@ export default function TrackerScreen() {
                   {expanded && mini.length >= 2 ? (
                     <div className="tracker-mini-chart">
                       <ResponsiveContainer width="100%" height={100}>
-                        <LineChart data={mini} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                        <LineChart data={miniWithTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                           <XAxis dataKey="dateLabel" hide />
                           <YAxis
                             hide
@@ -900,10 +967,19 @@ export default function TrackerScreen() {
                             }
                           />
                           <Tooltip
-                            formatter={(v: number) => [
-                              fmtGoalMetric(v, cur, g.progressSource),
-                              g.progressSource === 'risk_score' ? 'Score' : 'Value',
-                            ]}
+                            formatter={(v: number | string, name: string) => {
+                              if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
+                              return [
+                                fmtGoalMetric(v, cur, g.progressSource),
+                                name === 'Linear trend'
+                                  ? 'Trend'
+                                  : name === 'Projection'
+                                    ? 'Proj.'
+                                    : g.progressSource === 'risk_score'
+                                      ? 'Score'
+                                      : 'Value',
+                              ]
+                            }}
                           />
                           <Line
                             type="monotone"
@@ -911,6 +987,27 @@ export default function TrackerScreen() {
                             stroke="var(--brand-primary)"
                             strokeWidth={2}
                             dot={mini.length <= 2 ? { r: 3, fill: 'var(--brand-primary)' } : false}
+                            name="Actual"
+                            connectNulls={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="histTrend"
+                            stroke="var(--text-tertiary)"
+                            strokeWidth={1}
+                            dot={false}
+                            name="Linear trend"
+                            connectNulls
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="futTrend"
+                            stroke="#f59e0b"
+                            strokeWidth={1}
+                            strokeDasharray="3 2"
+                            dot={false}
+                            name="Projection"
+                            connectNulls
                           />
                         </LineChart>
                       </ResponsiveContainer>

@@ -4,6 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
   Sankey, Rectangle, Layer,
+  ComposedChart, Line,
 } from 'recharts'
 import {
   ArrowUpRight, ArrowDownRight, Plus, Briefcase, ChevronRight, GitBranch,
@@ -15,6 +16,7 @@ import { usePortfolio } from '../../store/usePortfolio'
 import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
 import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { getPerformanceChartData } from '../../utils/performanceChartData'
+import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
 import type { PerformancePeriod, Asset } from '../../types'
 import {
   assetCurrentValue, assetGainLossPercent, isLoan,
@@ -52,6 +54,15 @@ export default function PortfolioScreen() {
   const { data: chartData, hasRealData } = useMemo(
     () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
     [history, totalValue, selectedPeriod, historicalApiData]
+  )
+
+  const chartDataWithTrend = useMemo(
+    () =>
+      augmentSeriesWithLinearTrend(chartData, {
+        forecastSteps: 4,
+        minPoints: 3,
+      }),
+    [chartData]
   )
 
   const allocData = useMemo(() => {
@@ -270,7 +281,7 @@ export default function PortfolioScreen() {
           <p className="performance-chart-disclaimer">History builds as you use the app. Add stocks or ETFs with symbols to see live historical performance.</p>
         )}
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
+          <ComposedChart data={chartDataWithTrend} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
             <defs>
               <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
@@ -303,12 +314,29 @@ export default function PortfolioScreen() {
             />
             <Tooltip
               contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
-              formatter={(v: number) => [`$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Value']}
+              formatter={(v: number | string, name: string) => {
+                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
+                return [`$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]
+              }}
               labelFormatter={(label) => `Date: ${label}`}
             />
-            <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#portfolioGrad)" />
-          </AreaChart>
+            <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#portfolioGrad)" connectNulls={false} />
+            <Line type="monotone" dataKey="histTrend" stroke="var(--text-tertiary)" strokeWidth={1.5} dot={false} name="Linear trend" connectNulls />
+            <Line
+              type="monotone"
+              dataKey="futTrend"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              dot={false}
+              name="Projection (extrapolated)"
+              connectNulls
+            />
+          </ComposedChart>
         </ResponsiveContainer>
+        <p className="performance-chart-disclaimer" style={{ marginTop: 8, marginBottom: 0 }}>
+          Gray: linear fit to the series. Dashed amber: extrapolation — illustrative only.
+        </p>
       </GlassContainer>
 
       {/* Sankey – Interactive Portfolio Flow */}

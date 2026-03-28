@@ -11,6 +11,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, Tooltip, BarChart, Bar, RadarChart, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, CartesianGrid,
+  ComposedChart,
 } from 'recharts'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
@@ -25,6 +26,7 @@ import {
   assetCurrentValue, SECTOR_LABELS, ASSET_TYPE_LABELS, isLoan,
 } from '../../types'
 import { RISK_LEVEL_META } from '../../constants/riskMeta'
+import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
@@ -1268,19 +1270,64 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                     liquidity: s.liquidityScore,
                     value: s.portfolioValue,
                   }))
+                  const riskScoreTrend = augmentSeriesWithLinearTrend(
+                    chartData.map((d) => ({ ...d, dateLabel: d.date, value: d.riskScore })),
+                    { forecastSteps: 3, minPoints: 3, valueClamp: [0, 100] }
+                  ).map((row) => ({
+                    date: row.dateLabel,
+                    riskScore: row.value,
+                    histTrend: row.histTrend,
+                    futTrend: row.futTrend,
+                  }))
                   return (
                     <>
                       <GlassContainer padding="24px" borderRadius={16}>
                         <h3 className="risk-section-title"><TrendingUp size={16} /> Risk Score Over Time</h3>
                         <ResponsiveContainer width="100%" height={220}>
-                          <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <ComposedChart data={riskScoreTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
                             <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={28} />
-                            <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} />
-                            <Line type="monotone" dataKey="riskScore" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="Risk Score" />
-                          </LineChart>
+                            <Tooltip
+                              contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
+                              formatter={(v: number | string, name: string) => {
+                                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
+                                return [`${v.toFixed(1)}`, name]
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="riskScore"
+                              stroke="#6366f1"
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: '#6366f1' }}
+                              name="Risk score"
+                              connectNulls={false}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="histTrend"
+                              stroke="var(--text-tertiary)"
+                              strokeWidth={1.5}
+                              dot={false}
+                              name="Linear trend"
+                              connectNulls
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="futTrend"
+                              stroke="#f59e0b"
+                              strokeWidth={1.5}
+                              strokeDasharray="5 4"
+                              dot={false}
+                              name="Projection"
+                              connectNulls
+                            />
+                          </ComposedChart>
                         </ResponsiveContainer>
+                        <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.35 }}>
+                          Gray: linear fit to saved snapshots. Dashed amber: extrapolation — not a prediction of future risk.
+                        </p>
                       </GlassContainer>
 
                       <div className="risk-history-grid">

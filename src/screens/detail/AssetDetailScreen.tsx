@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit3, Trash2, BarChart2 } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Line } from 'recharts'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -11,6 +11,7 @@ import AssetLogo from '../../components/AssetLogo'
 import TradingViewChart, { getTradingViewSymbol } from '../../components/TradingViewChart'
 import type { Asset, AssetSector, PerformancePeriod } from '../../types'
 import { assetCurrentValue, assetGainLoss, assetGainLossPercent, ASSET_TYPE_ICONS, SECTOR_LABELS, isLoan } from '../../types'
+import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
 import './DetailScreen.css'
 import '../add-asset/AddAsset.css'
 
@@ -57,6 +58,14 @@ export default function AssetDetailScreen() {
     if (!asset) return []
     return generateMockChart(asset.currentPrice, period)
   }, [asset, period])
+
+  const chartDataWithTrend = useMemo(() => {
+    const base = chartData.map((d) => ({ ...d, dateLabel: d.date }))
+    return augmentSeriesWithLinearTrend(base, { forecastSteps: 4, minPoints: 3 }).map((row) => ({
+      ...row,
+      date: row.dateLabel,
+    }))
+  }, [chartData])
 
   if (!asset) {
     return (
@@ -157,7 +166,7 @@ export default function AssetDetailScreen() {
 
           <div className="detail-chart-area">
             <ResponsiveContainer>
-              <AreaChart data={chartData}>
+              <ComposedChart data={chartDataWithTrend}>
                 <defs>
                   <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
@@ -171,10 +180,24 @@ export default function AssetDetailScreen() {
                     background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)',
                     borderRadius: 12, fontSize: 13, color: 'var(--text-primary)',
                   }}
-                  formatter={(v: number) => ['$' + v.toLocaleString(), 'Price']}
+                  formatter={(v: number | string, name: string) => {
+                    if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
+                    return ['$' + v.toLocaleString(), name]
+                  }}
                 />
-                <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" fill="url(#colorVal)" strokeWidth={2} />
-              </AreaChart>
+                <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" fill="url(#colorVal)" strokeWidth={2} connectNulls={false} name="Price" />
+                <Line type="monotone" dataKey="histTrend" stroke="var(--text-tertiary)" strokeWidth={1.5} dot={false} name="Linear trend" connectNulls />
+                <Line
+                  type="monotone"
+                  dataKey="futTrend"
+                  stroke="#f59e0b"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
+                  dot={false}
+                  name="Projection"
+                  connectNulls
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </GlassContainer>

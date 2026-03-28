@@ -301,8 +301,27 @@
   margin-top: 8px;
 }
 
+.tracker-nw-chart {
+  flex: 1;
+  min-height: 220px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.tracker-nw-chart__plot {
+  width: 100%;
+  height: 100%;
+}
+
 .tracker-chart-hint {
   margin-top: 4px;
+}
+
+.tracker-chart-footnote {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.35;
 }
 
 .tracker-log-time-hint {

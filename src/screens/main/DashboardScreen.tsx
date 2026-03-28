@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
+  ComposedChart, Line,
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart3,
@@ -21,6 +22,7 @@ import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
 import { getPerformanceChartData } from '../../utils/performanceChartData'
+import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
 import type { PerformancePeriod, Asset } from '../../types'
 import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
 import './DashboardScreen.css'
@@ -64,6 +66,15 @@ export default function DashboardScreen() {
   const { data: chartData, hasRealData } = useMemo(
     () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
     [history, totalValue, selectedPeriod, historicalApiData]
+  )
+
+  const chartDataWithTrend = useMemo(
+    () =>
+      augmentSeriesWithLinearTrend(chartData, {
+        forecastSteps: 4,
+        minPoints: 3,
+      }),
+    [chartData]
   )
 
   const allocationData = useMemo(() => {
@@ -194,7 +205,7 @@ export default function DashboardScreen() {
         )}
         <div className="dashboard-chart">
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
+            <ComposedChart data={chartDataWithTrend} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
               <defs>
                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
@@ -227,13 +238,38 @@ export default function DashboardScreen() {
               />
               <Tooltip
                 contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                formatter={(value: number) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Value']}
+                formatter={(value: number | string, name: string) => {
+                  if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name]
+                  return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]
+                }}
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#chartGradient)" />
-            </AreaChart>
+              <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#chartGradient)" connectNulls={false} />
+              <Line
+                type="monotone"
+                dataKey="histTrend"
+                stroke="var(--text-tertiary)"
+                strokeWidth={1.5}
+                dot={false}
+                name="Linear trend"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="futTrend"
+                stroke="#f59e0b"
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                dot={false}
+                name="Projection (extrapolated)"
+                connectNulls
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
+        <p className="performance-chart-disclaimer" style={{ marginTop: 8, marginBottom: 0 }}>
+          Solid gray line: least-squares fit to the series. Dashed amber: same slope extended forward — illustrative only, not a forecast of returns.
+        </p>
       </GlassContainer>
 
       {/* Risk Score + Allocation row */}
