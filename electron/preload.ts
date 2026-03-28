@@ -94,8 +94,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('ai-generate-insights', payload),
   aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>
     ipcRenderer.invoke('ai-chat-stream', payload),
-  onAiChatChunk: (callback: (chunk: { type: 'reasoning' | 'answer'; content: string }) => void) => {
-    const handler = (_: unknown, chunk: { type: 'reasoning' | 'answer'; content: string }) => callback(chunk)
+  onAiChatChunk: (
+    callback: (
+      chunk:
+        | { type: 'reasoning' | 'answer'; content: string }
+        | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+    ) => void
+  ) => {
+    const handler = (
+      _: unknown,
+      chunk:
+        | { type: 'reasoning' | 'answer'; content: string }
+        | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+    ) => callback(chunk)
     ipcRenderer.on('ai-chat-chunk', handler)
     return () => ipcRenderer.removeListener('ai-chat-chunk', handler)
   },

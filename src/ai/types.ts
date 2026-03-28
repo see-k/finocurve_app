@@ -67,6 +67,12 @@ export interface DocumentInsight {
   recommendations: string[]
 }
 
+/** Clickable follow-up the assistant can offer after a reply (label = button, prompt = message sent). */
+export interface ChatFollowUp {
+  label: string
+  prompt: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
@@ -82,10 +88,11 @@ export interface ChatContext {
   riskMetrics?: string
 }
 
-/** Chunk from chat stream - reasoning (thinking) vs answer content. */
+/** Chunk from chat stream - reasoning (thinking) vs answer content vs suggested follow-ups. */
 export type ChatStreamChunk =
   | { type: 'reasoning'; content: string }
   | { type: 'answer'; content: string }
+  | { type: 'follow_ups'; items: ChatFollowUp[] }
 
 export interface Tool {
   name: string

@@ -17,11 +17,18 @@ function isAuthenticatedPath(path: string): boolean {
   return AUTHENTICATED_PATHS.some((p) => path.startsWith(p))
 }
 
+interface ChatFollowUpChip {
+  label: string
+  prompt: string
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   /** Reasoning/thinking from models that support it (o1, o3, llama thinking, etc.) */
   reasoning?: string
+  /** Clickable follow-ups from suggest_conversation_follow_ups */
+  followUps?: ChatFollowUpChip[]
 }
 
 const PREFS_STORAGE_KEY = 'finocurve-preferences'
@@ -100,14 +107,57 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
           ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
           typeof (m as ChatMessage).content === 'string'
       )
-      .map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(typeof m.reasoning === 'string' && m.reasoning ? { reasoning: m.reasoning } : {}),
-      }))
+      .map((m) => {
+        const rawFu = (m as ChatMessage).followUps
+        const followUps =
+          Array.isArray(rawFu) && rawFu.length > 0
+            ? rawFu.filter(
+                (f): f is ChatFollowUpChip =>
+                  !!f &&
+                  typeof f === 'object' &&
+                  typeof f.label === 'string' &&
+                  f.label.trim().length > 0 &&
+                  typeof f.prompt === 'string' &&
+                  f.prompt.trim().length > 0
+              )
+            : undefined
+        return {
+          role: m.role,
+          content: m.content,
+          ...(typeof m.reasoning === 'string' && m.reasoning ? { reasoning: m.reasoning } : {}),
+          ...(followUps && followUps.length > 0 ? { followUps } : {}),
+        }
+      })
   } catch {
     return []
   }
+}
+
+function AiChatFollowUpsRow({
+  items,
+  disabled,
+  onPick,
+}: {
+  items: ChatFollowUpChip[]
+  disabled?: boolean
+  onPick: (prompt: string) => void
+}) {
+  if (items.length === 0) return null
+  return (
+    <div className="ai-chat-follow-ups" role="list" aria-label="Suggested follow-ups">
+      {items.map((item, idx) => (
+        <button
+          key={`${idx}-${item.label.slice(0, 32)}`}
+          type="button"
+          className="ai-chat-follow-up-chip"
+          disabled={disabled}
+          onClick={() => onPick(item.prompt)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
@@ -154,9 +204,13 @@ export default function AIChatBubble() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
+  const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUpChip[]>([])
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  /** Latest thread for send/follow-up — updated each render and optimistically in submitUserText (never use setState updaters for side effects: Strict Mode runs them twice). */
+  const messagesRef = useRef<ChatMessage[]>(messages)
+  messagesRef.current = messages
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -171,7 +225,7 @@ export default function AIChatBubble() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streaming])
+  }, [messages, streaming, streamingFollowUps])
 
   useEffect(() => {
     resizeTextarea()
@@ -248,6 +302,7 @@ export default function AIChatBubble() {
     : undefined
 
   const handleNewChat = () => {
+    messagesRef.current = []
     setMessages([])
     setInput('')
     setError(null)
@@ -258,31 +313,30 @@ export default function AIChatBubble() {
     }
   }
 
-  const handleSend = async () => {
-    const text = input.trim()
-    if (!text || loading || !window.electronAPI?.aiChatStream) return
-
+  const submitUserText = (trimmed: string) => {
+    if (!trimmed || loading || !window.electronAPI?.aiChatStream) return
     setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: text }])
     setLoading(true)
     setError(null)
     setStreaming({ reasoning: '', answer: '' })
+    setStreamingFollowUps([])
 
-    const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
-      setStreaming((prev) =>
-        chunk.type === 'reasoning'
-          ? { ...prev, reasoning: prev.reasoning + chunk.content }
-          : { ...prev, answer: prev.answer + chunk.content }
-      )
-    })
+    const next = [...messagesRef.current, { role: 'user' as const, content: trimmed }]
+    messagesRef.current = next
+    setMessages(next)
+    void runChatWithHistory(next)
+  }
 
-    try {
-      const chatMessages = [...messages, { role: 'user' as const, content: text }].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }))
+  const runChatWithHistory = async (historyForApi: ChatMessage[]) => {
+    const streamChat = window.electronAPI?.aiChatStream
+    if (!streamChat) {
+      setLoading(false)
+      setError('AI chat is not available.')
+      return
+    }
 
-      const portfolioContext = portfolio && totalValue >= 0
+    const portfolioContext =
+      portfolio && totalValue >= 0
         ? {
             portfolioName: portfolio.name || 'Portfolio',
             totalValue,
@@ -291,7 +345,25 @@ export default function AIChatBubble() {
           }
         : undefined
 
-      const { text: response, reasoning } = await window.electronAPI.aiChatStream({
+    const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
+      if (chunk.type === 'follow_ups') {
+        setStreamingFollowUps(chunk.items)
+        return
+      }
+      setStreaming((prev) =>
+        chunk.type === 'reasoning'
+          ? { ...prev, reasoning: prev.reasoning + chunk.content }
+          : { ...prev, answer: prev.answer + chunk.content }
+      )
+    })
+
+    try {
+      const chatMessages = historyForApi.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }))
+
+      const { text: response, reasoning, followUps } = await streamChat({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
@@ -304,19 +376,31 @@ export default function AIChatBubble() {
 
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
+      setStreamingFollowUps([])
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: response || 'No response.', reasoning },
+        {
+          role: 'assistant',
+          content: response || 'No response.',
+          reasoning,
+          ...(followUps && followUps.length > 0 ? { followUps } : {}),
+        },
       ])
     } catch (e) {
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
+      setStreamingFollowUps([])
       setError(e instanceof Error ? e.message : 'Failed to get response')
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}` }])
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}` },
+      ])
     } finally {
       setLoading(false)
     }
   }
+
+  const handleSend = () => submitUserText(input.trim())
 
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'You'
 
@@ -399,6 +483,11 @@ export default function AIChatBubble() {
                           {msg.content}
                         </ReactMarkdown>
                       </div>
+                      <AiChatFollowUpsRow
+                        items={msg.followUps ?? []}
+                        disabled={loading}
+                        onPick={(prompt) => submitUserText(prompt.trim())}
+                      />
                     </>
                   ) : (
                     msg.content
@@ -450,6 +539,11 @@ export default function AIChatBubble() {
                         'Thinking...'
                       )}
                     </div>
+                    <AiChatFollowUpsRow
+                      items={streamingFollowUps}
+                      disabled={loading}
+                      onPick={(prompt) => submitUserText(prompt.trim())}
+                    />
                   </div>
                 </div>
               </div>

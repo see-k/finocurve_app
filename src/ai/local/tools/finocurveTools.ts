@@ -61,6 +61,8 @@ export interface FinocurveToolContext {
     targetDate?: string | null
     progressSource?: string
   }) => Promise<string>
+  /** Called when the model uses suggest_conversation_follow_ups so the UI can show clickable chips. */
+  recordSuggestedFollowUps?: (items: { label: string; prompt: string }[]) => void
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -668,6 +670,39 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const suggestConversationFollowUps = tool(
+    async ({ items }: { items: { label: string; prompt: string }[] }) => {
+      if (ctx.recordSuggestedFollowUps) {
+        ctx.recordSuggestedFollowUps(items)
+      }
+      return (
+        'Follow-up suggestions were registered for the chat UI. Do not repeat the same options as plain text in your reply; ' +
+        'the user will see them as buttons. Continue your answer normally if you have more to say.'
+      )
+    },
+    {
+      name: 'suggest_conversation_follow_ups',
+      description:
+        'Register 2–4 short follow-up prompts the user can tap to continue the conversation. Use after substantive answers: each item has `label` (very short button text, e.g. "Compare to S&P") and `prompt` (full user message to send). Tailor to the topic and user data. Skip for trivial yes/no replies.',
+      schema: z.object({
+        items: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80).describe('Short chip text, max ~6 words'),
+              prompt: z
+                .string()
+                .min(1)
+                .max(2000)
+                .describe('Complete question or instruction sent when the user taps this chip'),
+            })
+          )
+          .min(1)
+          .max(5)
+          .describe('Suggested next messages; 2–4 is ideal'),
+      }),
+    }
+  )
+
   const getSECFilingContent = tool(
     async ({ tickerOrCik, accessionNumber }: { tickerOrCik: string; accessionNumber: string }) => {
       if (!ctx.getSECFilingContent) {
@@ -700,6 +735,7 @@ ${topHoldingsBlock}${more}`
     getReportList,
     getReportContent,
     getRiskMetrics,
+    suggestConversationFollowUps,
   ]
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)

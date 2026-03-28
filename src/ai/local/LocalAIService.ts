@@ -8,6 +8,7 @@ import type { BaseMessage } from '@langchain/core/messages'
 import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
 import type {
   AIService,
+  ChatFollowUp,
   ChatStreamChunk,
   DocumentRef,
   DocumentInsight,
@@ -59,6 +60,22 @@ function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
   if (answerPart) chunks.push({ type: 'answer', content: answerPart })
 
   return chunks.length > 0 ? chunks : [{ type: 'answer', content: raw }]
+}
+
+function normalizeChatFollowUps(items: { label: string; prompt: string }[]): ChatFollowUp[] {
+  return items
+    .filter(
+      (i) =>
+        typeof i.label === 'string' &&
+        i.label.trim().length > 0 &&
+        typeof i.prompt === 'string' &&
+        i.prompt.trim().length > 0
+    )
+    .slice(0, 5)
+    .map((i) => ({
+      label: i.label.trim().slice(0, 100),
+      prompt: i.prompt.trim().slice(0, 4000),
+    }))
 }
 
 /** Extract reasoning/answer content from a single streaming AIMessageChunk. */
@@ -249,6 +266,7 @@ export class LocalAIService implements AIService {
     const systemParts: string[] = [
       'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio and every holding they recorded (get_holdings), loans (get_user_loans), documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use get_current_datetime for the real-world "today" or current time. Holdings and loans come from app data — no document upload required. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
+      'After a helpful, substantive reply (especially when tools were used), call suggest_conversation_follow_ups with 2–4 items: short labels for buttons and full prompts the app will send when tapped. Skip for trivial one-line answers. Do not duplicate the chip text as a bullet list in the prose.',
     ]
     if (this.options.saveCustomBrandedReport) {
       systemParts.push(
@@ -282,6 +300,7 @@ export class LocalAIService implements AIService {
       systemParts.push(`Tracker: ${trackerBits.join(' ')}`)
     }
 
+    const followUpRoundRef = { items: [] as ChatFollowUp[] }
     const toolContext = {
       // Prefer main-process cache (holdings, loans, topHoldings from portfolioSync) over the
       // partial object the renderer may send with chat; fall back to inline context if no cache.
@@ -308,6 +327,9 @@ export class LocalAIService implements AIService {
       getTrackerGoalsSummary: this.options.getTrackerGoalsSummary,
       createTrackerGoal: this.options.createTrackerGoal,
       updateTrackerGoal: this.options.updateTrackerGoal,
+      recordSuggestedFollowUps: (items: { label: string; prompt: string }[]) => {
+        followUpRoundRef.items = normalizeChatFollowUps(items)
+      },
     }
 
     const finocurveTools = createFinocurveTools(toolContext)
@@ -337,6 +359,7 @@ export class LocalAIService implements AIService {
     const toolMap = new Map(tools.map((t) => [t.name, t]))
 
     while (round < MAX_TOOL_ROUNDS) {
+      followUpRoundRef.items = []
       const stream = await modelToUse.stream(currentMessages)
       let accumulated: AIMessageChunk | null = null
       const thinkParser = new ThinkTagParser()
@@ -397,6 +420,10 @@ export class LocalAIService implements AIService {
         }
       }
 
+      if (followUpRoundRef.items.length > 0) {
+        yield { type: 'follow_ups', items: [...followUpRoundRef.items] }
+      }
+
       currentMessages = [...currentMessages, aiMessage, ...toolMessages]
       round++
     }
@@ -407,6 +434,10 @@ export class LocalAIService implements AIService {
   getTools(): Tool[] {
     const base: Tool[] = [
       { name: 'get_portfolio_summary', description: 'Get portfolio value, risk score, top holdings' },
+      {
+        name: 'suggest_conversation_follow_ups',
+        description: 'Show 2–4 clickable follow-up prompts in the chat after substantive answers',
+      },
       { name: 'get_document_list', description: 'List documents in finocurve/documents/' },
       { name: 'get_document_content', description: 'Fetch text from a document by key' },
       { name: 'get_report_list', description: 'List risk reports in finocurve/reports/' },

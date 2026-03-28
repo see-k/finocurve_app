@@ -101,8 +101,18 @@ interface ElectronAPI {
     azureDeployment?: string
   }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
-  aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{ text: string; reasoning?: string }>
-  onAiChatChunk?: (callback: (chunk: { type: 'reasoning' | 'answer'; content: string }) => void) => () => void
+  aiChatStream?: (payload: { messages: { role: string; content: string }[]; context: unknown }) => Promise<{
+    text: string
+    reasoning?: string
+    followUps?: { label: string; prompt: string }[]
+  }>
+  onAiChatChunk?: (
+    callback: (
+      chunk:
+        | { type: 'reasoning' | 'answer'; content: string }
+        | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+    ) => void
+  ) => () => void
   aiGenerateAdvancedAnalysis?: (payload: {
     riskSummary: string
     portfolioSummary: string
