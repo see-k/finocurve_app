@@ -1,21 +1,39 @@
-MIT License
+Business Source License 1.1
+
+Parameters
+
+Licensor: finocurve llc
+Licensed Work: FinoCurve App, including all source code, assets, and documentation in this repository
+Change Date: 2030-04-04
+Change License: Apache License, Version 2.0
+
+Additional Use Grant
+
+You may copy, modify, create derivative works from, publicly display, publicly perform, and distribute the Licensed Work for non-production, personal, educational, evaluation, and internal testing purposes.
+
+You may not use the Licensed Work, or a derivative of it, for a commercial offering that is competitive with the Licensor's products or services, including but not limited to:
+- offering the Licensed Work as a hosted or managed service
+- selling or sublicensing the Licensed Work or derivative works
+- using the Licensed Work to provide a commercial portfolio-tracking, financial analytics, aggregation, or financial workflow product to third parties
+
+On or after the Change Date, the Licensed Work will be made available under the Change License.
+
+Notice
+
+The Business Source License (this document, or the “License”) is not an Open Source license. However, the Licensed Work will eventually be made available under an Open Source License, as stated in this License.
+
+License text
 
 Copyright (c) 2026 finocurve llc
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Use of the Licensed Work is governed by this License.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You are granted the right to copy, modify, create derivative works, redistribute, and make non-production use of the Licensed Work, subject to the conditions in this License.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Any use of the Licensed Work that does not comply with the Additional Use Grant above is prohibited unless you obtain a separate commercial license from the Licensor.
+
+If your use of the Licensed Work would require the Licensed Work or a derivative work to be offered to third parties as part of a commercial product or service, then your use is not permitted under this License unless separately authorized by the Licensor.
+
+All copies of the Licensed Work, and any derivative works you create, must include this License.
+
+The Licensed Work is provided “as is”, without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, title, and noninfringement. In no event shall the Licensor be liable for any claim, damages, or other liability, whether in contract, tort, or otherwise, arising from, out of, or in connection with the Licensed Work or the use of the Licensed Work.

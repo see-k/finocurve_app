@@ -29,15 +29,17 @@ This repository does **not** include:
 
 If you use this repo on its own, you should think of it as the **local trust surface** of FinoCurve rather than the full commercial stack.
 
-## Why open source this app?
+## Why make this repository public?
 
-The desktop client is being opened to increase:
+The desktop client is being published to increase:
 - transparency
 - user trust
 - inspectability of the local product surface
 - confidence in the privacy-first direction of the product
 
 The broader FinoCurve ecosystem may include additional managed services that are not part of this repository.
+
+This repository is intended as a **source-available trust surface** for the FinoCurve app, not as a fully permissive open-source grant for commercial competitors.
 
 ## Key features
 
@@ -180,4 +182,11 @@ Expect rough edges around:
 
 ## License
 
-MIT
+This repository is released under **Business Source License 1.1 (BSL 1.1)**.
+
+In practical terms:
+- the source is public and inspectable
+- personal, evaluation, educational, and internal non-production use is allowed
+- commercial competitive use requires separate permission from the licensor
+
+See [LICENSE](LICENSE) for the full terms.
