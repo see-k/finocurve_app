@@ -20,6 +20,13 @@ const TYPE_COLORS: Record<string, string> = {
   other: '#636E72',
 }
 
+function sanitizeSymbol(symbol: string | undefined): string | undefined {
+  if (!symbol) return undefined
+  // Allow only alphanumeric characters and limit length to avoid abusing the URL
+  const cleaned = symbol.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
+  return cleaned || undefined
+}
+
 function getLogoUrls(symbol: string | undefined, type: string): string[] {
   if (!symbol) return []
   const s = symbol.toUpperCase()
@@ -51,9 +58,10 @@ function getDisplayText(symbol?: string, name?: string): string {
 
 export default function AssetLogo({ symbol, name, type, size = 42, borderRadius = 12 }: AssetLogoProps) {
   const [imgError, setImgError] = useState(0)
-  const urls = getLogoUrls(symbol, type)
+  const safeSymbol = sanitizeSymbol(symbol)
+  const urls = getLogoUrls(safeSymbol, type)
   const color = TYPE_COLORS[type] || '#636E72'
-  const text = getDisplayText(symbol, name)
+  const text = getDisplayText(safeSymbol, name)
   const fontSize = text.length >= 4 ? size * 0.25 : text.length >= 3 ? size * 0.3 : size * 0.38
 
   const fallback = (
