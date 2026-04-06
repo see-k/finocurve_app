@@ -103,11 +103,19 @@ const MAX_FILING_TEXT_LENGTH = 80_000
 /** Convert SEC filing HTML to plain text for AI consumption. */
 function htmlToPlainText(html: string): string {
   let text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-  // Block elements -> newline
-  text = text.replace(/<\/?(div|p|br|tr|li|h[1-6]|section|article)[^>]*>/gi, '\n')
-  text = text.replace(/<[^>]+>/g, ' ')
+  let previous: string
+
+  // Iteratively strip scripts, styles, and tags so newly exposed patterns are also removed
+  do {
+    previous = text
+    text = text
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Block elements -> newline
+    text = text.replace(/<\/?(div|p|br|tr|li|h[1-6]|section|article)[^>]*>/gi, '\n')
+    text = text.replace(/<[^>]+>/g, ' ')
+  } while (text !== previous)
+
   text = text
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -115,6 +123,7 @@ function htmlToPlainText(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+
   text = text.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
   return text
 }
