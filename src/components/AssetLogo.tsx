@@ -8,6 +8,26 @@ interface AssetLogoProps {
   borderRadius?: number
 }
 
+const TRUSTED_LOGO_HOSTS = new Set(['companiesmarketcap.com', 'raw.githubusercontent.com'])
+
+function isTrustedLogoUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' && TRUSTED_LOGO_HOSTS.has(u.hostname)
+  } catch {
+    return false
+  }
+}
+
+/** Allow only typical ticker / crypto symbol characters in logo URL paths. */
+function safeSymbolForLogoUrl(symbol: string): string | null {
+  const s = symbol.trim().toUpperCase()
+  if (s.length === 0 || s.length > 24 || !/^[A-Z0-9._-]+$/.test(s)) {
+    return null
+  }
+  return s
+}
+
 const TYPE_COLORS: Record<string, string> = {
   stock: '#4A90D9',
   etf: '#7B68EE',
@@ -22,18 +42,24 @@ const TYPE_COLORS: Record<string, string> = {
 
 function getLogoUrls(symbol: string | undefined, type: string): string[] {
   if (!symbol) return []
-  const s = symbol.toUpperCase()
+  const s = safeSymbolForLogoUrl(symbol)
+  if (!s) return []
   const urls: string[] = []
 
   switch (type) {
     case 'stock':
-    case 'etf':
-      urls.push(`https://companiesmarketcap.com/img/company-logos/64/${s}.webp`)
+    case 'etf': {
+      const u = `https://companiesmarketcap.com/img/company-logos/64/${s}.webp`
+      if (isTrustedLogoUrl(u)) urls.push(u)
       break
-    case 'crypto':
-      urls.push(`https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${s.toLowerCase()}.png`)
-      urls.push(`https://companiesmarketcap.com/img/company-logos/64/${s}.webp`)
+    }
+    case 'crypto': {
+      const gh = `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${s.toLowerCase()}.png`
+      const cmc = `https://companiesmarketcap.com/img/company-logos/64/${s}.webp`
+      if (isTrustedLogoUrl(gh)) urls.push(gh)
+      if (isTrustedLogoUrl(cmc)) urls.push(cmc)
       break
+    }
     default:
       break
   }
