@@ -2,6 +2,7 @@
  * IPC handlers for SEC EDGAR filings.
  * Free, no API key. Requires User-Agent header per SEC policy.
  */
+import { convert } from 'html-to-text'
 import { ipcMain } from 'electron'
 
 const SEC_BASE = 'https://data.sec.gov'
@@ -102,21 +103,11 @@ const MAX_FILING_TEXT_LENGTH = 80_000
 
 /** Convert SEC filing HTML to plain text for AI consumption. */
 function htmlToPlainText(html: string): string {
-  let text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-  // Block elements -> newline
-  text = text.replace(/<\/?(div|p|br|tr|li|h[1-6]|section|article)[^>]*>/gi, '\n')
-  text = text.replace(/<[^>]+>/g, ' ')
-  text = text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-  text = text.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
-  return text
+  const text = convert(html, {
+    wordwrap: false,
+    selectors: [{ selector: 'a', options: { hideLinkHrefIfSameAsText: true } }],
+  })
+  return text.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
 }
 
 /** Exported for AI tools - fetches full text content of an SEC filing by ticker/CIK and accession number. */

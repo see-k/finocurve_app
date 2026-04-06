@@ -44,6 +44,7 @@
     "@vnedyalk0v/react19-simple-maps": "^2.0.2",
     "better-sqlite3": "^12.8.0",
     "country-list": "^2.4.1",
+    "html-to-text": "^9.0.5",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
