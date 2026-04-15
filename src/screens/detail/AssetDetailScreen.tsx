@@ -180,9 +180,9 @@ export default function AssetDetailScreen() {
                     background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)',
                     borderRadius: 12, fontSize: 13, color: 'var(--text-primary)',
                   }}
-                  formatter={(v: number | string, name: string) => {
-                    if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
-                    return ['$' + v.toLocaleString(), name]
+                  formatter={(v, name) => {
+                    if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name ?? '']
+                    return ['$' + v.toLocaleString(), name ?? '']
                   }}
                 />
                 <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" fill="url(#colorVal)" strokeWidth={2} connectNulls={false} name="Price" />

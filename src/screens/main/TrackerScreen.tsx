@@ -547,9 +547,9 @@ export default function TrackerScreen() {
                         border: '1px solid var(--glass-border)',
                         borderRadius: 12,
                       }}
-                      formatter={(value: number | string, name: string) => {
-                        if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name]
-                        return [fmtMoney(value, cur), name]
+                      formatter={(value, name) => {
+                        if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name ?? '']
+                        return [fmtMoney(value, cur), name ?? '']
                       }}
                     />
                     <Area
@@ -967,8 +967,8 @@ export default function TrackerScreen() {
                             }
                           />
                           <Tooltip
-                            formatter={(v: number | string, name: string) => {
-                              if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
+                            formatter={(v, name) => {
+                              if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name ?? '']
                               return [
                                 fmtGoalMetric(v, cur, g.progressSource),
                                 name === 'Linear trend'

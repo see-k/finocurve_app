@@ -238,9 +238,9 @@ export default function DashboardScreen() {
               />
               <Tooltip
                 contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                formatter={(value: number | string, name: string) => {
-                  if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name]
-                  return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]
+                formatter={(value, name) => {
+                  if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name ?? '']
+                  return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name ?? '']
                 }}
                 labelFormatter={(label) => `Date: ${label}`}
               />
@@ -325,7 +325,10 @@ export default function DashboardScreen() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                  formatter={(value: number) => [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, '']}
+                  formatter={(value) => {
+                    if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', '']
+                    return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, '']
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
