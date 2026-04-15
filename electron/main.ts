@@ -62,6 +62,7 @@ function registerAppProtocol() {
 
 function createWindow() {
   win = new BrowserWindow({
+    title: `FinoCurve v${app.getVersion()}`,
     width: 1280,
     height: 820,
     minWidth: 960,

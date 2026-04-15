@@ -12,6 +12,7 @@ import { THEME_OPTIONS, type AppThemeId } from '../../theme/themes'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
 import './SettingsScreen.css'
+import { APP_VERSION } from '../../constants/appVersion'
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme()
@@ -161,7 +162,7 @@ export default function SettingsScreen() {
         <h2 className="settings-section__title">Support</h2>
         <GlassContainer padding="0" borderRadius={16} className="settings-group">
           <SettingsRow icon={<HelpCircle size={18} />} label="Help & FAQ" onClick={() => navigate('/settings/help')} />
-          <SettingsRow icon={<Info size={18} />} label="About FinoCurve" value="v1.0.0" onClick={() => navigate('/settings/about')} />
+          <SettingsRow icon={<Info size={18} />} label="About FinoCurve" value={`v${APP_VERSION}`} onClick={() => navigate('/settings/about')} />
         </GlassContainer>
       </div>
 
