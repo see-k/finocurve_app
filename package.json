@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "ci": "npm ci --legacy-peer-deps",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",

@@ -4,6 +4,8 @@ This project uses **[release-it](https://github.com/release-it/release-it)** wit
 
 The app’s visible version (About screen, Settings, window title, packaged metadata) always comes from **`package.json` → `version`**. After a release bump, rebuild or run the app so the UI shows the new version.
 
+**Tooling note (temporary):** We keep **release-it v20**. `@release-it/conventional-changelog` v10 still declares a peer range of `release-it@^18 || ^19`, so plain `npm ci` fails. **Peer checks are relaxed only where we opt in:** the [tag Release workflow](.github/workflows/release.yml) sets `NPM_CONFIG_LEGACY_PEER_DEPS=true` for that job (no repo-root `.npmrc`, so normal `npm install` / peer behavior stays strict by default). **Locally**, use `npm run ci` (runs `npm ci --legacy-peer-deps`) or `NPM_CONFIG_LEGACY_PEER_DEPS=true npm ci` until a changelog plugin release lists `release-it@^20` as a peer—then remove the env block and the `ci` script flag.
+
 ## Before you start
 
 1. **Working tree clean** — Commit or stash everything. `release-it` is configured with `git.requireCleanWorkingDir: true`.
@@ -53,7 +55,7 @@ npm run release:dry -- --git.requireCleanWorkingDir=false
 
 ## CI after you tag
 
-Pushing a tag matching **`v*.*.*`** runs [`.github/workflows/release.yml`](.github/workflows/release.yml): `npm ci` and **`npm run build`** on Ubuntu. That validates the tagged tree; it does **not** run `electron-builder` (no signing setup in CI by default).
+Pushing a tag matching **`v*.*.*`** runs [`.github/workflows/release.yml`](.github/workflows/release.yml): `npm ci` (with `NPM_CONFIG_LEGACY_PEER_DEPS=true` for this job only) and **`npm run build`** on Ubuntu. That validates the tagged tree; it does **not** run `electron-builder` (no signing setup in CI by default).
 
 ## Troubleshooting
 
@@ -63,9 +65,11 @@ Pushing a tag matching **`v*.*.*`** runs [`.github/workflows/release.yml`](.gith
 | GitHub release falls back to a browser URL | Set `GITHUB_TOKEN` or run `gh auth login`. |
 | Empty or sparse changelog | Use conventional prefixes on commits; merge meaningful work before releasing. |
 | Build fails in `before:init` | Run `npm run build` locally, fix errors, then retry `npm run release`. |
+| `npm ci` fails with `ERESOLVE` / peer `release-it` | Use **`npm run ci`** (see [package.json](package.json) `scripts.ci`) or `NPM_CONFIG_LEGACY_PEER_DEPS=true npm ci` until the changelog plugin supports release-it 20 (see tooling note above). |
 
 ## Configuration reference
 
+- **npm / CI installs:** [`.github/workflows/release.yml`](.github/workflows/release.yml) — job env `NPM_CONFIG_LEGACY_PEER_DEPS`; local helper **`npm run ci`** (see [package.json](package.json)).
 - **release-it config:** [`.release-it.json`](.release-it.json)
 - **Changelog file:** [`CHANGELOG.md`](CHANGELOG.md)
 - **Version in the UI:** injected at build from `package.json` — see [`vite.config.ts`](vite.config.ts) and [`src/constants/appVersion.ts`](src/constants/appVersion.ts)

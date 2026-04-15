@@ -1,5 +1,8 @@
 name: Release
 
+permissions:
+  contents: read
+
 on:
   push:
     tags:
@@ -8,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # release-it@20 vs @release-it/conventional-changelog peer (^18||^19); scoped to CI only.
+      NPM_CONFIG_LEGACY_PEER_DEPS: true
     steps:
       - uses: actions/checkout@v6
 
