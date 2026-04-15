@@ -67,7 +67,7 @@
     "@types/country-list": "^2.1.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "electron": "^40.8.5",
     "electron-builder": "^26.9.0",
     "esbuild": "^0.27.4",
