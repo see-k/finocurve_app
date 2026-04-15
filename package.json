@@ -1,6 +1,6 @@
 {
   "name": "finocurve-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FinoCurve Desktop - Modern Investment Banking",
   "author": "finocurve llc",
   "main": "dist-electron/main.js",
@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "dist": "npm run build && electron-builder --mac",
     "dist:arm": "npm run build && electron-builder --mac --arm64",
-    "dist:intel": "npm run build && electron-builder --mac --x64"
+    "dist:intel": "npm run build && electron-builder --mac --x64",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run"
   },
   "build": {
     "appId": "com.finocurve.app",
@@ -63,6 +65,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@release-it/conventional-changelog": "^10.0.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/country-list": "^2.1.4",
     "@types/react": "^19.0.0",
@@ -71,6 +74,7 @@
     "electron": "^41.2.0",
     "electron-builder": "^26.9.0",
     "esbuild": "^0.28.0",
+    "release-it": "^19.2.4",
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
     "vite-plugin-electron": "^0.29.1",

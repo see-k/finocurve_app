@@ -8,6 +8,7 @@ import {
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import './SettingsSubScreen.css'
+import { APP_VERSION } from '../../constants/appVersion'
 
 const FEATURES = [
   { icon: <BarChart3 size={16} />, label: 'Portfolio tracking with real-time values' },
@@ -39,7 +40,7 @@ export default function AboutScreen() {
         <GlassContainer>
           <img src={finocurveLogo} alt="FinoCurve" className="about-logo-img" draggable={false} />
           <div className="about-app-name">FinoCurve</div>
-          <div className="about-version">Version 1.0.0 (Desktop)</div>
+          <div className="about-version">v{APP_VERSION} (Desktop)</div>
           <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 12, lineHeight: 1.6 }}>
             Your personal portfolio companion. Track investments, analyze risk, and make informed financial decisions — all in one beautiful app.
           </p>

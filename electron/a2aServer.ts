@@ -8,6 +8,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import type { Server } from 'node:http'
 import type { LocalAIService } from '../src/ai/local/LocalAIService'
 import { randomUUID } from 'node:crypto'
+import { APP_PACKAGE_VERSION } from './appPackageVersion'
 
 export const DEFAULT_PORT = 3847
 
@@ -88,7 +89,7 @@ function buildAgentCard(port: number) {
     description: 'Financial risk and document analysis assistant',
     protocolVersion: '0.3.0',
     url: `http://127.0.0.1:${port}/`,
-    version: '1.0.0',
+    version: APP_PACKAGE_VERSION,
     capabilities: {
       streaming: false,
       pushNotifications: false,

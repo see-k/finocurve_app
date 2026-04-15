@@ -21,6 +21,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { APP_PACKAGE_VERSION } from './appPackageVersion'
 
 export interface MCPServerDefinition {
   name: string
@@ -256,7 +257,7 @@ export async function startMCPServers(servers: MCPServerDefinition[]): Promise<M
       })
 
       const client = new Client(
-        { name: 'finocurve', version: '1.0.0' },
+        { name: 'finocurve', version: APP_PACKAGE_VERSION },
       )
 
       await client.connect(transport)
