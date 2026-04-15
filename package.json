@@ -41,7 +41,7 @@
     "@langchain/ollama": "^1.2.2",
     "@langchain/openai": "^1.4.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@vnedyalk0v/react19-simple-maps": "^2.0.2",
+    "@vnedyalk0v/react19-simple-maps": "^2.0.7",
     "better-sqlite3": "^12.8.0",
     "country-list": "^2.4.1",
     "html-to-text": "^9.0.5",
