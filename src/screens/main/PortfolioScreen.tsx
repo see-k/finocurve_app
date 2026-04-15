@@ -246,7 +246,10 @@ export default function PortfolioScreen() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
-                    formatter={(v: number) => [fmt(v), '']}
+                    formatter={(v) => {
+                      if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', '']
+                      return [fmt(v), '']
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -314,9 +317,9 @@ export default function PortfolioScreen() {
             />
             <Tooltip
               contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, fontSize: 13 }}
-              formatter={(v: number | string, name: string) => {
-                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
-                return [`$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]
+              formatter={(v, name) => {
+                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name ?? '']
+                return [`$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name ?? '']
               }}
               labelFormatter={(label) => `Date: ${label}`}
             />
@@ -372,7 +375,10 @@ export default function PortfolioScreen() {
                     borderRadius: 12, fontSize: 13,
                     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
                   }}
-                  formatter={(v: number) => [fmt(v), 'Value']}
+                  formatter={(v) => {
+                    if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Value']
+                    return [fmt(v), 'Value']
+                  }}
                 />
               </Sankey>
             </ResponsiveContainer>

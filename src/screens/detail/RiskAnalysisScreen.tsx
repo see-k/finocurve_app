@@ -1073,7 +1073,13 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                 <AreaChart data={volHistory}>
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} interval={7} />
                   <YAxis hide />
-                  <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Volatility']} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
+                    formatter={(v) => {
+                      if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Volatility']
+                      return [`${v}%`, 'Volatility']
+                    }}
+                  />
                   <Area type="monotone" dataKey="vol" stroke="#f59e0b" fill="rgba(245,158,11,0.12)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -1128,7 +1134,10 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                   <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}%`} />
                   <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
-                    formatter={(v: number) => [`${v > 0 ? '+' : ''}${v}%`, 'Impact']} />
+                    formatter={(v) => {
+                      if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Impact']
+                      return [`${v > 0 ? '+' : ''}${v}%`, 'Impact']
+                    }} />
                   <Bar dataKey="impactPercent" radius={[0, 6, 6, 0]}>
                     {effectiveRisk.scenarioAnalysis.map((s, i) => (
                       <Cell key={i} fill={s.impactPercent >= 0 ? '#10b981' : '#ef4444'} opacity={0.8} />
@@ -1220,7 +1229,10 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                           {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                         </Pie>
                         <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
-                          formatter={(v: number) => [fmt(v), 'Value']} />
+                          formatter={(v) => {
+                            if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Value']
+                            return [fmt(v), 'Value']
+                          }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1290,9 +1302,9 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                             <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={28} />
                             <Tooltip
                               contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
-                              formatter={(v: number | string, name: string) => {
-                                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name]
-                                return [`${v.toFixed(1)}`, name]
+                              formatter={(v, name) => {
+                                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', name ?? '']
+                                return [`${v.toFixed(1)}`, name ?? '']
                               }}
                             />
                             <Line
@@ -1362,7 +1374,10 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                               <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
                               <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
                               <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={32} tickFormatter={(v) => `-${v}%`} />
-                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [`-${v}%`, 'Max DD']} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v) => {
+                                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Max DD']
+                                return [`-${v}%`, 'Max DD']
+                              }} />
                               <Line type="monotone" dataKey="maxDD" stroke="#ef4444" strokeWidth={2} dot={{ r: 3, fill: '#ef4444' }} name="Max DD %" />
                             </LineChart>
                           </ResponsiveContainer>
@@ -1374,7 +1389,10 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
                               <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
                               <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
                               <YAxis tick={{ fontSize: 9, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} width={48} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v: number) => [fmt(v), 'Value']} />
+                              <Tooltip contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }} formatter={(v) => {
+                                if (v == null || typeof v !== 'number' || Number.isNaN(v)) return ['—', 'Value']
+                                return [fmt(v), 'Value']
+                              }} />
                               <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Portfolio Value" />
                             </LineChart>
                           </ResponsiveContainer>
