@@ -4,6 +4,8 @@ This project uses **[release-it](https://github.com/release-it/release-it)** wit
 
 The app’s visible version (About screen, Settings, window title, packaged metadata) always comes from **`package.json` → `version`**. After a release bump, rebuild or run the app so the UI shows the new version.
 
+**Tooling note:** We keep **release-it v20** on the latest line. `@release-it/conventional-changelog` v10 still declares a peer range of `release-it@^18 || ^19`, which `npm ci` would otherwise reject. The repo root [`.npmrc`](.npmrc) sets `legacy-peer-deps=true` only so npm relaxes **peer** resolution for that mismatch (direct dependency versions are unchanged). Remove that setting once a changelog plugin release supports `release-it@^20`.
+
 ## Before you start
 
 1. **Working tree clean** — Commit or stash everything. `release-it` is configured with `git.requireCleanWorkingDir: true`.
@@ -66,6 +68,7 @@ Pushing a tag matching **`v*.*.*`** runs [`.github/workflows/release.yml`](.gith
 
 ## Configuration reference
 
+- **npm / CI installs:** [`.npmrc`](.npmrc) — `legacy-peer-deps` for release-it 20 + conventional-changelog peer (see note above).
 - **release-it config:** [`.release-it.json`](.release-it.json)
 - **Changelog file:** [`CHANGELOG.md`](CHANGELOG.md)
 - **Version in the UI:** injected at build from `package.json` — see [`vite.config.ts`](vite.config.ts) and [`src/constants/appVersion.ts`](src/constants/appVersion.ts)
