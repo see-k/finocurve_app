@@ -39,7 +39,7 @@
     "@langchain/aws": "^1.2.3",
     "@langchain/core": "^1.1.25",
     "@langchain/ollama": "^1.2.2",
-    "@langchain/openai": "^1.2.8",
+    "@langchain/openai": "^1.4.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@vnedyalk0v/react19-simple-maps": "^2.0.2",
     "better-sqlite3": "^12.8.0",
