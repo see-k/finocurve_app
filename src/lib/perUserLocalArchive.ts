@@ -38,6 +38,17 @@ export function archiveActiveSessionForEmail(email: string): void {
   }
 }
 
+/** True when at least one archived session key exists for the email. */
+export function hasArchivedSessionForEmail(email: string): boolean {
+  const em = email.trim()
+  if (!em) return false
+  for (const active of ACTIVE_KEYS) {
+    const v = localStorage.getItem(archivedKey(active, em))
+    if (v != null && v !== '') return true
+  }
+  return false
+}
+
 /** Restore per-user archives into active keys. If no archive exists, active keys are left unchanged (legacy single-session data). */
 export function restoreActiveSessionForEmail(email: string): void {
   const em = email.trim()

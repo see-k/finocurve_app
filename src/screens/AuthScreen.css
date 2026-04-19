@@ -116,14 +116,32 @@
   margin-top: 24px;
 }
 
-.auth-switch a {
+.auth-switch a,
+.auth-switch__link {
   color: var(--primary);
   cursor: pointer;
   font-weight: 600;
 }
 
-.auth-switch a:hover {
+.auth-switch__link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-switch a:hover,
+.auth-switch__link:hover {
   color: var(--primary-hover);
+}
+
+.auth-switch__link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .auth-saved-accounts {

@@ -1,20 +1,37 @@
 const STORAGE_KEY = 'finocurve-saved-local-accounts'
 
+/**
+ * Saved local profile metadata for a device. The "local auth" fields are PBKDF2
+ * derivatives (salt + derived key digest + algorithm tag) used only for
+ * device-local password verification. They contain no user-supplied secret —
+ * the password itself is never stored.
+ */
 export interface SavedLocalAccount {
   email: string
   userName?: string
   profilePicturePath?: string
   hasCompletedOnboarding: boolean
   updatedAt: string
-  /** PBKDF2-SHA256 salt (base64), device-local only */
-  passwordSaltB64?: string
-  /** PBKDF2-SHA256 derived key (base64) */
-  passwordHashB64?: string
-  passwordKdf?: string
+  /** PBKDF2 salt (base64). Salts are non-secret by design. */
+  localAuthSaltB64?: string
+  /** PBKDF2 derived-key digest (base64). Used to verify local password input. */
+  localAuthDigestB64?: string
+  /** Algorithm tag (e.g. `pbkdf2-sha256-210k`). */
+  localAuthKdf?: string
 }
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
+}
+
+interface LegacyFields {
+  passwordSaltB64?: unknown
+  passwordHashB64?: unknown
+  passwordKdf?: unknown
+}
+
+function readStr(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined
 }
 
 export function loadSavedLocalAccounts(): SavedLocalAccount[] {
@@ -25,23 +42,25 @@ export function loadSavedLocalAccounts(): SavedLocalAccount[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter(
-        (x): x is SavedLocalAccount =>
+        (x): x is SavedLocalAccount & LegacyFields =>
           !!x &&
           typeof x === 'object' &&
           typeof (x as SavedLocalAccount).email === 'string' &&
           (x as SavedLocalAccount).email.trim().length > 0,
       )
-      .map(x => ({
-        email: (x as SavedLocalAccount).email.trim(),
-        userName: typeof x.userName === 'string' ? x.userName : undefined,
-        profilePicturePath:
-          typeof x.profilePicturePath === 'string' ? x.profilePicturePath : undefined,
-        hasCompletedOnboarding: !!(x as SavedLocalAccount).hasCompletedOnboarding,
-        updatedAt: typeof x.updatedAt === 'string' ? x.updatedAt : new Date(0).toISOString(),
-        passwordSaltB64: typeof x.passwordSaltB64 === 'string' ? x.passwordSaltB64 : undefined,
-        passwordHashB64: typeof x.passwordHashB64 === 'string' ? x.passwordHashB64 : undefined,
-        passwordKdf: typeof x.passwordKdf === 'string' ? x.passwordKdf : undefined,
-      }))
+      .map(x => {
+        const legacy = x as LegacyFields
+        return {
+          email: x.email.trim(),
+          userName: readStr(x.userName),
+          profilePicturePath: readStr(x.profilePicturePath),
+          hasCompletedOnboarding: !!x.hasCompletedOnboarding,
+          updatedAt: readStr(x.updatedAt) ?? new Date(0).toISOString(),
+          localAuthSaltB64: readStr(x.localAuthSaltB64) ?? readStr(legacy.passwordSaltB64),
+          localAuthDigestB64: readStr(x.localAuthDigestB64) ?? readStr(legacy.passwordHashB64),
+          localAuthKdf: readStr(x.localAuthKdf) ?? readStr(legacy.passwordKdf),
+        }
+      })
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
   } catch {
     return []
@@ -58,9 +77,9 @@ export function upsertSavedLocalAccount(partial: {
   userName?: string
   profilePicturePath?: string
   hasCompletedOnboarding: boolean
-  passwordSaltB64?: string
-  passwordHashB64?: string
-  passwordKdf?: string
+  localAuthSaltB64?: string
+  localAuthDigestB64?: string
+  localAuthKdf?: string
 }): void {
   const email = partial.email.trim()
   if (!email) return
@@ -74,9 +93,9 @@ export function upsertSavedLocalAccount(partial: {
     profilePicturePath: partial.profilePicturePath,
     hasCompletedOnboarding: partial.hasCompletedOnboarding,
     updatedAt: now,
-    ...(partial.passwordSaltB64 !== undefined ? { passwordSaltB64: partial.passwordSaltB64 } : {}),
-    ...(partial.passwordHashB64 !== undefined ? { passwordHashB64: partial.passwordHashB64 } : {}),
-    ...(partial.passwordKdf !== undefined ? { passwordKdf: partial.passwordKdf } : {}),
+    ...(partial.localAuthSaltB64 !== undefined ? { localAuthSaltB64: partial.localAuthSaltB64 } : {}),
+    ...(partial.localAuthDigestB64 !== undefined ? { localAuthDigestB64: partial.localAuthDigestB64 } : {}),
+    ...(partial.localAuthKdf !== undefined ? { localAuthKdf: partial.localAuthKdf } : {}),
   }
   if (idx >= 0) {
     existing[idx] = { ...existing[idx], ...next }

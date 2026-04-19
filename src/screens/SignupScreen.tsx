@@ -30,14 +30,25 @@ export default function SignupScreen() {
 
   const passwordsMatch = password === confirmPassword
   const passwordLongEnough = isPasswordLongEnough(password)
-  const canSubmit =
-    !!(name && email && password && confirmPassword && passwordsMatch && passwordLongEnough)
+  const trimmedName = name.trim()
+  const trimmedEmail = email.trim()
+  // Lightweight email format check; full RFC validation is overkill for a local
+  // sign-up flow, but reject obvious garbage like whitespace-only or no `@`.
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
+  const canSubmit = !!(
+    trimmedName &&
+    trimmedEmail &&
+    emailLooksValid &&
+    password &&
+    confirmPassword &&
+    passwordsMatch &&
+    passwordLongEnough
+  )
 
   const savedProfileForEmail = useMemo(() => {
-    const em = email.trim()
-    if (!em) return undefined
-    return getSavedLocalAccount(em)
-  }, [email])
+    if (!trimmedEmail) return undefined
+    return getSavedLocalAccount(trimmedEmail)
+  }, [trimmedEmail])
 
   const handleSignup = async () => {
     if (!canSubmit) return
@@ -58,23 +69,23 @@ export default function SignupScreen() {
       const prefs: UserPreferences = {
         ...DEFAULT_PREFS,
         theme: normalizeStoredTheme(priorTheme ?? null),
-        userName: name.trim(),
-        userEmail: email.trim(),
+        userName: trimmedName,
+        userEmail: trimmedEmail,
         hasCompletedOnboarding: false,
         isGuest: false,
       }
       localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
       upsertSavedLocalAccount({
-        email: email.trim(),
-        userName: name.trim(),
+        email: trimmedEmail,
+        userName: trimmedName,
         hasCompletedOnboarding: false,
-        passwordSaltB64: saltB64,
-        passwordHashB64: hashB64,
-        passwordKdf: 'pbkdf2-sha256-210k',
+        localAuthSaltB64: saltB64,
+        localAuthDigestB64: hashB64,
+        localAuthKdf: 'pbkdf2-sha256-210k',
       })
       navigate('/onboarding/setup', { replace: true })
     } catch {
-      setSignupError('Could not secure your password on this device. Check that the page is served over HTTPS or try again.')
+      setSignupError('This device or browser does not support secure password hashing. Try updating it or using a different device.')
     } finally {
       setIsLoading(false)
     }

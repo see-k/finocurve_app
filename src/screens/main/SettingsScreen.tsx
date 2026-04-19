@@ -36,7 +36,9 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
-    await window.electronAPI?.localStorageClearPath?.()
+    // Note: do NOT call `localStorageClearPath` here. It clears the Electron
+    // device-wide "local storage directory" config, which is shared by every
+    // profile on the device. Sign-out should only touch this account's session.
     if (prefs.userEmail?.trim()) {
       const em = prefs.userEmail.trim()
       upsertSavedLocalAccount({
@@ -88,7 +90,9 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
-    await window.electronAPI?.localStorageClearPath?.()
+    // Same caveat as sign-out: leave the device-wide local storage directory
+    // config alone; deleting one account must not disconnect storage for any
+    // other saved profiles on this device.
     if (prefs.userEmail?.trim()) {
       const em = prefs.userEmail.trim()
       removeSavedLocalAccount(em)

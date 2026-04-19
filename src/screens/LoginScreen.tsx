@@ -15,7 +15,11 @@ import {
   upsertSavedLocalAccount,
 } from '../lib/savedLocalAccounts'
 import { shouldEnterMainAfterSignIn } from '../lib/onboardingRouting'
-import { restoreActiveSessionForEmail } from '../lib/perUserLocalArchive'
+import {
+  clearActiveUserDataStorage,
+  hasArchivedSessionForEmail,
+  restoreActiveSessionForEmail,
+} from '../lib/perUserLocalArchive'
 import { prepareStorageForNewAccountSignup } from '../lib/prepareNewAccountSession'
 import {
   hashPassword,
@@ -112,18 +116,18 @@ export default function LoginScreen() {
         return
       }
 
-      let newPasswordHash: { passwordSaltB64: string; passwordHashB64: string } | undefined
-      const salt = saved.passwordSaltB64
-      const hash = saved.passwordHashB64
-      if (salt && hash) {
-        const ok = await verifyPassword(pwd, salt, hash)
+      let newLocalAuth: { saltB64: string; digestB64: string } | undefined
+      const salt = saved.localAuthSaltB64
+      const digest = saved.localAuthDigestB64
+      if (salt && digest) {
+        const ok = await verifyPassword(pwd, salt, digest)
         if (!ok) {
           setAuthError('Incorrect password.')
           return
         }
       } else if (isPasswordLongEnough(pwd)) {
         const h = await hashPassword(pwd)
-        newPasswordHash = { passwordSaltB64: h.saltB64, passwordHashB64: h.hashB64 }
+        newLocalAuth = { saltB64: h.saltB64, digestB64: h.hashB64 }
       } else {
         setAuthError(
           `This profile has no stored password yet. Use at least ${PASSWORD_MIN_LENGTH} characters once to set it.`,
@@ -152,17 +156,27 @@ export default function LoginScreen() {
       merged.hasCompletedOnboarding = goMain
 
       localStorage.setItem('finocurve-preferences', JSON.stringify(merged))
-      restoreActiveSessionForEmail(merged.userEmail || '')
+      // Avoid bleeding another profile's active session keys (or stale legacy
+      // single-session data) into this account. If we have no archive for this
+      // email, start with a clean active state; if we do, archive whatever's
+      // currently active first to be safe, then restore.
+      const targetEmail = merged.userEmail || em
+      if (hasArchivedSessionForEmail(targetEmail)) {
+        clearActiveUserDataStorage()
+        restoreActiveSessionForEmail(targetEmail)
+      } else {
+        clearActiveUserDataStorage()
+      }
       upsertSavedLocalAccount({
-        email: merged.userEmail || em,
+        email: targetEmail,
         userName: merged.userName,
         profilePicturePath: merged.profilePicturePath,
         hasCompletedOnboarding: merged.hasCompletedOnboarding,
-        ...(newPasswordHash
+        ...(newLocalAuth
           ? {
-              passwordSaltB64: newPasswordHash.passwordSaltB64,
-              passwordHashB64: newPasswordHash.passwordHashB64,
-              passwordKdf: 'pbkdf2-sha256-210k',
+              localAuthSaltB64: newLocalAuth.saltB64,
+              localAuthDigestB64: newLocalAuth.digestB64,
+              localAuthKdf: 'pbkdf2-sha256-210k',
             }
           : {}),
       })
@@ -302,7 +316,13 @@ export default function LoginScreen() {
 
           <p className="auth-switch">
             Don't have an account?{' '}
-            <a onClick={startNewAccount}>Sign Up</a>
+            <button
+              type="button"
+              className="auth-switch__link"
+              onClick={startNewAccount}
+            >
+              Sign Up
+            </button>
           </p>
         </GlassContainer>
       </div>
