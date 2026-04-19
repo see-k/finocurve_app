@@ -182,6 +182,22 @@
   box-shadow: 0 0 0 2px var(--primary-alpha-20, rgba(99, 102, 241, 0.25));
 }
 
+.auth-account-bubble--new .auth-account-bubble__name {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.auth-account-bubble__ring--new {
+  border: 2px dashed var(--primary-alpha-40, rgba(99, 102, 241, 0.45));
+  background: transparent;
+  color: var(--primary);
+}
+
+.auth-account-bubble--new:hover .auth-account-bubble__ring--new {
+  border-color: var(--primary);
+  background: var(--primary-alpha-10, rgba(99, 102, 241, 0.12));
+}
+
 .auth-account-bubble__initials {
   font-size: 15px;
   font-weight: 600;
@@ -237,4 +253,22 @@
 
 .auth-picked-account__switch:hover {
   color: var(--primary-hover);
+}
+
+.auth-signup-hint {
+  margin: -8px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  border-radius: 10px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+.auth-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--status-error, #f87171);
 }

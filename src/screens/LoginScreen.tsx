@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react'
 import GlassButton from '../components/glass/GlassButton'
 import finocurveLogo from '/images/finocurve-logo.png'
 import GlassTextField from '../components/glass/GlassTextField'
@@ -16,6 +16,13 @@ import {
 } from '../lib/savedLocalAccounts'
 import { shouldEnterMainAfterSignIn } from '../lib/onboardingRouting'
 import { restoreActiveSessionForEmail } from '../lib/perUserLocalArchive'
+import { prepareStorageForNewAccountSignup } from '../lib/prepareNewAccountSession'
+import {
+  hashPassword,
+  isPasswordLongEnough,
+  PASSWORD_MIN_LENGTH,
+  verifyPassword,
+} from '../lib/localPasswordAuth'
 import type { SavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
 
@@ -82,15 +89,48 @@ export default function LoginScreen() {
   const [visible, setVisible] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState(() => loadSavedLocalAccounts())
   const [pickedSavedOnly, setPickedSavedOnly] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
   }, [])
 
-  const handleLogin = () => {
+  useEffect(() => {
+    setAuthError(null)
+  }, [email, password])
+
+  const handleLogin = async () => {
+    const em = email.trim()
+    const pwd = password
+    if (!em || !pwd) return
+    setAuthError(null)
     setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      const saved = getSavedLocalAccount(em)
+      if (!saved) {
+        setAuthError('No profile on this device for that email. Create an account first.')
+        return
+      }
+
+      let newPasswordHash: { passwordSaltB64: string; passwordHashB64: string } | undefined
+      const salt = saved.passwordSaltB64
+      const hash = saved.passwordHashB64
+      if (salt && hash) {
+        const ok = await verifyPassword(pwd, salt, hash)
+        if (!ok) {
+          setAuthError('Incorrect password.')
+          return
+        }
+      } else if (isPasswordLongEnough(pwd)) {
+        const h = await hashPassword(pwd)
+        newPasswordHash = { passwordSaltB64: h.saltB64, passwordHashB64: h.hashB64 }
+      } else {
+        setAuthError(
+          `This profile has no stored password yet. Use at least ${PASSWORD_MIN_LENGTH} characters once to set it.`,
+        )
+        return
+      }
+
       const raw = localStorage.getItem('finocurve-preferences')
       let parsed: Partial<UserPreferences> = {}
       try {
@@ -99,26 +139,32 @@ export default function LoginScreen() {
       const theme = normalizeStoredTheme(
         typeof parsed.theme === 'string' ? parsed.theme : null,
       )
-      const saved = getSavedLocalAccount(email)
       const merged: UserPreferences = {
         ...DEFAULT_PREFS,
         ...parsed,
         theme,
       }
-      merged.userEmail = email.trim()
-      if (saved?.userName) merged.userName = saved.userName
-      if (saved?.profilePicturePath) merged.profilePicturePath = saved.profilePicturePath
+      merged.userEmail = em
+      if (saved.userName) merged.userName = saved.userName
+      if (saved.profilePicturePath) merged.profilePicturePath = saved.profilePicturePath
 
-      const goMain = shouldEnterMainAfterSignIn(merged, saved ?? null)
+      const goMain = shouldEnterMainAfterSignIn(merged, saved)
       merged.hasCompletedOnboarding = goMain
 
       localStorage.setItem('finocurve-preferences', JSON.stringify(merged))
       restoreActiveSessionForEmail(merged.userEmail || '')
       upsertSavedLocalAccount({
-        email: merged.userEmail,
+        email: merged.userEmail || em,
         userName: merged.userName,
         profilePicturePath: merged.profilePicturePath,
         hasCompletedOnboarding: merged.hasCompletedOnboarding,
+        ...(newPasswordHash
+          ? {
+              passwordSaltB64: newPasswordHash.passwordSaltB64,
+              passwordHashB64: newPasswordHash.passwordHashB64,
+              passwordKdf: 'pbkdf2-sha256-210k',
+            }
+          : {}),
       })
       setSavedAccounts(loadSavedLocalAccounts())
 
@@ -127,7 +173,11 @@ export default function LoginScreen() {
       } else {
         navigate('/onboarding/setup', { replace: true })
       }
-    }, 1500)
+    } catch {
+      setAuthError('Sign-in failed. Try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const selectSavedAccount = (acct: { email: string; userName?: string }) => {
@@ -140,6 +190,14 @@ export default function LoginScreen() {
     setPickedSavedOnly(false)
     setEmail('')
     setPassword('')
+  }
+
+  const startNewAccount = () => {
+    prepareStorageForNewAccountSignup()
+    setPickedSavedOnly(false)
+    setEmail('')
+    setPassword('')
+    navigate('/signup')
   }
 
   return (
@@ -162,21 +220,33 @@ export default function LoginScreen() {
           <h1 className="auth-title">Welcome Back</h1>
           <p className="auth-subtitle">Sign in to your account</p>
 
-          {savedAccounts.length > 0 && (
-            <div className="auth-saved-accounts">
-              <p className="auth-saved-accounts__label">Profiles on this device</p>
-              <div className="auth-saved-accounts__bubbles" role="list">
-                {savedAccounts.map(acct => (
-                  <SavedAccountBubble
-                    key={acct.email}
-                    acct={acct}
-                    active={pickedSavedOnly && email === acct.email}
-                    onSelect={() => selectSavedAccount(acct)}
-                  />
-                ))}
-              </div>
+          <div className="auth-saved-accounts">
+            <p className="auth-saved-accounts__label">
+              {savedAccounts.length > 0 ? 'Profiles on this device' : 'Accounts'}
+            </p>
+            <div className="auth-saved-accounts__bubbles" role="list">
+              <button
+                type="button"
+                role="listitem"
+                className="auth-account-bubble auth-account-bubble--new"
+                title="Create a new profile with a new email. Saved profiles and their data on this device are not changed."
+                onClick={startNewAccount}
+              >
+                <span className="auth-account-bubble__ring auth-account-bubble__ring--new">
+                  <UserPlus size={22} strokeWidth={2} aria-hidden />
+                </span>
+                <span className="auth-account-bubble__name">New profile</span>
+              </button>
+              {savedAccounts.map(acct => (
+                <SavedAccountBubble
+                  key={acct.email}
+                  acct={acct}
+                  active={pickedSavedOnly && email === acct.email}
+                  onSelect={() => selectSavedAccount(acct)}
+                />
+              ))}
             </div>
-          )}
+          </div>
 
           <div className="auth-form">
             {pickedSavedOnly ? (
@@ -215,9 +285,15 @@ export default function LoginScreen() {
 
             <a href="#" className="auth-forgot">Forgot Password?</a>
 
+            {authError && (
+              <p className="auth-error" role="alert">
+                {authError}
+              </p>
+            )}
+
             <GlassButton
               text="Sign In"
-              onClick={handleLogin}
+              onClick={() => void handleLogin()}
               isPrimary
               isLoading={isLoading}
               disabled={!email.trim() || !password}
@@ -226,7 +302,7 @@ export default function LoginScreen() {
 
           <p className="auth-switch">
             Don't have an account?{' '}
-            <a onClick={() => navigate('/signup')}>Sign Up</a>
+            <a onClick={startNewAccount}>Sign Up</a>
           </p>
         </GlassContainer>
       </div>

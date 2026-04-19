@@ -6,6 +6,11 @@ export interface SavedLocalAccount {
   profilePicturePath?: string
   hasCompletedOnboarding: boolean
   updatedAt: string
+  /** PBKDF2-SHA256 salt (base64), device-local only */
+  passwordSaltB64?: string
+  /** PBKDF2-SHA256 derived key (base64) */
+  passwordHashB64?: string
+  passwordKdf?: string
 }
 
 function normalizeEmail(email: string): string {
@@ -33,6 +38,9 @@ export function loadSavedLocalAccounts(): SavedLocalAccount[] {
           typeof x.profilePicturePath === 'string' ? x.profilePicturePath : undefined,
         hasCompletedOnboarding: !!(x as SavedLocalAccount).hasCompletedOnboarding,
         updatedAt: typeof x.updatedAt === 'string' ? x.updatedAt : new Date(0).toISOString(),
+        passwordSaltB64: typeof x.passwordSaltB64 === 'string' ? x.passwordSaltB64 : undefined,
+        passwordHashB64: typeof x.passwordHashB64 === 'string' ? x.passwordHashB64 : undefined,
+        passwordKdf: typeof x.passwordKdf === 'string' ? x.passwordKdf : undefined,
       }))
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
   } catch {
@@ -50,6 +58,9 @@ export function upsertSavedLocalAccount(partial: {
   userName?: string
   profilePicturePath?: string
   hasCompletedOnboarding: boolean
+  passwordSaltB64?: string
+  passwordHashB64?: string
+  passwordKdf?: string
 }): void {
   const email = partial.email.trim()
   if (!email) return
@@ -63,6 +74,9 @@ export function upsertSavedLocalAccount(partial: {
     profilePicturePath: partial.profilePicturePath,
     hasCompletedOnboarding: partial.hasCompletedOnboarding,
     updatedAt: now,
+    ...(partial.passwordSaltB64 !== undefined ? { passwordSaltB64: partial.passwordSaltB64 } : {}),
+    ...(partial.passwordHashB64 !== undefined ? { passwordHashB64: partial.passwordHashB64 } : {}),
+    ...(partial.passwordKdf !== undefined ? { passwordKdf: partial.passwordKdf } : {}),
   }
   if (idx >= 0) {
     existing[idx] = { ...existing[idx], ...next }

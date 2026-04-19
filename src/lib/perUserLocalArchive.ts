@@ -3,12 +3,15 @@
  * keys while preserving data for the next sign-in on this device.
  */
 
-const ACTIVE_KEYS = [
+/** Active-session keys (not per-user archives `*:user:*`). */
+export const ACTIVE_SESSION_DATA_KEYS = [
   'finocurve-portfolio',
   'finocurve-watchlist',
   'finocurve-notifications',
   'finocurve-portfolio-value-history',
 ] as const
+
+const ACTIVE_KEYS = ACTIVE_SESSION_DATA_KEYS
 
 function suffix(email: string): string {
   return email.trim().toLowerCase()
@@ -56,6 +59,15 @@ export function removeArchivedSessionForEmail(email: string): void {
   for (const active of ACTIVE_KEYS) {
     try {
       localStorage.removeItem(archivedKey(active, em))
+    } catch { /* ignore */ }
+  }
+}
+
+/** Remove active portfolio/session keys only (does not touch `finocurve-saved-local-accounts` or `*:user:*` archives). */
+export function clearActiveUserDataStorage(): void {
+  for (const active of ACTIVE_KEYS) {
+    try {
+      localStorage.removeItem(active)
     } catch { /* ignore */ }
   }
 }
