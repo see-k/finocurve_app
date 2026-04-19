@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import AIChatBubble from './components/ai/AIChatBubble'
 import SplashScreen from './screens/SplashScreen'
 import WelcomeScreen from './screens/WelcomeScreen'
@@ -16,7 +16,6 @@ import AddManualAssetScreen from './screens/add-asset/AddManualAssetScreen'
 import AddLoanScreen from './screens/add-asset/AddLoanScreen'
 // Detail screens
 import AssetDetailScreen from './screens/detail/AssetDetailScreen'
-import LoanDetailScreen from './screens/detail/LoanDetailScreen'
 import RiskAnalysisScreen from './screens/detail/RiskAnalysisScreen'
 // Standalone screens
 import NotificationsScreen from './screens/main/NotificationsScreen'
@@ -54,6 +53,12 @@ function NotificationsPage() {
   )
 }
 
+function LegacyLoanRedirect() {
+  const { assetId } = useParams()
+  if (!assetId) return <Navigate to="/main?tab=portfolio" replace />
+  return <Navigate to={`/main/loan/${assetId}`} replace />
+}
+
 export default function App() {
   return (
     <>
@@ -71,11 +76,11 @@ export default function App() {
       <Route path="/add-asset/search" element={<SearchPublicAssetScreen />} />
       <Route path="/add-asset/manual" element={<AddManualAssetScreen />} />
       <Route path="/add-asset/loan" element={<AddLoanScreen />} />
-      {/* Main shell */}
-      <Route path="/main" element={<MainShell />} />
+      {/* Main shell (includes /main/loan/:assetId for loan detail with global nav) */}
+      <Route path="/main/*" element={<MainShell />} />
       {/* Detail screens */}
       <Route path="/asset/:assetId" element={<AssetDetailScreen />} />
-      <Route path="/loan/:assetId" element={<LoanDetailScreen />} />
+      <Route path="/loan/:assetId" element={<LegacyLoanRedirect />} />
       <Route path="/risk-analysis" element={<RiskAnalysisScreen />} />
       {/* News lives inside MainShell; keep /news for bookmarks */}
       <Route path="/news" element={<Navigate to="/main?tab=news" replace />} />

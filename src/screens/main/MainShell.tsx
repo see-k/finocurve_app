@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useMatch } from 'react-router-dom'
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
   Plus, Search, PenLine, Target,
@@ -14,6 +14,7 @@ import SettingsScreen from './SettingsScreen'
 import TrackerScreen from './TrackerScreen'
 import NewsScreen from './NewsScreen'
 import RiskAnalysisScreen from '../detail/RiskAnalysisScreen'
+import LoanDetailScreen from '../detail/LoanDetailScreen'
 import { TickerTapeWidget } from '../../components/TradingViewWidgets'
 import type { MainTab } from '../../types'
 import './MainShell.css'
@@ -52,6 +53,22 @@ export default function MainShell() {
 
   const [showFabMenu, setShowFabMenu] = useState(false)
   const navigate = useNavigate()
+  const loanDetailMatch = useMatch({ path: '/main/loan/:assetId', end: true })
+  const showLoanDetail = !!loanDetailMatch
+
+  const goToShellTab = useCallback(
+    (tab: MainTab) => {
+      if (showLoanDetail) {
+        if (tab === 'dashboard') navigate('/main', { replace: true })
+        else navigate(`/main?tab=${tab}`, { replace: true })
+        return
+      }
+      setActiveTab(tab)
+    },
+    [navigate, setActiveTab, showLoanDetail],
+  )
+
+  const navActiveTab: MainTab = showLoanDetail ? 'portfolio' : activeTab
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -92,13 +109,13 @@ export default function MainShell() {
             <button
               key={tab.id}
               type="button"
-              className={`nav-item ${activeTab === tab.id ? 'nav-item--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              className={`nav-item ${navActiveTab === tab.id ? 'nav-item--active' : ''}`}
+              onClick={() => goToShellTab(tab.id)}
               data-tooltip={tab.label}
-              aria-current={activeTab === tab.id ? 'page' : undefined}
+              aria-current={navActiveTab === tab.id ? 'page' : undefined}
             >
               {tab.icon}
-              {activeTab === tab.id && <span className="nav-item__indicator" />}
+              {navActiveTab === tab.id && <span className="nav-item__indicator" />}
             </button>
           ))}
         </div>
@@ -135,14 +152,21 @@ export default function MainShell() {
 
       {/* Main content column — ticker sits above, spanning full width */}
       <div className="main-content-col">
-        {activeTab === 'markets' && (
+        {!showLoanDetail && activeTab === 'markets' && (
           <div className="shell-ticker">
             <TickerTapeWidget height={46} />
           </div>
         )}
         <main className="main-content">
           <div className="main-content__inner">
-            {renderScreen()}
+            {showLoanDetail ? (
+              <LoanDetailScreen
+                embeddedInShell
+                assetId={loanDetailMatch?.params.assetId}
+              />
+            ) : (
+              renderScreen()
+            )}
           </div>
         </main>
       </div>

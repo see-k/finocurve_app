@@ -12,6 +12,16 @@ import { loanPrincipal, loanBalance, loanPaidOff, loanPayoffPercent, LOAN_TYPE_L
 import './DetailScreen.css'
 import '../add-asset/AddAsset.css'
 
+const LOAN_DETAIL_BG =
+  'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
+
+export interface LoanDetailScreenProps {
+  /** When true, rendered inside MainShell (global nav + wide layout + background). */
+  embeddedInShell?: boolean
+  /** Explicit asset id when the route params aren't available (e.g. when rendered inside a parent splat route). */
+  assetId?: string
+}
+
 function computeAmortization(principal: number, annualRate: number, termMonths: number, monthlyPayment: number): AmortizationEntry[] {
   const schedule: AmortizationEntry[] = []
   let balance = principal
@@ -67,9 +77,10 @@ function computePayoffSavings(principal: number, annualRate: number, termMonths:
   }
 }
 
-export default function LoanDetailScreen() {
+export default function LoanDetailScreen({ embeddedInShell = false, assetId: assetIdProp }: LoanDetailScreenProps) {
   const navigate = useNavigate()
-  const { assetId } = useParams()
+  const params = useParams()
+  const assetId = assetIdProp ?? params.assetId
   const [visible, setVisible] = useState(false)
   const [tab, setTab] = useState<'overview' | 'amortization' | 'payoff'>('overview')
   const [extraPay, setExtraPay] = useState(0)
@@ -135,13 +146,26 @@ export default function LoanDetailScreen() {
 
   const fmt = (n: number) => '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+  const goBack = () => {
+    if (embeddedInShell) navigate('/main?tab=portfolio', { replace: true })
+    else navigate(-1)
+  }
+
   if (!asset) {
     return (
-      <div className="detail-screen">
-        <GlassContainer>
-          <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>Loan not found</p>
-          <GlassButton text="Go Back" onClick={() => navigate(-1)} />
-        </GlassContainer>
+      <div className={`detail-screen ${embeddedInShell ? 'detail-screen--shell' : ''}`}>
+        {embeddedInShell && (
+          <div className="detail-page-bg" aria-hidden>
+            <img src={LOAN_DETAIL_BG} alt="" className="detail-page-bg__img" />
+            <div className="detail-page-bg__overlay" />
+          </div>
+        )}
+        <div className={`detail-content ${embeddedInShell ? 'detail-content--shell' : ''} ${visible ? 'detail-content--visible' : ''}`}>
+          <GlassContainer>
+            <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>Loan not found</p>
+            <GlassButton text="Go Back" onClick={goBack} />
+          </GlassContainer>
+        </div>
       </div>
     )
   }
@@ -176,26 +200,37 @@ export default function LoanDetailScreen() {
     p.updatedAt = new Date().toISOString()
     localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
     setShowDeleteConfirm(false)
-    navigate('/main', { replace: true })
+    navigate('/main?tab=portfolio', { replace: true })
   }
 
   const circumference = 2 * Math.PI * 60
   const strokeDashoffset = circumference * (1 - payoffPct / 100)
 
   return (
-    <div className="detail-screen">
-      <div className="detail-bg-glow detail-bg-glow--1" />
-      <div className="detail-bg-glow detail-bg-glow--2" />
-      <div className={`detail-content ${visible ? 'detail-content--visible' : ''}`}>
+    <div className={`detail-screen ${embeddedInShell ? 'detail-screen--shell' : ''}`}>
+      {embeddedInShell ? (
+        <div className="detail-page-bg" aria-hidden>
+          <img src={LOAN_DETAIL_BG} alt="" className="detail-page-bg__img" />
+          <div className="detail-page-bg__overlay" />
+        </div>
+      ) : (
+        <>
+          <div className="detail-bg-glow detail-bg-glow--1" />
+          <div className="detail-bg-glow detail-bg-glow--2" />
+        </>
+      )}
+      <div
+        className={`detail-content ${embeddedInShell ? 'detail-content--shell' : ''} ${visible ? 'detail-content--visible' : ''}`}
+      >
         <div className="detail-header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
+          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={goBack} size={44} />
           <div className="detail-header-right">
             <GlassIconButton icon={<Edit3 size={18} />} onClick={() => setShowEdit(true)} size={40} title="Edit" />
             <GlassIconButton icon={<Trash2 size={18} />} onClick={() => setShowDeleteConfirm(true)} size={40} title="Delete" />
           </div>
         </div>
 
-        <GlassContainer>
+        <GlassContainer className={embeddedInShell ? 'loan-detail-card' : undefined}>
           <div className="asset-hero">
             <div className="asset-hero__icon">{asset.loanType ? LOAN_TYPE_ICONS[asset.loanType] : '🏦'}</div>
             <div>
@@ -256,7 +291,10 @@ export default function LoanDetailScreen() {
           )}
 
           {tab === 'amortization' && (
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            <div
+              className="loan-amort-scroll"
+              style={{ maxHeight: embeddedInShell ? 560 : 400, overflowY: 'auto' }}
+            >
               {amortSchedule.length > 0 ? (
                 <table className="amort-table">
                   <thead>

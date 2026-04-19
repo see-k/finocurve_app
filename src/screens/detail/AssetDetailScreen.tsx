@@ -79,7 +79,7 @@ export default function AssetDetailScreen() {
   }
 
   if (isLoan(asset)) {
-    navigate(`/loan/${assetId}`, { replace: true })
+    navigate(`/main/loan/${assetId}`, { replace: true })
     return null
   }
 

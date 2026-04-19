@@ -27,6 +27,61 @@
   transform: translateY(16px);
   transition: all 0.4s ease;
 }
+
+/* Full-width loan (and similar) when embedded in MainShell */
+.detail-screen--shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  height: auto;
+  width: 100%;
+  max-width: none;
+  padding: 28px 28px 56px;
+  /* Center the capped-width column; stretch + max-width leaves the block at cross-start (left). */
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.detail-page-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 340px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.detail-page-bg__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.25;
+}
+
+.detail-page-bg__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--screen-overlay-soft) 0%,
+    var(--bg-primary) 300px
+  );
+}
+
+.detail-content.detail-content--shell {
+  max-width: 1120px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.loan-detail-card {
+  width: 100%;
+}
 .detail-content--visible {
   opacity: 1;
   transform: translateY(0);

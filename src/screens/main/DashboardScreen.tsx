@@ -417,7 +417,7 @@ export default function DashboardScreen() {
                   className="dash-holding-card"
                   padding="16px"
                   borderRadius={14}
-                  onClick={() => navigate(`/loan/${asset.id}`)}
+                  onClick={() => navigate(`/main/loan/${asset.id}`)}
                 >
                   <div className="dash-holding-card__icon">{asset.loanType ? '🏦' : '📋'}</div>
                   <div className="dash-holding-card__info">
