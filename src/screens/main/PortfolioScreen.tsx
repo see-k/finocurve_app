@@ -467,7 +467,7 @@ export default function PortfolioScreen() {
                   className="port-asset-card"
                   padding="16px"
                   borderRadius={14}
-                  onClick={() => navigate(`/loan/${asset.id}`)}
+                  onClick={() => navigate(`/main/loan/${asset.id}`)}
                 >
                   <div className="port-asset-card__icon">{asset.loanType ? '🏦' : '📋'}</div>
                   <div className="port-asset-card__info">

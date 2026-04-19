@@ -11,6 +11,8 @@ import { useTheme } from '../../theme/ThemeContext'
 import { THEME_OPTIONS, type AppThemeId } from '../../theme/themes'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
+import { removeSavedLocalAccount, upsertSavedLocalAccount } from '../../lib/savedLocalAccounts'
+import { archiveActiveSessionForEmail, removeArchivedSessionForEmail } from '../../lib/perUserLocalArchive'
 import './SettingsScreen.css'
 import { APP_VERSION } from '../../constants/appVersion'
 
@@ -34,11 +36,25 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
-    await window.electronAPI?.localStorageClearPath?.()
+    // Note: do NOT call `localStorageClearPath` here. It clears the Electron
+    // device-wide "local storage directory" config, which is shared by every
+    // profile on the device. Sign-out should only touch this account's session.
+    if (prefs.userEmail?.trim()) {
+      const em = prefs.userEmail.trim()
+      upsertSavedLocalAccount({
+        email: em,
+        userName: prefs.userName,
+        profilePicturePath: prefs.profilePicturePath,
+        hasCompletedOnboarding: prefs.hasCompletedOnboarding,
+      })
+      archiveActiveSessionForEmail(em)
+    } else {
+      localStorage.removeItem('finocurve-portfolio')
+      localStorage.removeItem('finocurve-watchlist')
+      localStorage.removeItem('finocurve-notifications')
+      localStorage.removeItem('finocurve-portfolio-value-history')
+    }
     resetPreferences()
-    localStorage.removeItem('finocurve-portfolio')
-    localStorage.removeItem('finocurve-watchlist')
-    localStorage.removeItem('finocurve-notifications')
     navigate('/', { replace: true })
   }
 
@@ -74,11 +90,19 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = async () => {
     await window.electronAPI?.s3ClearCredentials?.()
-    await window.electronAPI?.localStorageClearPath?.()
+    // Same caveat as sign-out: leave the device-wide local storage directory
+    // config alone; deleting one account must not disconnect storage for any
+    // other saved profiles on this device.
+    if (prefs.userEmail?.trim()) {
+      const em = prefs.userEmail.trim()
+      removeSavedLocalAccount(em)
+      removeArchivedSessionForEmail(em)
+    }
     resetPreferences()
     localStorage.removeItem('finocurve-portfolio')
     localStorage.removeItem('finocurve-watchlist')
     localStorage.removeItem('finocurve-notifications')
+    localStorage.removeItem('finocurve-portfolio-value-history')
     navigate('/', { replace: true })
   }
 

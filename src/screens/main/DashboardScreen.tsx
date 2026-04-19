@@ -140,7 +140,7 @@ export default function DashboardScreen() {
           </div>
         </div>
         <div className="dash-greeting__actions">
-          <GlassIconButton icon={<Newspaper size={20} />} onClick={() => navigate('/news')} size={42} title="News" />
+          <GlassIconButton icon={<Newspaper size={20} />} onClick={() => navigate('/main?tab=news')} size={42} title="News" />
           <div style={{ position: 'relative' }}>
             <GlassIconButton icon={<Bell size={20} />} onClick={() => navigate('/notifications')} size={42} title="Notifications" />
             {unreadCount > 0 && (
@@ -417,7 +417,7 @@ export default function DashboardScreen() {
                   className="dash-holding-card"
                   padding="16px"
                   borderRadius={14}
-                  onClick={() => navigate(`/loan/${asset.id}`)}
+                  onClick={() => navigate(`/main/loan/${asset.id}`)}
                 >
                   <div className="dash-holding-card__icon">{asset.loanType ? '🏦' : '📋'}</div>
                   <div className="dash-holding-card__info">

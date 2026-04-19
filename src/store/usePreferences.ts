@@ -4,7 +4,7 @@ import { normalizeStoredTheme } from '../theme/themes'
 
 const STORAGE_KEY = 'finocurve-preferences'
 
-const DEFAULT_PREFS: UserPreferences = {
+export const DEFAULT_PREFS: UserPreferences = {
   hasCompletedOnboarding: false,
   isGuest: false,
   selectedAssetTypes: [],

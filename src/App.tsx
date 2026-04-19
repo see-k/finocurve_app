@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import AIChatBubble from './components/ai/AIChatBubble'
 import SplashScreen from './screens/SplashScreen'
 import WelcomeScreen from './screens/WelcomeScreen'
@@ -16,10 +16,8 @@ import AddManualAssetScreen from './screens/add-asset/AddManualAssetScreen'
 import AddLoanScreen from './screens/add-asset/AddLoanScreen'
 // Detail screens
 import AssetDetailScreen from './screens/detail/AssetDetailScreen'
-import LoanDetailScreen from './screens/detail/LoanDetailScreen'
 import RiskAnalysisScreen from './screens/detail/RiskAnalysisScreen'
 // Standalone screens
-import NewsScreen from './screens/main/NewsScreen'
 import NotificationsScreen from './screens/main/NotificationsScreen'
 // Settings sub-screens
 import AccountScreen from './screens/settings/AccountScreen'
@@ -47,20 +45,18 @@ function TrackerS3PrefsSync() {
   return null
 }
 
-function NewsPage() {
-  return (
-    <div style={{ minHeight: '100vh', padding: 40 }}>
-      <NewsScreen />
-    </div>
-  )
-}
-
 function NotificationsPage() {
   return (
     <div style={{ minHeight: '100vh', padding: 40 }}>
       <NotificationsScreen />
     </div>
   )
+}
+
+function LegacyLoanRedirect() {
+  const { assetId } = useParams()
+  if (!assetId) return <Navigate to="/main?tab=portfolio" replace />
+  return <Navigate to={`/main/loan/${assetId}`} replace />
 }
 
 export default function App() {
@@ -80,14 +76,14 @@ export default function App() {
       <Route path="/add-asset/search" element={<SearchPublicAssetScreen />} />
       <Route path="/add-asset/manual" element={<AddManualAssetScreen />} />
       <Route path="/add-asset/loan" element={<AddLoanScreen />} />
-      {/* Main shell */}
-      <Route path="/main" element={<MainShell />} />
+      {/* Main shell (includes /main/loan/:assetId for loan detail with global nav) */}
+      <Route path="/main/*" element={<MainShell />} />
       {/* Detail screens */}
       <Route path="/asset/:assetId" element={<AssetDetailScreen />} />
-      <Route path="/loan/:assetId" element={<LoanDetailScreen />} />
+      <Route path="/loan/:assetId" element={<LegacyLoanRedirect />} />
       <Route path="/risk-analysis" element={<RiskAnalysisScreen />} />
-      {/* Standalone */}
-      <Route path="/news" element={<NewsPage />} />
+      {/* News lives inside MainShell; keep /news for bookmarks */}
+      <Route path="/news" element={<Navigate to="/main?tab=news" replace />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       {/* Settings sub-screens */}
       <Route path="/settings/account" element={<AccountScreen />} />

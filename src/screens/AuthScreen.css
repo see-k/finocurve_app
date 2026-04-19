@@ -116,12 +116,177 @@
   margin-top: 24px;
 }
 
-.auth-switch a {
+.auth-switch a,
+.auth-switch__link {
   color: var(--primary);
   cursor: pointer;
   font-weight: 600;
 }
 
-.auth-switch a:hover {
+.auth-switch__link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-switch a:hover,
+.auth-switch__link:hover {
   color: var(--primary-hover);
+}
+
+.auth-switch__link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.auth-saved-accounts {
+  margin-bottom: 24px;
+}
+
+.auth-saved-accounts__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.auth-saved-accounts__bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  justify-content: flex-start;
+}
+
+.auth-account-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-primary);
+  max-width: 88px;
+}
+
+.auth-account-bubble__ring {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-glass, rgba(255, 255, 255, 0.06));
+  border: 2px solid transparent;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.auth-account-bubble:hover .auth-account-bubble__ring {
+  border-color: var(--primary-alpha-40, rgba(99, 102, 241, 0.45));
+  transform: translateY(-1px);
+}
+
+.auth-account-bubble--active .auth-account-bubble__ring {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-alpha-20, rgba(99, 102, 241, 0.25));
+}
+
+.auth-account-bubble--new .auth-account-bubble__name {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.auth-account-bubble__ring--new {
+  border: 2px dashed var(--primary-alpha-40, rgba(99, 102, 241, 0.45));
+  background: transparent;
+  color: var(--primary);
+}
+
+.auth-account-bubble--new:hover .auth-account-bubble__ring--new {
+  border-color: var(--primary);
+  background: var(--primary-alpha-10, rgba(99, 102, 241, 0.12));
+}
+
+.auth-account-bubble__initials {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.auth-account-bubble__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-account-bubble__name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-picked-account {
+  padding: 12px 4px 4px;
+}
+
+.auth-picked-account__label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.auth-picked-account__email {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.auth-picked-account__switch {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-align: left;
+}
+
+.auth-picked-account__switch:hover {
+  color: var(--primary-hover);
+}
+
+.auth-signup-hint {
+  margin: -8px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+  border-radius: 10px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+.auth-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--status-error, #f87171);
 }

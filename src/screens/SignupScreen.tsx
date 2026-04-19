@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, User, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import GlassButton from '../components/glass/GlassButton'
@@ -6,6 +6,11 @@ import finocurveLogo from '/images/finocurve-logo.png'
 import GlassTextField from '../components/glass/GlassTextField'
 import GlassContainer from '../components/glass/GlassContainer'
 import GlassIconButton from '../components/glass/GlassIconButton'
+import { DEFAULT_PREFS } from '../store/usePreferences'
+import type { UserPreferences } from '../types'
+import { normalizeStoredTheme } from '../theme/themes'
+import { hashPassword, isPasswordLongEnough, PASSWORD_MIN_LENGTH } from '../lib/localPasswordAuth'
+import { getSavedLocalAccount, upsertSavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
 
 export default function SignupScreen() {
@@ -16,6 +21,7 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [signupError, setSignupError] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -23,19 +29,66 @@ export default function SignupScreen() {
   }, [])
 
   const passwordsMatch = password === confirmPassword
-  const canSubmit = name && email && password && confirmPassword && passwordsMatch
+  const passwordLongEnough = isPasswordLongEnough(password)
+  const trimmedName = name.trim()
+  const trimmedEmail = email.trim()
+  // Lightweight email format check; full RFC validation is overkill for a local
+  // sign-up flow, but reject obvious garbage like whitespace-only or no `@`.
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
+  const canSubmit = !!(
+    trimmedName &&
+    trimmedEmail &&
+    emailLooksValid &&
+    password &&
+    confirmPassword &&
+    passwordsMatch &&
+    passwordLongEnough
+  )
 
-  const handleSignup = () => {
+  const savedProfileForEmail = useMemo(() => {
+    if (!trimmedEmail) return undefined
+    return getSavedLocalAccount(trimmedEmail)
+  }, [trimmedEmail])
+
+  const handleSignup = async () => {
     if (!canSubmit) return
+    setSignupError(null)
     setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
-      prefs.userName = name
-      prefs.userEmail = email
+    try {
+      let priorTheme: string | undefined
+      try {
+        const raw = localStorage.getItem('finocurve-preferences')
+        if (raw) {
+          const o = JSON.parse(raw) as Partial<UserPreferences>
+          if (typeof o.theme === 'string') priorTheme = o.theme
+        }
+      } catch { /* ignore */ }
+
+      const { saltB64, hashB64 } = await hashPassword(password)
+
+      const prefs: UserPreferences = {
+        ...DEFAULT_PREFS,
+        theme: normalizeStoredTheme(priorTheme ?? null),
+        userName: trimmedName,
+        userEmail: trimmedEmail,
+        hasCompletedOnboarding: false,
+        isGuest: false,
+      }
       localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
+      upsertSavedLocalAccount({
+        email: trimmedEmail,
+        userName: trimmedName,
+        hasCompletedOnboarding: false,
+        localAuthSaltB64: saltB64,
+        localAuthDigestB64: hashB64,
+        localAuthKdf: 'pbkdf2-sha256-210k',
+      })
       navigate('/onboarding/setup', { replace: true })
-    }, 1500)
+    } catch {
+      setSignupError('This device or browser does not support secure password hashing. Try updating it or using a different device.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -72,12 +125,23 @@ export default function SignupScreen() {
               type="email"
               prefixIcon={<Mail size={18} />}
             />
+            {savedProfileForEmail && (
+              <p className="auth-signup-hint" role="status">
+                This email already has a saved profile on this device. Use Sign in to open it, or
+                enter a different email to add another profile without touching other saved profiles.
+              </p>
+            )}
             <GlassTextField
               value={password}
               onChange={setPassword}
               placeholder="Password"
               type={showPassword ? 'text' : 'password'}
               prefixIcon={<Lock size={18} />}
+              error={
+                password.length > 0 && !passwordLongEnough
+                  ? `At least ${PASSWORD_MIN_LENGTH} characters`
+                  : undefined
+              }
               suffixIcon={
                 <button
                   className="auth-toggle-pw"
@@ -97,9 +161,15 @@ export default function SignupScreen() {
               error={confirmPassword && !passwordsMatch ? 'Passwords do not match' : undefined}
             />
 
+            {signupError && (
+              <p className="auth-error" role="alert">
+                {signupError}
+              </p>
+            )}
+
             <GlassButton
               text="Create Account"
-              onClick={handleSignup}
+              onClick={() => void handleSignup()}
               isPrimary
               isLoading={isLoading}
               disabled={!canSubmit}

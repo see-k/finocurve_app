@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -294,6 +294,7 @@ export default function AIChatBubble() {
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
   const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUpChip[]>([])
   const [error, setError] = useState<string | null>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -303,9 +304,14 @@ export default function AIChatBubble() {
   const messagesRef = useRef<ChatMessage[]>(messages)
   messagesRef.current = messages
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = messagesScrollRef.current
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior })
+      return
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
 
   const resizeTextarea = () => {
     const ta = textareaRef.current
@@ -315,8 +321,13 @@ export default function AIChatBubble() {
   }
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, streaming, streamingFollowUps])
+    scrollMessagesToBottom('smooth')
+  }, [messages, streaming, streamingFollowUps, scrollMessagesToBottom])
+
+  useLayoutEffect(() => {
+    if (!expanded) return
+    scrollMessagesToBottom('auto')
+  }, [expanded, messages.length, scrollMessagesToBottom])
 
   useEffect(() => {
     resizeTextarea()
@@ -639,7 +650,7 @@ export default function AIChatBubble() {
             </div>
           </div>
 
-          <div className="ai-chat-messages" aria-busy={loading}>
+          <div ref={messagesScrollRef} className="ai-chat-messages" aria-busy={loading}>
             {messages.length === 0 && (
               <p className="ai-chat-placeholder">
                 Ask about your portfolio, risk metrics, or documents. Attach images, PDFs, or text files with the paperclip. Requires an AI provider (Ollama, Bedrock, or Azure) configured in Settings.
