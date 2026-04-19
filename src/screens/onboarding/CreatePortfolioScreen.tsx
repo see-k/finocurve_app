@@ -19,6 +19,7 @@ export default function CreatePortfolioScreen() {
   const handleContinue = () => {
     const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
     prefs.defaultCurrency = currency
+    prefs.hasCompletedOnboarding = true
 
     const portfolio = {
       id: crypto.randomUUID(),

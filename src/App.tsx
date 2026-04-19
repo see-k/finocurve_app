@@ -19,7 +19,6 @@ import AssetDetailScreen from './screens/detail/AssetDetailScreen'
 import LoanDetailScreen from './screens/detail/LoanDetailScreen'
 import RiskAnalysisScreen from './screens/detail/RiskAnalysisScreen'
 // Standalone screens
-import NewsScreen from './screens/main/NewsScreen'
 import NotificationsScreen from './screens/main/NotificationsScreen'
 // Settings sub-screens
 import AccountScreen from './screens/settings/AccountScreen'
@@ -45,14 +44,6 @@ function TrackerS3PrefsSync() {
     void api.trackerRunStartupSync?.()
   }, [prefs.trackerS3AutoBackup, prefs.trackerS3AutoSync])
   return null
-}
-
-function NewsPage() {
-  return (
-    <div style={{ minHeight: '100vh', padding: 40 }}>
-      <NewsScreen />
-    </div>
-  )
 }
 
 function NotificationsPage() {
@@ -86,8 +77,8 @@ export default function App() {
       <Route path="/asset/:assetId" element={<AssetDetailScreen />} />
       <Route path="/loan/:assetId" element={<LoanDetailScreen />} />
       <Route path="/risk-analysis" element={<RiskAnalysisScreen />} />
-      {/* Standalone */}
-      <Route path="/news" element={<NewsPage />} />
+      {/* News lives inside MainShell; keep /news for bookmarks */}
+      <Route path="/news" element={<Navigate to="/main?tab=news" replace />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       {/* Settings sub-screens */}
       <Route path="/settings/account" element={<AccountScreen />} />

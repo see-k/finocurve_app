@@ -140,7 +140,7 @@ export default function DashboardScreen() {
           </div>
         </div>
         <div className="dash-greeting__actions">
-          <GlassIconButton icon={<Newspaper size={20} />} onClick={() => navigate('/news')} size={42} title="News" />
+          <GlassIconButton icon={<Newspaper size={20} />} onClick={() => navigate('/main?tab=news')} size={42} title="News" />
           <div style={{ position: 'relative' }}>
             <GlassIconButton icon={<Bell size={20} />} onClick={() => navigate('/notifications')} size={42} title="Notifications" />
             {unreadCount > 0 && (

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import finocurveLogo from '/images/finocurve-logo.png'
+import { shouldEnterMainAfterSignIn } from '../lib/onboardingRouting'
+import type { UserPreferences } from '../types'
 import './SplashScreen.css'
 
 const SPLASH_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
@@ -16,8 +18,8 @@ export default function SplashScreen() {
       const prefs = localStorage.getItem('finocurve-preferences')
       if (prefs) {
         try {
-          const parsed = JSON.parse(prefs)
-          if (parsed.hasCompletedOnboarding) {
+          const parsed = JSON.parse(prefs) as Partial<UserPreferences>
+          if (shouldEnterMainAfterSignIn(parsed, null)) {
             navigate('/main', { replace: true })
             return
           }

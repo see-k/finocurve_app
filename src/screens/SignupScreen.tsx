@@ -6,6 +6,7 @@ import finocurveLogo from '/images/finocurve-logo.png'
 import GlassTextField from '../components/glass/GlassTextField'
 import GlassContainer from '../components/glass/GlassContainer'
 import GlassIconButton from '../components/glass/GlassIconButton'
+import { upsertSavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
 
 export default function SignupScreen() {
@@ -34,6 +35,11 @@ export default function SignupScreen() {
       prefs.userName = name
       prefs.userEmail = email
       localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
+      upsertSavedLocalAccount({
+        email,
+        userName: name,
+        hasCompletedOnboarding: !!prefs.hasCompletedOnboarding,
+      })
       navigate('/onboarding/setup', { replace: true })
     }, 1500)
   }
