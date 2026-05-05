@@ -37,10 +37,9 @@ const APP_ROUTE_CATALOG: Array<{
   { path: '/main?tab=news', description: 'Main shell — News & Data tab.', requiresAuth: true },
   { path: '/main?tab=risk', description: 'Main shell — Risk Analysis tab (embedded).', requiresAuth: true },
   { path: '/main?tab=insights', description: 'Main shell — Insights tab.', requiresAuth: true },
-  { path: '/main?tab=reports', description: 'Main shell — Reports tab.', requiresAuth: true },
+  { path: '/main?tab=reports', description: 'Main shell — Reports tab (documents UX lives here).', requiresAuth: true },
   { path: '/main?tab=tracker', description: 'Main shell — Tracker tab (net worth & goals).', requiresAuth: true },
   { path: '/main?tab=settings', description: 'Main shell — Settings tab (links to sub-screens).', requiresAuth: true },
-  { path: '/main?tab=documents', description: 'Note: there is no documents tab; Reports holds documents UX.', requiresAuth: true },
   {
     path: '/main/loan/:assetId',
     description: 'Loan detail screen embedded in main shell.',
@@ -71,8 +70,93 @@ const APP_ROUTE_CATALOG: Array<{
   { path: '/settings/about', description: 'Settings — about.', requiresAuth: true },
 ]
 
+/**
+ * Common informal terms users may say that don't map to a literal route.
+ * Surfaced from listRoutesTool so the model picks the right destination
+ * instead of guessing (e.g. "go to documents").
+ */
+const APP_ROUTE_TOPIC_ALIASES: Array<{ topic: string; resolvesTo: string; note: string }> = [
+  {
+    topic: 'documents',
+    resolvesTo: '/main?tab=reports',
+    note: 'There is no separate documents tab; documents/reports UX is on the Reports tab.',
+  },
+  {
+    topic: 'home',
+    resolvesTo: '/main',
+    note: 'The authenticated home is the Dashboard tab of /main.',
+  },
+]
+
+/** Tabs that MainShell actually recognizes; anything else falls back to dashboard. */
+const KNOWN_MAIN_TABS = new Set<string>([
+  'dashboard',
+  'portfolio',
+  'markets',
+  'news',
+  'risk',
+  'insights',
+  'reports',
+  'tracker',
+  'settings',
+])
+
 function jsonResult(payload: Record<string, unknown>): string {
   return JSON.stringify(payload)
+}
+
+/** Returns true if `requested` matches a catalog entry literally or via :param substitution. */
+function pathMatchesCatalog(requested: string): boolean {
+  if (APP_ROUTE_CATALOG.some((r) => r.path === requested)) return true
+  const [reqBase, reqQuery] = requested.split('?', 2)
+  const reqSegs = reqBase.split('/').filter(Boolean)
+  for (const r of APP_ROUTE_CATALOG) {
+    if (!r.params || r.params.length === 0) continue
+    const [rBase, rQuery] = r.path.split('?', 2)
+    if ((rQuery ?? '') !== (reqQuery ?? '')) continue
+    const rSegs = rBase.split('/').filter(Boolean)
+    if (rSegs.length !== reqSegs.length) continue
+    let ok = true
+    for (let i = 0; i < rSegs.length; i++) {
+      if (rSegs[i].startsWith(':')) continue
+      if (rSegs[i] !== reqSegs[i]) {
+        ok = false
+        break
+      }
+    }
+    if (ok) return true
+  }
+  return false
+}
+
+/**
+ * Validate the requested path before navigating so the tool doesn't return
+ * ok:true for routes that the SPA silently rewrites (e.g. unknown ?tab values
+ * that fall through to the dashboard).
+ */
+function validateRequestedPath(requested: string):
+  | { ok: true }
+  | { ok: false; error: string; suggestion?: string } {
+  const [base, query] = requested.split('?', 2)
+  if (base === '/main') {
+    if (!query) return { ok: true }
+    const params = new URLSearchParams(query)
+    const tab = params.get('tab')
+    if (tab && !KNOWN_MAIN_TABS.has(tab)) {
+      const alias = APP_ROUTE_TOPIC_ALIASES.find((a) => a.topic === tab.toLowerCase())
+      return {
+        ok: false,
+        error: `Unknown /main tab "${tab}". Valid tabs: ${[...KNOWN_MAIN_TABS].join(', ')}.`,
+        suggestion: alias?.resolvesTo,
+      }
+    }
+    return { ok: true }
+  }
+  if (pathMatchesCatalog(requested)) return { ok: true }
+  return {
+    ok: false,
+    error: `Path "${requested}" is not in the route catalog. Call app_browser_list_routes for valid paths.`,
+  }
 }
 
 const APP_BROWSER_REMOTE_INDICATOR_CHANNEL = 'app-browser-remote-indicator' as const
@@ -85,20 +169,35 @@ export function notifyRemoteIndicator(phase: 'start' | 'end', toolName: string):
   wc.send(APP_BROWSER_REMOTE_INDICATOR_CHANNEL, { phase, toolName })
 }
 
-/** Ensures the renderer can paint between start/end (otherwise React batches both updates). */
-const MIN_REMOTE_INDICATOR_MS = 480
+/**
+ * Indicator UX:
+ *   - Don't surface the HUD for sub-perceptible work (≤ SHOW_AFTER_MS) — it
+ *     just adds latency to fast tools like list_routes.
+ *   - When the work is slow enough to show, keep the HUD on for at least
+ *     MIN_VISIBLE_MS so a single frame doesn't flash by unreadably.
+ */
+const SHOW_INDICATOR_AFTER_MS = 120
+const MIN_INDICATOR_VISIBLE_MS = 220
 
 async function withRemoteIndicator(toolName: string, fn: () => Promise<string>): Promise<string> {
-  notifyRemoteIndicator('start', toolName)
-  const started = Date.now()
+  let shownAt = 0
+  const showTimer = setTimeout(() => {
+    shownAt = Date.now()
+    notifyRemoteIndicator('start', toolName)
+  }, SHOW_INDICATOR_AFTER_MS)
   try {
     return await fn()
   } finally {
-    const elapsed = Date.now() - started
-    if (elapsed < MIN_REMOTE_INDICATOR_MS) {
-      await new Promise<void>((resolve) => setTimeout(resolve, MIN_REMOTE_INDICATOR_MS - elapsed))
+    clearTimeout(showTimer)
+    if (shownAt > 0) {
+      const visibleFor = Date.now() - shownAt
+      if (visibleFor < MIN_INDICATOR_VISIBLE_MS) {
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, MIN_INDICATOR_VISIBLE_MS - visibleFor)
+        )
+      }
+      notifyRemoteIndicator('end', toolName)
     }
-    notifyRemoteIndicator('end', toolName)
   }
 }
 
@@ -266,10 +365,44 @@ async function listRoutesTool(): Promise<string> {
     ok: true,
     currentPath,
     note:
-      'Use the exact "path" string from this list when calling app_browser_navigate. Paths with :param segments require a real id. /main is the authenticated shell — its sub-views are query-string tabs, not nested routes.',
+      'Use the exact "path" string from this list when calling app_browser_navigate. Paths with :param segments require a real id. /main is the authenticated shell — its sub-views are query-string tabs, not nested routes. Unknown /main tabs are rejected by app_browser_navigate (no silent fallback).',
     routes: APP_ROUTE_CATALOG,
+    topicAliases: APP_ROUTE_TOPIC_ALIASES,
   })
 }
+
+/** CSS selector for the AI chat overlay so screenshots/text/clicks ignore it. */
+const ASSISTANT_OVERLAY_SELECTOR = '.ai-chat-bubble'
+
+/**
+ * Hide the chat overlay (and any future assistant overlays) before sampling the
+ * page, then restore. Returns the previous inline visibility so callers can revert.
+ */
+const HIDE_OVERLAY_JS = `
+  (function () {
+    var nodes = document.querySelectorAll(${JSON.stringify(ASSISTANT_OVERLAY_SELECTOR)});
+    var prev = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      prev.push(n.style.visibility || '');
+      n.style.visibility = 'hidden';
+    }
+    window.__finocurveOverlayPrevVisibility = prev;
+    return prev.length;
+  })()
+`
+
+const RESTORE_OVERLAY_JS = `
+  (function () {
+    var nodes = document.querySelectorAll(${JSON.stringify(ASSISTANT_OVERLAY_SELECTOR)});
+    var prev = window.__finocurveOverlayPrevVisibility || [];
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].style.visibility = prev[i] || '';
+    }
+    delete window.__finocurveOverlayPrevVisibility;
+    return nodes.length;
+  })()
+`
 
 async function screenshotTool(args: Record<string, unknown>): Promise<string> {
   const win = getMainBrowserWindow()
@@ -282,7 +415,17 @@ async function screenshotTool(args: Record<string, unknown>): Promise<string> {
       ? args.scaleFactor
       : 1
 
+  let overlayHidden = false
   try {
+    try {
+      await win.webContents.executeJavaScript(HIDE_OVERLAY_JS, true)
+      overlayHidden = true
+      // Let one frame paint so capturePage doesn't pick up the pre-hide pixels.
+      await new Promise<void>((resolve) => setTimeout(resolve, 32))
+    } catch {
+      /* hiding is best-effort */
+    }
+
     const image = await win.webContents.capturePage()
     let working = image
     let { width: w, height: h } = working.getSize()
@@ -314,6 +457,14 @@ async function screenshotTool(args: Record<string, unknown>): Promise<string> {
       ok: false,
       error: err instanceof Error ? err.message : 'capturePage failed',
     })
+  } finally {
+    if (overlayHidden) {
+      try {
+        await win.webContents.executeJavaScript(RESTORE_OVERLAY_JS, true)
+      } catch {
+        /* restore is best-effort */
+      }
+    }
   }
 }
 
@@ -331,6 +482,16 @@ async function navigateTool(args: Record<string, unknown>): Promise<string> {
   const requested = path.trim()
   const hash = normalizeHashRoute(requested)
   const targetPath = hash.replace(/^#/, '')
+
+  const validation = validateRequestedPath(targetPath)
+  if (!validation.ok) {
+    return jsonResult({
+      ok: false,
+      requestedPath: targetPath,
+      error: validation.error,
+      ...(validation.suggestion ? { suggestion: validation.suggestion } : {}),
+    })
+  }
 
   try {
     await win.webContents.executeJavaScript(
@@ -353,15 +514,59 @@ async function navigateTool(args: Record<string, unknown>): Promise<string> {
 
     await new Promise<void>((resolve) => setTimeout(resolve, 220))
 
-    const currentPath = await readCurrentPath()
-    const ok = !!currentPath && currentPath === targetPath
+    const probe = await win.webContents
+      .executeJavaScript(
+        `(function () {
+          var p = (window.location.hash || '').replace(/^#/, '') || '/'
+          var nav = document.querySelector('[aria-current="page"]')
+          var activeNav = nav ? (nav.getAttribute('data-tooltip') || nav.textContent || '').trim() : null
+          return { currentPath: p, activeNavLabel: activeNav }
+        })()`,
+        true
+      )
+      .catch(() => null)
+
+    const currentPath: string | null =
+      probe && typeof probe === 'object' && typeof (probe as { currentPath?: unknown }).currentPath === 'string'
+        ? (probe as { currentPath: string }).currentPath
+        : await readCurrentPath()
+    const activeNavLabel: string | null =
+      probe && typeof probe === 'object' && typeof (probe as { activeNavLabel?: unknown }).activeNavLabel === 'string'
+        ? (probe as { activeNavLabel: string }).activeNavLabel
+        : null
+
+    let ok = !!currentPath && currentPath === targetPath
+    let note: string | undefined
+    if (ok && targetPath.startsWith('/main')) {
+      const expectedTab = (() => {
+        const q = targetPath.split('?', 2)[1] ?? ''
+        const t = new URLSearchParams(q).get('tab')
+        return t && KNOWN_MAIN_TABS.has(t) ? t : 'dashboard'
+      })()
+      if (activeNavLabel) {
+        const labelTab = activeNavLabel.toLowerCase()
+        const matches =
+          labelTab === expectedTab ||
+          labelTab.startsWith(expectedTab) ||
+          expectedTab === 'risk' && labelTab.includes('risk') ||
+          expectedTab === 'news' && labelTab.includes('news')
+        if (!matches) {
+          ok = false
+          note = `URL applied but the rendered tab is "${activeNavLabel}" instead of "${expectedTab}".`
+        }
+      }
+    }
+    if (!ok && !note) {
+      note =
+        'Hash applied but route did not resolve to the requested path. Call app_browser_list_routes to verify available routes.'
+    }
+
     return jsonResult({
       ok,
       requestedPath: targetPath,
       currentPath,
-      note: ok
-        ? undefined
-        : 'Hash applied but route did not resolve to the requested path. The path may be unknown — call app_browser_list_routes to verify available routes.',
+      activeNavLabel,
+      note,
     })
   } catch (err) {
     return jsonResult({
@@ -400,35 +605,61 @@ async function pageTextTool(args: Record<string, unknown>): Promise<string> {
           return out
         }
 
-        var headingEls = document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')
-        var headings = []
-        for (var hi = 0; hi < headingEls.length; hi++) {
-          var ht = norm(headingEls[hi].innerText || headingEls[hi].textContent || '')
-          if (ht.length) headings.push(ht)
-        }
-        headings = dedupe(headings, 120)
-
-        var snippetLines = []
-        var uls = document.querySelectorAll('ul, ol')
-        var maxLists = 25
-        for (var ui = 0; ui < uls.length && snippetLines.length < maxLists; ui++) {
-          var ul = uls[ui]
-          var items = []
-          var lis = ul.querySelectorAll(':scope > li')
-          for (var li = 0; li < Math.min(lis.length, 14); li++) {
-            var it = norm(lis[li].innerText || lis[li].textContent || '')
-            if (it.length) items.push('- ' + it)
-          }
-          if (items.length) {
-            snippetLines.push(items.slice(0, 12).join('\\n'))
-          }
+        // Hide the assistant chat overlay so its transcript and controls don't
+        // contaminate the page snapshot. innerText respects display:none, so we
+        // toggle it for the duration of this synchronous extraction and revert
+        // before yielding back to the renderer.
+        var overlayNodes = document.querySelectorAll(${JSON.stringify(ASSISTANT_OVERLAY_SELECTOR)})
+        var prevDisplay = []
+        for (var ox = 0; ox < overlayNodes.length; ox++) {
+          prevDisplay.push(overlayNodes[ox].style.display || '')
+          overlayNodes[ox].style.display = 'none'
         }
 
-        var body = document.body
-        var inner = body ? String(body.innerText || '').replace(/\\n{3,}/g, '\\n\\n').trim() : ''
-        var currentPath = (window.location.hash || '').replace(/^#/, '') || '/'
+        function inOverlay(el) {
+          for (var k = 0; k < overlayNodes.length; k++) {
+            if (overlayNodes[k].contains(el)) return true
+          }
+          return false
+        }
 
-        return { headings: headings, listSnippets: snippetLines, innerText: inner, currentPath: currentPath }
+        try {
+          var headingEls = document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')
+          var headings = []
+          for (var hi = 0; hi < headingEls.length; hi++) {
+            if (inOverlay(headingEls[hi])) continue
+            var ht = norm(headingEls[hi].innerText || headingEls[hi].textContent || '')
+            if (ht.length) headings.push(ht)
+          }
+          headings = dedupe(headings, 120)
+
+          var snippetLines = []
+          var uls = document.querySelectorAll('ul, ol')
+          var maxLists = 25
+          for (var ui = 0; ui < uls.length && snippetLines.length < maxLists; ui++) {
+            var ul = uls[ui]
+            if (inOverlay(ul)) continue
+            var items = []
+            var lis = ul.querySelectorAll(':scope > li')
+            for (var li = 0; li < Math.min(lis.length, 14); li++) {
+              var it = norm(lis[li].innerText || lis[li].textContent || '')
+              if (it.length) items.push('- ' + it)
+            }
+            if (items.length) {
+              snippetLines.push(items.slice(0, 12).join('\\n'))
+            }
+          }
+
+          var body = document.body
+          var inner = body ? String(body.innerText || '').replace(/\\n{3,}/g, '\\n\\n').trim() : ''
+          var currentPath = (window.location.hash || '').replace(/^#/, '') || '/'
+
+          return { headings: headings, listSnippets: snippetLines, innerText: inner, currentPath: currentPath }
+        } finally {
+          for (var rx = 0; rx < overlayNodes.length; rx++) {
+            overlayNodes[rx].style.display = prevDisplay[rx]
+          }
+        }
       })()
       `,
       true
@@ -504,6 +735,29 @@ async function clickTool(args: Record<string, unknown>): Promise<string> {
         var SELECTOR = ${JSON.stringify(selector)};
         var ROLE = ${JSON.stringify(role)};
         var NTH = ${JSON.stringify(nth)};
+        var OVERLAY_SEL = ${JSON.stringify(ASSISTANT_OVERLAY_SELECTOR)};
+
+        // Native HTML elements that carry an implicit ARIA role; passing
+        // role: "button" should also match <button>, role: "link" should also
+        // match <a href>, etc. This avoids the [role="..."] attribute trap.
+        var IMPLICIT_ROLE_SELECTORS = {
+          button: 'button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], summary',
+          link: 'a[href], [role="link"]',
+          tab: '[role="tab"]',
+          menuitem: '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]',
+          option: 'option, [role="option"]',
+          checkbox: 'input[type="checkbox"], [role="checkbox"]',
+          switch: '[role="switch"]',
+          radio: 'input[type="radio"], [role="radio"]'
+        };
+
+        var overlayNodes = document.querySelectorAll(OVERLAY_SEL);
+        function inOverlay(el) {
+          for (var k = 0; k < overlayNodes.length; k++) {
+            if (overlayNodes[k].contains(el)) return true;
+          }
+          return false;
+        }
 
         function isVisible(el) {
           if (!el || !(el instanceof Element)) return false;
@@ -530,7 +784,10 @@ async function clickTool(args: Record<string, unknown>): Promise<string> {
         if (SELECTOR) {
           try {
             var nodes = document.querySelectorAll(SELECTOR);
-            for (var i = 0; i < nodes.length; i++) if (isVisible(nodes[i])) pool.push(nodes[i]);
+            for (var i = 0; i < nodes.length; i++) {
+              if (inOverlay(nodes[i])) continue;
+              if (isVisible(nodes[i])) pool.push(nodes[i]);
+            }
           } catch (e) {
             return { ok: false, error: 'Invalid selector: ' + (e && e.message ? e.message : String(e)) };
           }
@@ -539,12 +796,13 @@ async function clickTool(args: Record<string, unknown>): Promise<string> {
         if (!pool.length && TEXT) {
           var needle = TEXT.toLowerCase();
           var roleSel = ROLE
-            ? '[role="' + ROLE + '"]'
-            : 'button, a, [role="tab"], [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], summary, label';
+            ? (IMPLICIT_ROLE_SELECTORS[ROLE.toLowerCase()] || ('[role="' + ROLE + '"]'))
+            : 'button, a, [role="tab"], [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], summary, label, input[type="button"], input[type="submit"]';
           var candidates = document.querySelectorAll(roleSel);
           var exact = [], contains = [];
           for (var j = 0; j < candidates.length; j++) {
             var el = candidates[j];
+            if (inOverlay(el)) continue;
             if (!isVisible(el)) continue;
             var t = elementText(el).toLowerCase();
             var aria = (el.getAttribute('aria-label') || '').toLowerCase();
@@ -616,13 +874,48 @@ async function scrollTool(args: Record<string, unknown>): Promise<string> {
     const pos = await win.webContents.executeJavaScript(
       `
       (function () {
-        window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'auto' });
+        // html/body/#root are overflow:hidden in this app, so window.scrollBy
+        // is a no-op. Find the actual scroll container: prefer the known shell
+        // scroller, then the nearest scrollable ancestor of the viewport
+        // center, then fall back to documentElement so we never silently lie.
+        function isScrollable(el) {
+          if (!el || !(el instanceof Element)) return false
+          if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) return false
+          var cs = window.getComputedStyle(el)
+          var oy = cs.overflowY, ox = cs.overflowX
+          return oy === 'auto' || oy === 'scroll' || ox === 'auto' || ox === 'scroll'
+        }
+
+        function pickTarget() {
+          var named = document.querySelector('.main-content__inner')
+          if (isScrollable(named)) return named
+          var hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+          while (hit) {
+            if (isScrollable(hit)) return hit
+            hit = hit.parentElement
+          }
+          return document.scrollingElement || document.documentElement
+        }
+
+        var t = pickTarget()
+        var beforeY = t.scrollTop, beforeX = t.scrollLeft
+        if (typeof t.scrollBy === 'function') {
+          t.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'auto' })
+        } else {
+          t.scrollTop = beforeY + ${deltaY}
+          t.scrollLeft = beforeX + ${deltaX}
+        }
         return {
-          scrollX: window.scrollX,
-          scrollY: window.scrollY,
-          innerHeight: window.innerHeight,
-          documentScrollHeight: document.documentElement.scrollHeight,
-        };
+          scrollTarget: t === document.scrollingElement || t === document.documentElement
+            ? 'document'
+            : (t.className ? '.' + String(t.className).split(/\\s+/).filter(Boolean).join('.') : t.tagName.toLowerCase()),
+          scrollX: t.scrollLeft,
+          scrollY: t.scrollTop,
+          deltaScrolledY: t.scrollTop - beforeY,
+          deltaScrolledX: t.scrollLeft - beforeX,
+          clientHeight: t.clientHeight,
+          scrollHeight: t.scrollHeight,
+        }
       })()
       `,
       true

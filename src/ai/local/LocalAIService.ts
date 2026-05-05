@@ -34,6 +34,35 @@ function isAbortError(err: unknown): boolean {
   return false
 }
 
+/**
+ * Race a promise against an abort signal so callers don't have to wait for
+ * uncancellable work to finish before the chat loop can exit. The losing
+ * promise keeps running but its result is discarded.
+ */
+function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) {
+    return Promise.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(err)
+      }
+    )
+  })
+}
+
 /** Parse AIMessage content into reasoning + answer chunks for display. */
 function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
   const chunks: ChatStreamChunk[] = []
@@ -638,10 +667,21 @@ export class LocalAIService implements AIService {
         const id = tc.id ?? `call_${tc.name}_${round}`
         try {
           const invokeArgs = tc.args ?? {}
-          const result = tool
-            ? await (tool as { invoke: (args: unknown, config?: { signal?: AbortSignal }) => Promise<unknown> })
-                .invoke(invokeArgs, signal ? { signal } : undefined)
-            : `Tool ${tc.name} not found`
+          if (!tool) {
+            toolMessages.push(
+              new ToolMessage({ content: `Tool ${tc.name} not found`, tool_call_id: id, status: 'error' })
+            )
+            continue
+          }
+          // RunnableConfig.signal is plumbed through for tools that honor it
+          // (LangChain native, our built-in browser tools), but the MCP bridge
+          // currently ignores it. Race the invoke against an abort promise so
+          // a Stop press unblocks the chat loop immediately even if the
+          // underlying tool call keeps running to completion in the background.
+          const invokePromise = (
+            tool as { invoke: (args: unknown, config?: { signal?: AbortSignal }) => Promise<unknown> }
+          ).invoke(invokeArgs, signal ? { signal } : undefined)
+          const result = await raceWithAbort(invokePromise, signal)
           const resultStr = sanitizeToolResultForModel(
             typeof result === 'string' ? result : JSON.stringify(result)
           )
