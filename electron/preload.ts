@@ -94,6 +94,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('ai-generate-insights', payload),
   aiChatStream: (payload: { messages: unknown[]; context: unknown }) =>
     ipcRenderer.invoke('ai-chat-stream', payload),
+  aiChatCancel: () => ipcRenderer.invoke('ai-chat-cancel'),
   onAiChatChunk: (
     callback: (
       chunk:
@@ -109,6 +110,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ) => callback(chunk)
     ipcRenderer.on('ai-chat-chunk', handler)
     return () => ipcRenderer.removeListener('ai-chat-chunk', handler)
+  },
+  onAppBrowserRemoteIndicator: (
+    callback: (payload: { phase: 'start' | 'end'; toolName: string }) => void
+  ) => {
+    const channel = 'app-browser-remote-indicator'
+    const handler = (_: unknown, payload: { phase: 'start' | 'end'; toolName: string }) =>
+      callback(payload)
+    ipcRenderer.on(channel, handler)
+    return () => ipcRenderer.removeListener(channel, handler)
   },
   aiGenerateAdvancedAnalysis: (payload: {
     riskSummary: string

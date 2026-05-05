@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import AIChatBubble from './components/ai/AIChatBubble'
+import AIAppRemoteFrame from './components/appRemote/AIAppRemoteFrame'
 import SplashScreen from './screens/SplashScreen'
 import WelcomeScreen from './screens/WelcomeScreen'
 import LoginScreen from './screens/LoginScreen'
@@ -98,6 +99,7 @@ export default function App() {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <AIAppRemoteFrame />
     <AIChatBubble />
     </>
   )

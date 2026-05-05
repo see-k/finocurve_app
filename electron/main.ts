@@ -12,6 +12,7 @@ import { registerSECHandlers } from './secHandlers'
 import { registerPluginSettingsHandlers } from './pluginSettingsHandlers'
 import { registerMCPHandlers } from './mcpHandlers'
 import { stopMCPServers } from './mcpServer'
+import { setMainWindow } from './mainWindow'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -82,6 +83,12 @@ function createWindow() {
 
   win.once('ready-to-show', () => {
     win?.show()
+  })
+
+  setMainWindow(win)
+  win.on('closed', () => {
+    setMainWindow(null)
+    win = null
   })
 
   if (VITE_DEV_SERVER_URL) {

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Maximize2, Minimize2, MessageSquarePlus, Paperclip } from 'lucide-react'
+import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import type { ChatAttachment } from '../../ai/types'
@@ -510,6 +510,13 @@ export default function AIChatBubble() {
     void runChatWithHistory(next)
   }
 
+  const stoppedByUserRef = useRef(false)
+
+  const handleStop = () => {
+    stoppedByUserRef.current = true
+    void window.electronAPI?.aiChatCancel?.()
+  }
+
   const runChatWithHistory = async (historyForApi: ChatMessage[]) => {
     const streamChat = window.electronAPI?.aiChatStream
     if (!streamChat) {
@@ -517,6 +524,7 @@ export default function AIChatBubble() {
       setError('AI chat is not available.')
       return
     }
+    stoppedByUserRef.current = false
 
     const portfolioContext =
       portfolio && totalValue >= 0
@@ -553,7 +561,7 @@ export default function AIChatBubble() {
         }
       })
 
-      const { text: response, reasoning, followUps } = await streamChat({
+      const { text: response, reasoning, followUps, aborted } = await streamChat({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
@@ -567,13 +575,18 @@ export default function AIChatBubble() {
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
       setStreamingFollowUps([])
+      const wasStopped = aborted || stoppedByUserRef.current
+      const baseContent = response || (wasStopped ? '' : 'No response.')
+      const finalContent = wasStopped
+        ? `${baseContent}${baseContent ? '\n\n' : ''}_Stopped by user._`
+        : baseContent
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: response || 'No response.',
+          content: finalContent || '_Stopped by user._',
           reasoning,
-          ...(followUps && followUps.length > 0 ? { followUps } : {}),
+          ...(!wasStopped && followUps && followUps.length > 0 ? { followUps } : {}),
         },
       ])
     } catch (e) {
@@ -840,14 +853,26 @@ export default function AIChatBubble() {
                 disabled={loading}
                 rows={1}
               />
-              <button
-                className="ai-chat-send"
-                onClick={handleSend}
-                disabled={!canSend}
-                aria-label="Send"
-              >
-                <Send size={18} />
-              </button>
+              {loading ? (
+                <button
+                  type="button"
+                  className="ai-chat-send ai-chat-send--stop"
+                  onClick={handleStop}
+                  aria-label="Stop"
+                  title="Stop generating"
+                >
+                  <Square size={16} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  className="ai-chat-send"
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  aria-label="Send"
+                >
+                  <Send size={18} />
+                </button>
+              )}
             </div>
           </div>
         </GlassContainer>
