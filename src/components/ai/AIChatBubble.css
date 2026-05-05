@@ -681,3 +681,23 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.ai-chat-send--stop {
+  background: #dc2626;
+  color: white;
+  position: relative;
+  animation: ai-chat-stop-pulse 1.6s ease-in-out infinite;
+}
+
+.ai-chat-send--stop:hover {
+  background: #b91c1c;
+}
+
+@keyframes ai-chat-stop-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}

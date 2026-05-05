@@ -116,13 +116,18 @@ interface ElectronAPI {
     text: string
     reasoning?: string
     followUps?: { label: string; prompt: string }[]
+    aborted?: boolean
   }>
+  aiChatCancel?: () => Promise<{ ok: boolean }>
   onAiChatChunk?: (
     callback: (
       chunk:
         | { type: 'reasoning' | 'answer'; content: string }
         | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
     ) => void
+  ) => () => void
+  onAppBrowserRemoteIndicator?: (
+    callback: (payload: { phase: 'start' | 'end'; toolName: string }) => void
   ) => () => void
   aiGenerateAdvancedAnalysis?: (payload: {
     riskSummary: string

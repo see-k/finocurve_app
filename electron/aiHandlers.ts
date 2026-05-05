@@ -508,6 +508,8 @@ export function registerAIHandlers(): void {
     return { insights }
   })
 
+  const chatAbortControllers = new Map<number, AbortController>()
+
   ipcMain.handle('ai-chat-stream', async (
     event,
     payload: {
@@ -517,26 +519,65 @@ export function registerAIHandlers(): void {
   ) => {
     const service = getService()
     const sender = event.sender
+    const senderId = sender.id
+
+    chatAbortControllers.get(senderId)?.abort()
+    const controller = new AbortController()
+    chatAbortControllers.set(senderId, controller)
+
     let reasoning = ''
     let answer = ''
+    let aborted = false
     let followUps: { label: string; prompt: string }[] | undefined
-    for await (const chunk of service.chat(payload.messages, payload.context)) {
-      if (chunk.type === 'reasoning') {
-        reasoning += chunk.content
-        sender.send('ai-chat-chunk', { type: 'reasoning', content: chunk.content })
-      } else if (chunk.type === 'follow_ups') {
-        followUps = chunk.items
-        sender.send('ai-chat-chunk', { type: 'follow_ups', items: chunk.items })
+
+    try {
+      for await (const chunk of service.chat(payload.messages, payload.context, { signal: controller.signal })) {
+        if (controller.signal.aborted) {
+          aborted = true
+          break
+        }
+        if (chunk.type === 'reasoning') {
+          reasoning += chunk.content
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'reasoning', content: chunk.content })
+        } else if (chunk.type === 'follow_ups') {
+          followUps = chunk.items
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'follow_ups', items: chunk.items })
+        } else {
+          answer += chunk.content
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
+        }
+      }
+    } catch (err) {
+      if (controller.signal.aborted) {
+        aborted = true
       } else {
-        answer += chunk.content
-        sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
+        chatAbortControllers.delete(senderId)
+        throw err
+      }
+    } finally {
+      if (chatAbortControllers.get(senderId) === controller) {
+        chatAbortControllers.delete(senderId)
       }
     }
+
+    if (controller.signal.aborted) aborted = true
+
     return {
       text: answer,
       reasoning: reasoning || undefined,
       ...(followUps && followUps.length > 0 ? { followUps } : {}),
+      ...(aborted ? { aborted: true } : {}),
     }
+  })
+
+  ipcMain.handle('ai-chat-cancel', (event) => {
+    const controller = chatAbortControllers.get(event.sender.id)
+    if (controller) {
+      controller.abort()
+      chatAbortControllers.delete(event.sender.id)
+      return { ok: true }
+    }
+    return { ok: false }
   })
 
   ipcMain.handle('ai-generate-advanced-analysis', async (

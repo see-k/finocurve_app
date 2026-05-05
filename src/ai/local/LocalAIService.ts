@@ -24,6 +24,45 @@ import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools, type FinocurveToolContext } from './tools'
 
+/** Detect AbortError-like errors regardless of provider/runtime. */
+function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: unknown; message?: unknown; code?: unknown }
+  if (e.name === 'AbortError') return true
+  if (typeof e.message === 'string' && /aborted|cancell?ed/i.test(e.message)) return true
+  if (e.code === 'ABORT_ERR' || e.code === 20) return true
+  return false
+}
+
+/**
+ * Race a promise against an abort signal so callers don't have to wait for
+ * uncancellable work to finish before the chat loop can exit. The losing
+ * promise keeps running but its result is discarded.
+ */
+function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) {
+    return Promise.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(err)
+      }
+    )
+  })
+}
+
 /** Parse AIMessage content into reasoning + answer chunks for display. */
 function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
   const chunks: ChatStreamChunk[] = []
@@ -65,6 +104,60 @@ function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
 
 const MAX_VISION_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_ATTACHMENT_TEXT_CHARS = 80_000
+
+/** Cap tool outputs so Bedrock/LangChain history stays under model limits (MCP screenshots, etc.). */
+const MAX_TOOL_MESSAGE_CHARS = 100_000
+
+/**
+ * Shrinks oversized tool outputs before they become {@link ToolMessage} content:
+ * recursively strips large base64 image payloads from JSON tool results, then truncates the final string.
+ */
+function redactLargeImagePayloadsInJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactLargeImagePayloadsInJson)
+  }
+  if (value !== null && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    const mimeStr = typeof obj.mimeType === 'string' ? obj.mimeType : ''
+    const base64Str = typeof obj.base64 === 'string' ? obj.base64 : ''
+    if (mimeStr.toLowerCase().includes('image') && base64Str.length > 500) {
+      const summary: Record<string, unknown> = {
+        note: `base64 image omitted (${base64Str.length} chars) — use smaller screenshot or describe UI verbally`,
+      }
+      if ('ok' in obj) summary.ok = obj.ok
+      if (mimeStr) summary.mimeType = mimeStr
+      if (typeof obj.width === 'number') summary.width = obj.width
+      if (typeof obj.height === 'number') summary.height = obj.height
+      return summary
+    }
+    const out: Record<string, unknown> = {}
+    for (const [key, nested] of Object.entries(obj)) {
+      out[key] = redactLargeImagePayloadsInJson(nested)
+    }
+    return out
+  }
+  return value
+}
+
+function sanitizeToolResultForModel(text: string): string {
+  let out = text
+  try {
+    const parsed: unknown = JSON.parse(text)
+    const redacted = redactLargeImagePayloadsInJson(parsed)
+    out = typeof redacted === 'string' ? redacted : JSON.stringify(redacted)
+  } catch {
+    /* not JSON — truncate below */
+  }
+
+  if (out.length > MAX_TOOL_MESSAGE_CHARS) {
+    return `${out.slice(0, MAX_TOOL_MESSAGE_CHARS)}\n… [truncated, ${out.length} chars total]`
+  }
+  return out
+}
+
+function hasAppBuiltinBrowserTools(mcpTools: StructuredToolInterface[]): boolean {
+  return mcpTools.some((t) => typeof t.name === 'string' && t.name.startsWith('app_browser_'))
+}
 
 function isVisionImageMime(mime: string): boolean {
   const m = mime.toLowerCase().split(';')[0].trim()
@@ -408,8 +501,10 @@ export class LocalAIService implements AIService {
 
   async *chat(
     messages: ChatMessage[],
-    context: ChatContext
+    context: ChatContext,
+    options?: { signal?: AbortSignal }
   ): AsyncGenerator<ChatStreamChunk, void, unknown> {
+    const signal = options?.signal
     const systemParts: string[] = [
       'You are a helpful financial assistant for FinoCurve, an investment banking app. You can answer questions about the user\'s portfolio and every holding they recorded (get_holdings), loans (get_user_loans), documents, risk metrics, congressional financial disclosures (STOCK Act), and SEC EDGAR filings. Use get_current_datetime for the real-world "today" or current time. Holdings and loans come from app data — no document upload required. Use the available tools when you need data from the app. For live web search or external data sources, the user may connect MCP servers (e.g. search tools) in AI settings — use those tools when present.',
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
@@ -488,6 +583,11 @@ export class LocalAIService implements AIService {
 
     const finocurveTools = createFinocurveTools(toolContext)
     const mcpTools = this.options.getMCPTools?.() ?? []
+    if (hasAppBuiltinBrowserTools(mcpTools)) {
+      systemParts.push(
+        'In-app browser (FinoCurve main window tools): Whenever the user asks you to GO somewhere, OPEN a page, or NAVIGATE in the app, FIRST call app_browser_list_routes to get the exact path catalog and currentPath — never guess routes. Then call app_browser_navigate with an exact path from that list (e.g. "/main?tab=portfolio", "/settings/ai-config"). The /main shell uses query-string tabs (?tab=dashboard|portfolio|markets|news|risk|insights|reports|tracker|settings), not nested URLs. For in-page UI like sub-tabs (Overview, Volatility, History on Risk Analysis), buttons (Save, Add asset), or any clickable control that is NOT a route, use app_browser_click with the visible text or a CSS selector — NEVER tell the user to click it themselves; you can do it. After navigating or clicking, call app_browser_page_text to confirm and read on-screen content. Prefer app_browser_page_text over app_browser_screenshot for headings, buttons, and labels — image base64 is omitted from tool results to stay within token limits.'
+      )
+    }
     const tools = [...finocurveTools, ...mcpTools]
     const modelWithTools =
       typeof this.model.bindTools === 'function'
@@ -506,39 +606,49 @@ export class LocalAIService implements AIService {
     const modelToUse = modelWithTools ?? this.model
     const toolMap = new Map(tools.map((t) => [t.name, t]))
 
+    const isAborted = () => !!signal?.aborted
+
     while (round < MAX_TOOL_ROUNDS) {
+      if (isAborted()) return
       followUpRoundRef.items = []
-      const stream = await modelToUse.stream(currentMessages)
+      let stream
+      try {
+        stream = await modelToUse.stream(currentMessages, signal ? { signal } : undefined)
+      } catch (err) {
+        if (isAborted() || isAbortError(err)) return
+        throw err
+      }
       let accumulated: AIMessageChunk | null = null
       const thinkParser = new ThinkTagParser()
       let needsSeparator = yieldedText
 
-      for await (const chunk of stream) {
-        // Accumulate for tool-call detection at end
-        accumulated = accumulated ? accumulated.concat(chunk) : chunk
+      try {
+        for await (const chunk of stream) {
+          if (isAborted()) return
+          accumulated = accumulated ? accumulated.concat(chunk) : chunk
 
-        // Yield text/reasoning content immediately
-        const extracted = extractStreamingContent(chunk)
-        if (extracted) {
-          // Insert paragraph break between tool rounds so text doesn't run together
-          if (needsSeparator && extracted.type === 'answer') {
-            yield { type: 'answer', content: '\n\n' }
-            needsSeparator = false
-          }
-          if (extracted.type === 'reasoning') {
-            yield { type: 'reasoning', content: extracted.content }
-          } else {
-            // Parse for <think> tags (Ollama-style thinking models)
-            const parsed = thinkParser.parse(extracted.content)
-            for (const c of parsed) yield c
-            yieldedText = true
+          const extracted = extractStreamingContent(chunk)
+          if (extracted) {
+            if (needsSeparator && extracted.type === 'answer') {
+              yield { type: 'answer', content: '\n\n' }
+              needsSeparator = false
+            }
+            if (extracted.type === 'reasoning') {
+              yield { type: 'reasoning', content: extracted.content }
+            } else {
+              const parsed = thinkParser.parse(extracted.content)
+              for (const c of parsed) yield c
+              yieldedText = true
+            }
           }
         }
+      } catch (err) {
+        if (isAborted() || isAbortError(err)) return
+        throw err
       }
 
       if (!accumulated) return
 
-      // Convert accumulated chunk to AIMessage for message history
       const aiMessage = new AIMessage({
         content: accumulated.content,
         tool_calls: accumulated.tool_calls,
@@ -547,26 +657,43 @@ export class LocalAIService implements AIService {
 
       const toolCalls = aiMessage.tool_calls
       if (!toolCalls || toolCalls.length === 0) {
-        // Text was already streamed above — we're done
         return
       }
 
-      // Execute tool calls
       const toolMessages: ToolMessage[] = []
       for (const tc of toolCalls) {
+        if (isAborted()) return
         const tool = toolMap.get(tc.name)
         const id = tc.id ?? `call_${tc.name}_${round}`
         try {
-          const result = tool
-            ? await (tool as { invoke: (args: unknown) => Promise<unknown> }).invoke(tc.args ?? {})
-            : `Tool ${tc.name} not found`
-          const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
+          const invokeArgs = tc.args ?? {}
+          if (!tool) {
+            toolMessages.push(
+              new ToolMessage({ content: `Tool ${tc.name} not found`, tool_call_id: id, status: 'error' })
+            )
+            continue
+          }
+          // RunnableConfig.signal is plumbed through for tools that honor it
+          // (LangChain native, our built-in browser tools), but the MCP bridge
+          // currently ignores it. Race the invoke against an abort promise so
+          // a Stop press unblocks the chat loop immediately even if the
+          // underlying tool call keeps running to completion in the background.
+          const invokePromise = (
+            tool as { invoke: (args: unknown, config?: { signal?: AbortSignal }) => Promise<unknown> }
+          ).invoke(invokeArgs, signal ? { signal } : undefined)
+          const result = await raceWithAbort(invokePromise, signal)
+          const resultStr = sanitizeToolResultForModel(
+            typeof result === 'string' ? result : JSON.stringify(result)
+          )
           toolMessages.push(new ToolMessage({ content: resultStr, tool_call_id: id }))
         } catch (err) {
+          if (isAborted() || isAbortError(err)) return
           const errMsg = err instanceof Error ? err.message : 'Tool execution failed'
           toolMessages.push(new ToolMessage({ content: `Error: ${errMsg}`, tool_call_id: id, status: 'error' }))
         }
       }
+
+      if (isAborted()) return
 
       if (followUpRoundRef.items.length > 0) {
         yield { type: 'follow_ups', items: [...followUpRoundRef.items] }

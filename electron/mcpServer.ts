@@ -22,6 +22,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { APP_PACKAGE_VERSION } from './appPackageVersion'
+import { getBuiltinAppBrowserTools, callBuiltinAppBrowserTool } from './appBrowserTools'
 
 export interface MCPServerDefinition {
   name: string
@@ -337,7 +338,7 @@ export function isMCPRunning(): boolean {
  * Get all available tools from all connected MCP servers.
  */
 export function getAllMCPTools(): MCPToolInfo[] {
-  const tools: MCPToolInfo[] = []
+  const tools: MCPToolInfo[] = [...getBuiltinAppBrowserTools()]
   for (const [, entry] of connectedServers) {
     if (entry.status === 'running') {
       tools.push(...entry.tools)
@@ -353,6 +354,11 @@ export async function callMCPTool(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<string> {
+  const builtin = await callBuiltinAppBrowserTool(toolName, args)
+  if (builtin !== null) {
+    return builtin
+  }
+
   for (const [, entry] of connectedServers) {
     const hasTool = entry.tools.some((t) => t.name === toolName)
     if (!hasTool) continue

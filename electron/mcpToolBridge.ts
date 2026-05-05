@@ -91,7 +91,12 @@ function mcpToolToLangChain(mcpTool: MCPToolInfo): StructuredToolInterface {
     : z.object({})
 
   return tool(
-    async (args: Record<string, unknown>) => {
+    // Accept (args, config) so callers can pass an AbortSignal via
+    // RunnableConfig.signal. callMCPTool itself currently ignores it (the MCP
+    // SDK doesn't expose cancellation), but the chat loop also races the
+    // returned promise against the signal so a Stop press unblocks the UI
+    // even when the underlying tool keeps running.
+    async (args: Record<string, unknown>, _config?: { signal?: AbortSignal }) => {
       return await callMCPTool(mcpTool.name, args)
     },
     {

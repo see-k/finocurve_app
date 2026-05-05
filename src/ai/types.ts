@@ -118,7 +118,8 @@ export interface AIService {
 
   chat(
     messages: ChatMessage[],
-    context: ChatContext
+    context: ChatContext,
+    options?: { signal?: AbortSignal }
   ): AsyncGenerator<ChatStreamChunk, void, unknown>
 
   getTools(): Tool[]
