@@ -18,7 +18,9 @@
     "dist:win:x64": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
     "dist:win:arm64": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --arm64",
     "release": "release-it",
-    "release:dry": "release-it --dry-run"
+    "release:dry": "release-it --dry-run",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "build": {
     "appId": "com.finocurve.app",
@@ -90,12 +92,14 @@
     "electron": "^41.5.0",
     "electron-builder": "^26.9.0",
     "esbuild": "^0.28.0",
+    "happy-dom": "^20.10.3",
     "png-to-ico": "^3.0.1",
     "release-it": "^20.0.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vite-plugin-electron": "^0.29.1",
-    "vite-plugin-electron-renderer": "^0.14.7"
+    "vite-plugin-electron-renderer": "^0.14.7",
+    "vitest": "^3.2.6"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.12",
