@@ -23,45 +23,7 @@ import { createChatModel } from '../createChatModel'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools, type FinocurveToolContext } from './tools'
-
-/** Detect AbortError-like errors regardless of provider/runtime. */
-function isAbortError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-  const e = err as { name?: unknown; message?: unknown; code?: unknown }
-  if (e.name === 'AbortError') return true
-  if (typeof e.message === 'string' && /aborted|cancell?ed/i.test(e.message)) return true
-  if (e.code === 'ABORT_ERR' || e.code === 20) return true
-  return false
-}
-
-/**
- * Race a promise against an abort signal so callers don't have to wait for
- * uncancellable work to finish before the chat loop can exit. The losing
- * promise keeps running but its result is discarded.
- */
-function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return promise
-  if (signal.aborted) {
-    return Promise.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => {
-      signal.removeEventListener('abort', onAbort)
-      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (err) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(err)
-      }
-    )
-  })
-}
+import { isAbortError, raceWithAbort, sanitizeToolResultForModel } from './chatHelpers'
 
 /** Parse AIMessage content into reasoning + answer chunks for display. */
 function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
@@ -104,56 +66,6 @@ function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
 
 const MAX_VISION_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_ATTACHMENT_TEXT_CHARS = 80_000
-
-/** Cap tool outputs so Bedrock/LangChain history stays under model limits (MCP screenshots, etc.). */
-const MAX_TOOL_MESSAGE_CHARS = 100_000
-
-/**
- * Shrinks oversized tool outputs before they become {@link ToolMessage} content:
- * recursively strips large base64 image payloads from JSON tool results, then truncates the final string.
- */
-function redactLargeImagePayloadsInJson(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(redactLargeImagePayloadsInJson)
-  }
-  if (value !== null && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    const mimeStr = typeof obj.mimeType === 'string' ? obj.mimeType : ''
-    const base64Str = typeof obj.base64 === 'string' ? obj.base64 : ''
-    if (mimeStr.toLowerCase().includes('image') && base64Str.length > 500) {
-      const summary: Record<string, unknown> = {
-        note: `base64 image omitted (${base64Str.length} chars) — use smaller screenshot or describe UI verbally`,
-      }
-      if ('ok' in obj) summary.ok = obj.ok
-      if (mimeStr) summary.mimeType = mimeStr
-      if (typeof obj.width === 'number') summary.width = obj.width
-      if (typeof obj.height === 'number') summary.height = obj.height
-      return summary
-    }
-    const out: Record<string, unknown> = {}
-    for (const [key, nested] of Object.entries(obj)) {
-      out[key] = redactLargeImagePayloadsInJson(nested)
-    }
-    return out
-  }
-  return value
-}
-
-function sanitizeToolResultForModel(text: string): string {
-  let out = text
-  try {
-    const parsed: unknown = JSON.parse(text)
-    const redacted = redactLargeImagePayloadsInJson(parsed)
-    out = typeof redacted === 'string' ? redacted : JSON.stringify(redacted)
-  } catch {
-    /* not JSON — truncate below */
-  }
-
-  if (out.length > MAX_TOOL_MESSAGE_CHARS) {
-    return `${out.slice(0, MAX_TOOL_MESSAGE_CHARS)}\n… [truncated, ${out.length} chars total]`
-  }
-  return out
-}
 
 function hasAppBuiltinBrowserTools(mcpTools: StructuredToolInterface[]): boolean {
   return mcpTools.some((t) => typeof t.name === 'string' && t.name.startsWith('app_browser_'))
