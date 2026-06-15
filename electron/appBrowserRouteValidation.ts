@@ -81,7 +81,7 @@ export const KNOWN_MAIN_TABS = new Set<string>([
   'settings',
 ])
 
-function pathMatchesCatalog(requested: string): boolean {
+export function pathMatchesCatalog(requested: string): boolean {
   if (APP_ROUTE_CATALOG.some((r) => r.path === requested)) return true
   const [reqBase, reqQuery] = requested.split('?', 2)
   const reqSegs = reqBase.split('/').filter(Boolean)
