@@ -4,6 +4,7 @@
  */
 import { convert } from 'html-to-text'
 import { ipcMain } from 'electron'
+import { resolveCikSync } from './secCik'
 
 const SEC_BASE = 'https://data.sec.gov'
 const SEC_TICKERS = 'https://www.sec.gov/files/company_tickers.json'
@@ -52,21 +53,11 @@ async function fetchSEC<T>(url: string): Promise<{ data: T | null; error: string
 }
 
 async function resolveCik(tickerOrCik: string): Promise<string | null> {
+  const sync = resolveCikSync(tickerOrCik, FALLBACK_TICKER_TO_CIK, tickerToCikCache)
+  if (sync) return sync
+
   const trimmed = String(tickerOrCik).trim().toUpperCase()
   if (!trimmed) return null
-
-  if (/^\d+$/.test(trimmed)) {
-    return trimmed.padStart(10, '0')
-  }
-
-  // Check fallback first (handles fetch failures and common tickers)
-  const fallback = FALLBACK_TICKER_TO_CIK[trimmed]
-  if (fallback) return fallback
-
-  if (tickerToCikCache) {
-    const cik = tickerToCikCache.get(trimmed)
-    if (cik) return cik
-  }
 
   const { data, error } = await fetchSEC<SecCompanyTickers>(SEC_TICKERS)
   if (error || !data) return null
