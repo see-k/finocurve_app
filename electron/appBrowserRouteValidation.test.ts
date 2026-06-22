@@ -48,6 +48,14 @@ describe('validateRequestedPath', () => {
     }
   })
 
+  it('suggests /main when users ask for home tab', () => {
+    const result = validateRequestedPath('/main?tab=home')
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.suggestion).toBe('/main')
+    }
+  })
+
   it('rejects unknown main tabs instead of silently falling back to dashboard', () => {
     const result = validateRequestedPath('/main?tab=not-a-tab')
     expect(result.ok).toBe(false)

@@ -8,12 +8,24 @@ import {
 } from './goalBaselineContext'
 
 const portfolio: PortfolioContext = {
-  totalValue: 250_000,
+  portfolioName: 'Test',
+  totalValue: 150,
+  totalGainLossPercent: 0,
+  assetCount: 2,
   holdings: [
-    { symbol: 'AAPL', name: 'Apple', value: 50_000, weight: 20 },
-    { symbol: 'MSFT', name: 'Microsoft', value: 30_000, weight: 12 },
+    {
+      symbol: 'TST',
+      name: 'Test',
+      type: 'stock',
+      category: 'public',
+      value: 150,
+      quantity: 10,
+      costBasis: 100,
+      currency: 'USD',
+    },
   ],
-  loans: [{ name: 'Mortgage', balance: 120_000 }],
+  topHoldings: [{ symbol: 'TST', name: 'Test', value: 150 }],
+  loans: [{ name: 'Mortgage', balance: 150_000 }],
   riskScore: 42,
 }
 
@@ -30,15 +42,33 @@ describe('normalizeGoalProgressSource', () => {
 
 describe('currentValueForGoalSourceFromContext', () => {
   it('derives live values from synced portfolio context', () => {
-    expect(currentValueForGoalSourceFromContext('net_worth', 500_000, portfolio)).toBe(500_000)
-    expect(currentValueForGoalSourceFromContext('portfolio_balance', null, portfolio)).toBe(80_000)
-    expect(currentValueForGoalSourceFromContext('debt_loans', null, portfolio)).toBe(120_000)
+    expect(currentValueForGoalSourceFromContext('net_worth', 500, portfolio)).toBe(500)
+    expect(currentValueForGoalSourceFromContext('portfolio_balance', null, portfolio)).toBe(150)
+    expect(currentValueForGoalSourceFromContext('debt_loans', null, portfolio)).toBe(150_000)
     expect(currentValueForGoalSourceFromContext('risk_score', null, portfolio)).toBe(42)
   })
 
   it('returns null for risk_score when portfolio cache has no riskScore', () => {
-    const stale: PortfolioContext = { ...portfolio, riskScore: undefined }
+    const stale: PortfolioContext = {
+      portfolioName: portfolio.portfolioName,
+      totalValue: portfolio.totalValue,
+      totalGainLossPercent: portfolio.totalGainLossPercent,
+      assetCount: portfolio.assetCount,
+      holdings: portfolio.holdings,
+    }
     expect(currentValueForGoalSourceFromContext('risk_score', null, stale)).toBeNull()
+  })
+
+  it('falls back to topHoldings when holdings is empty', () => {
+    const ctx: PortfolioContext = {
+      portfolioName: 'Fallback',
+      totalValue: 99,
+      totalGainLossPercent: 0,
+      assetCount: 1,
+      holdings: [],
+      topHoldings: [{ symbol: 'X', name: 'X', value: 99 }],
+    }
+    expect(currentValueForGoalSourceFromContext('portfolio_balance', null, ctx)).toBe(99)
   })
 })
 
@@ -53,5 +83,6 @@ describe('goalBaselineContext progress helpers', () => {
     expect(goalProgressPercentForSummary({ baselineAmount: 0, targetAmount: 100 }, 50)).toBe(50)
     expect(goalProgressPercentForSummary({ baselineAmount: 200_000, targetAmount: 100_000 }, 150_000)).toBe(50)
     expect(goalProgressPercentForSummary({ baselineAmount: 100, targetAmount: 100 }, 100)).toBeNull()
+    expect(goalProgressPercentForSummary({ baselineAmount: 0, targetAmount: 100 }, null)).toBe(0)
   })
 })

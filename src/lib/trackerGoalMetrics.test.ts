@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Portfolio } from '../types'
 import {
+  currentRiskScore,
   currentValueForGoalSource,
   goalProgressPercent,
   naturalBaselineForGoalSource,
@@ -66,5 +67,12 @@ describe('trackerGoalMetrics', () => {
     expect(naturalBaselineForGoalSource('portfolio_balance', 500)).toBe(0)
     expect(naturalBaselineForGoalSource('risk_score', 42)).toBe(100)
     expect(naturalBaselineForGoalSource('net_worth', 1234)).toBe(1234)
+  })
+
+  it('derives risk_score goal progress from non-loan holdings only', () => {
+    expect(currentRiskScore(null)).toBe(0)
+    expect(currentRiskScore({ ...portfolio, assets: [] })).toBe(0)
+    expect(currentValueForGoalSource('risk_score', null, portfolio)).toBeGreaterThan(0)
+    expect(currentValueForGoalSource('risk_score', null, portfolio, 55)).toBe(55)
   })
 })
