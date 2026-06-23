@@ -2,9 +2,10 @@
  * IPC handlers for SEC EDGAR filings.
  * Free, no API key. Requires User-Agent header per SEC policy.
  */
-import { convert } from 'html-to-text'
 import { ipcMain } from 'electron'
 import { resolveCikSync } from './secCik'
+import { htmlToPlainText } from './secHtmlToPlainText'
+import { buildTickerToCikMap, type SecCompanyTickers } from './secTickerMap'
 
 const SEC_BASE = 'https://data.sec.gov'
 const SEC_TICKERS = 'https://www.sec.gov/files/company_tickers.json'
@@ -24,10 +25,6 @@ const FALLBACK_TICKER_TO_CIK: Record<string, string> = {
   BRK_B: '0001067983',
   JPM: '0000019617',
   V: '0001403161',
-}
-
-interface SecCompanyTickers {
-  [key: string]: { cik_str?: number; cik?: number; ticker?: string; title?: string }
 }
 
 let tickerToCikCache: Map<string, string> | null = null
@@ -62,17 +59,8 @@ async function resolveCik(tickerOrCik: string): Promise<string | null> {
   const { data, error } = await fetchSEC<SecCompanyTickers>(SEC_TICKERS)
   if (error || !data) return null
 
-  const map = new Map<string, string>()
-  for (const entry of Object.values(data)) {
-    const cikNum = entry.cik_str ?? entry.cik
-    const ticker = entry.ticker
-    if (cikNum != null && typeof ticker === 'string') {
-      const cik = String(cikNum).padStart(10, '0')
-      map.set(ticker.toUpperCase(), cik)
-    }
-  }
-  tickerToCikCache = map
-  return map.get(trimmed) ?? null
+  tickerToCikCache = buildTickerToCikMap(data)
+  return tickerToCikCache.get(trimmed) ?? null
 }
 
 export interface SecSubmissionsResult {
@@ -91,15 +79,6 @@ export interface SecFilingContentResult {
 }
 
 const MAX_FILING_TEXT_LENGTH = 80_000
-
-/** Convert SEC filing HTML to plain text for AI consumption. */
-function htmlToPlainText(html: string): string {
-  const text = convert(html, {
-    wordwrap: false,
-    selectors: [{ selector: 'a', options: { hideLinkHrefIfSameAsText: true } }],
-  })
-  return text.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
-}
 
 /** Exported for AI tools - fetches full text content of an SEC filing by ticker/CIK and accession number. */
 export async function getSECFilingContentData(

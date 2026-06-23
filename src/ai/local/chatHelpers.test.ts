@@ -49,6 +49,21 @@ describe('sanitizeToolResultForModel', () => {
     expect(out.length).toBeLessThan(long.length)
     expect(out).toContain('[truncated')
   })
+
+  it('redacts large images nested inside JSON arrays and objects', () => {
+    const payload = JSON.stringify({
+      results: [
+        { ok: true, mimeType: 'image/png', base64: 'B'.repeat(800) },
+        { ok: true, text: 'visible' },
+      ],
+    })
+    const parsed = JSON.parse(sanitizeToolResultForModel(payload)) as {
+      results: Array<{ base64?: string; note?: string; text?: string }>
+    }
+    expect(parsed.results[0].base64).toBeUndefined()
+    expect(parsed.results[0].note).toContain('base64 image omitted')
+    expect(parsed.results[1].text).toBe('visible')
+  })
 })
 
 describe('isAbortError', () => {
