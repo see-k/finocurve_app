@@ -43,6 +43,22 @@ describe('sanitizeToolResultForModel', () => {
     expect(parsed.note).toContain('base64 image omitted')
   })
 
+  it('recursively redacts nested image payloads inside tool result objects', () => {
+    const payload = JSON.stringify({
+      ok: true,
+      panels: [
+        { label: 'chart', screenshot: { mimeType: 'image/jpeg', base64: 'B'.repeat(800) } },
+        { label: 'table', rows: [{ mimeType: 'image/png', base64: 'C'.repeat(700) }] },
+      ],
+    })
+    const out = sanitizeToolResultForModel(payload)
+    const parsed = JSON.parse(out) as {
+      panels: Array<{ screenshot?: { base64?: string }; rows?: Array<{ base64?: string }> }>
+    }
+    expect(parsed.panels[0].screenshot?.base64).toBeUndefined()
+    expect(parsed.panels[1].rows?.[0]?.base64).toBeUndefined()
+  })
+
   it('truncates oversized non-JSON text', () => {
     const long = 'x'.repeat(MAX_TOOL_MESSAGE_CHARS + 50)
     const out = sanitizeToolResultForModel(long)
