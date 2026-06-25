@@ -66,4 +66,23 @@ describe('perUserLocalArchive', () => {
     expect(localStorage.getItem('finocurve-portfolio:user:a@test.com')).toBeNull()
     expect(localStorage.getItem('finocurve-portfolio:user:b@test.com')).toBe('{"id":"b"}')
   })
+
+  it('leaves active keys unchanged when restoring a profile with no archive', () => {
+    localStorage.setItem('finocurve-portfolio', '{"id":"legacy"}')
+
+    restoreActiveSessionForEmail('missing@test.com')
+
+    expect(localStorage.getItem('finocurve-portfolio')).toBe('{"id":"legacy"}')
+  })
+
+  it('skips empty archived values when archiving active session', () => {
+    localStorage.setItem('finocurve-portfolio', '{"id":"p1"}')
+    localStorage.setItem('finocurve-watchlist', '')
+
+    archiveActiveSessionForEmail('a@test.com')
+
+    expect(localStorage.getItem('finocurve-portfolio:user:a@test.com')).toBe('{"id":"p1"}')
+    expect(localStorage.getItem('finocurve-watchlist:user:a@test.com')).toBeNull()
+    expect(localStorage.getItem('finocurve-watchlist')).toBeNull()
+  })
 })

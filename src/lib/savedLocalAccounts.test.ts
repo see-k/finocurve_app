@@ -54,4 +54,38 @@ describe('savedLocalAccounts', () => {
     removeSavedLocalAccount('A@test.com')
     expect(loadSavedLocalAccounts()).toHaveLength(0)
   })
+
+  it('returns empty list for malformed storage JSON', () => {
+    localStorage.setItem('finocurve-saved-local-accounts', 'not-json')
+    expect(loadSavedLocalAccounts()).toEqual([])
+  })
+
+  it('preserves existing auth fields when partial upsert omits them', () => {
+    upsertSavedLocalAccount({
+      email: 'user@example.com',
+      hasCompletedOnboarding: true,
+      localAuthSaltB64: 'salt',
+      localAuthDigestB64: 'digest',
+      localAuthKdf: 'pbkdf2-sha256-210k',
+    })
+
+    upsertSavedLocalAccount({ email: 'user@example.com', hasCompletedOnboarding: false, userName: 'User' })
+    const account = getSavedLocalAccount('user@example.com')
+    expect(account?.userName).toBe('User')
+    expect(account?.localAuthDigestB64).toBe('digest')
+    expect(account?.localAuthSaltB64).toBe('salt')
+  })
+
+  it('filters invalid entries from stored JSON', () => {
+    localStorage.setItem(
+      'finocurve-saved-local-accounts',
+      JSON.stringify([
+        { email: ' ', hasCompletedOnboarding: true },
+        { hasCompletedOnboarding: true },
+        { email: 'valid@test.com', hasCompletedOnboarding: true, updatedAt: '2026-01-01T00:00:00.000Z' },
+      ]),
+    )
+    expect(loadSavedLocalAccounts()).toHaveLength(1)
+    expect(loadSavedLocalAccounts()[0].email).toBe('valid@test.com')
+  })
 })
