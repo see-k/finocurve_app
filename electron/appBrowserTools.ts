@@ -8,18 +8,22 @@ import { getMainBrowserWindow } from './mainWindow'
 import {
   APP_ROUTE_CATALOG,
   APP_ROUTE_TOPIC_ALIASES,
-  KNOWN_MAIN_TABS,
   normalizeHashRoute,
   validateRequestedPath,
 } from './appBrowserRouteValidation'
+import {
+  assemblePageTextPayload,
+  evaluateMainShellNavigation,
+  parseScreenshotScaleFactor,
+  parseScrollDeltas,
+  shouldIncludePageOutline,
+  validateClickArgs,
+} from './appBrowserNavigationHelpers'
 
 export const BUILTIN_APP_BROWSER_SERVER_NAME = 'finocurve-app'
 
 /** Downsample captures so default screenshots stay small in model context. */
 const MAX_SCREENSHOT_MAX_DIMENSION = 1280
-
-/** Cap visible-text snapshots so Bedrock/context stays manageable (plain text, not screenshots). */
-const MAX_PAGE_TEXT_CHARS = 36_000
 
 function jsonResult(payload: Record<string, unknown>): string {
   return JSON.stringify(payload)
@@ -268,10 +272,7 @@ async function screenshotTool(args: Record<string, unknown>): Promise<string> {
     return jsonResult({ ok: false, error: 'Main application window is not available.' })
   }
 
-  const scale =
-    typeof args.scaleFactor === 'number' && Number.isFinite(args.scaleFactor) && args.scaleFactor > 0
-      ? args.scaleFactor
-      : 1
+  const scale = parseScreenshotScaleFactor(args.scaleFactor)
 
   let overlayHidden = false
   try {
@@ -393,31 +394,7 @@ async function navigateTool(args: Record<string, unknown>): Promise<string> {
         ? (probe as { activeNavLabel: string }).activeNavLabel
         : null
 
-    let ok = !!currentPath && currentPath === targetPath
-    let note: string | undefined
-    if (ok && targetPath.startsWith('/main')) {
-      const expectedTab = (() => {
-        const q = targetPath.split('?', 2)[1] ?? ''
-        const t = new URLSearchParams(q).get('tab')
-        return t && KNOWN_MAIN_TABS.has(t) ? t : 'dashboard'
-      })()
-      if (activeNavLabel) {
-        const labelTab = activeNavLabel.toLowerCase()
-        const matches =
-          labelTab === expectedTab ||
-          labelTab.startsWith(expectedTab) ||
-          expectedTab === 'risk' && labelTab.includes('risk') ||
-          expectedTab === 'news' && labelTab.includes('news')
-        if (!matches) {
-          ok = false
-          note = `URL applied but the rendered tab is "${activeNavLabel}" instead of "${expectedTab}".`
-        }
-      }
-    }
-    if (!ok && !note) {
-      note =
-        'Hash applied but route did not resolve to the requested path. Call app_browser_list_routes to verify available routes.'
-    }
+    const { ok, note } = evaluateMainShellNavigation({ targetPath, currentPath, activeNavLabel })
 
     return jsonResult({
       ok,
@@ -440,7 +417,7 @@ async function pageTextTool(args: Record<string, unknown>): Promise<string> {
     return jsonResult({ ok: false, error: 'Main application window is not available.' })
   }
 
-  const includeOutline = args.includeOutline !== false && args.includeOutline !== 'false'
+  const includeOutline = shouldIncludePageOutline(args.includeOutline)
 
   try {
     const extracted = await win.webContents.executeJavaScript(
@@ -523,45 +500,11 @@ async function pageTextTool(args: Record<string, unknown>): Promise<string> {
       true
     )
 
-    type Extracted = {
-      headings?: string[]
-      listSnippets?: string[]
-      innerText?: string
-      currentPath?: string
-    }
-    const e = extracted as Extracted
-    const headings = Array.isArray(e.headings) ? e.headings.filter((x) => typeof x === 'string') : []
-    const listSnippets = Array.isArray(e.listSnippets) ? e.listSnippets.filter((x) => typeof x === 'string') : []
-    const innerText = typeof e.innerText === 'string' ? e.innerText : ''
-    const currentPath = typeof e.currentPath === 'string' ? e.currentPath : undefined
-
-    const sections: string[] = []
-    if (includeOutline) {
-      if (headings.length) {
-        sections.push(`--- Headings ---\n${headings.join('\n')}`)
-      }
-      if (listSnippets.length) {
-        sections.push(`--- List excerpts ---\n${listSnippets.slice(0, 24).join('\n---\n')}`)
-      }
-    }
-    if (innerText.length) sections.push(innerText)
-
-    const fullText = sections.length ? sections.join('\n\n') : ''
-    const charCountBeforeCap = fullText.length
-    const truncated = charCountBeforeCap > MAX_PAGE_TEXT_CHARS
-    const text = truncated ? fullText.slice(0, MAX_PAGE_TEXT_CHARS) : fullText
-
-    const payload: Record<string, unknown> = {
-      ok: true,
-      currentPath,
-      text,
-      chars: charCountBeforeCap,
-      truncated,
-    }
-    if (truncated) {
-      payload.note = `Truncated at ${MAX_PAGE_TEXT_CHARS} characters; navigate or scroll and call again for more.`
-    }
-    return jsonResult(payload)
+    return jsonResult(
+      assemblePageTextPayload(extracted as Parameters<typeof assemblePageTextPayload>[0], {
+        includeOutline,
+      })
+    )
   } catch (err) {
     return jsonResult({
       ok: false,
@@ -576,14 +519,11 @@ async function clickTool(args: Record<string, unknown>): Promise<string> {
     return jsonResult({ ok: false, error: 'Main application window is not available.' })
   }
 
-  const text = typeof args.text === 'string' ? args.text.trim() : ''
-  const selector = typeof args.selector === 'string' ? args.selector.trim() : ''
-  const role = typeof args.role === 'string' ? args.role.trim() : ''
-  const nth = typeof args.nth === 'number' && Number.isFinite(args.nth) ? Math.max(0, Math.floor(args.nth)) : 0
-
-  if (!text && !selector) {
-    return jsonResult({ ok: false, error: 'Provide either "text" or "selector".' })
+  const clickArgs = validateClickArgs(args)
+  if (!clickArgs.ok) {
+    return jsonResult({ ok: false, error: clickArgs.error })
   }
+  const { text, selector, role, nth } = clickArgs
 
   try {
     const result = await win.webContents.executeJavaScript(
@@ -718,15 +658,11 @@ async function scrollTool(args: Record<string, unknown>): Promise<string> {
     return jsonResult({ ok: false, error: 'Main application window is not available.' })
   }
 
-  const deltaY = typeof args.deltaY === 'number' && Number.isFinite(args.deltaY) ? args.deltaY : 0
-  const deltaX = typeof args.deltaX === 'number' && Number.isFinite(args.deltaX) ? args.deltaX : 0
-
-  if (deltaY === 0 && deltaX === 0) {
-    return jsonResult({
-      ok: false,
-      error: 'Provide deltaY and/or deltaX (non-zero) to scroll.',
-    })
+  const scrollArgs = parseScrollDeltas(args)
+  if (!scrollArgs.ok) {
+    return jsonResult({ ok: false, error: scrollArgs.error })
   }
+  const { deltaX, deltaY } = scrollArgs
 
   try {
     const pos = await win.webContents.executeJavaScript(
