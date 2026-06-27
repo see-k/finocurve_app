@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './AIAppRemoteFrame.module.css'
+import { formatRemoteToolLabel, nextRemoteIndicatorDepth } from './remoteIndicatorHelpers'
 
 export default function AIAppRemoteFrame() {
   const depthRef = useRef(0)
@@ -12,31 +13,21 @@ export default function AIAppRemoteFrame() {
 
     return subscribe((payload) => {
       if (payload.phase === 'start') {
-        depthRef.current += 1
+        depthRef.current = nextRemoteIndicatorDepth(depthRef.current, 'start').depth
         setToolName(payload.toolName)
         setActive(true)
       } else {
-        depthRef.current = Math.max(0, depthRef.current - 1)
-        if (depthRef.current === 0) {
-          setActive(false)
+        const next = nextRemoteIndicatorDepth(depthRef.current, 'end')
+        depthRef.current = next.depth
+        setActive(next.active)
+        if (next.clearToolName) {
           setToolName(undefined)
         }
       }
     })
   }, [])
 
-  const label =
-    toolName === 'app_browser_screenshot'
-      ? 'Capturing viewport'
-      : toolName === 'app_browser_navigate'
-        ? 'Navigating'
-        : toolName === 'app_browser_scroll'
-          ? 'Scrolling'
-          : toolName === 'app_browser_page_text'
-            ? 'Reading page'
-            : toolName
-              ? toolName.replace(/^app_browser_/, '')
-              : 'Processing'
+  const label = formatRemoteToolLabel(toolName)
 
   return (
     <div className={styles.root} data-active={active} aria-hidden="true">

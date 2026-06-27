@@ -1,6 +1,7 @@
-import { AIMessage } from '@langchain/core/messages'
+import { AIMessage, AIMessageChunk } from '@langchain/core/messages'
 import { describe, expect, it } from 'vitest'
 import {
+  extractStreamingContent,
   fileExtLower,
   hasAppBuiltinBrowserTools,
   isProbablyUtf8TextFile,
@@ -11,6 +12,39 @@ import {
   parseInsightResponse,
   ThinkTagParser,
 } from './localAIChatParsing'
+
+describe('extractStreamingContent', () => {
+  it('returns answer text from string chunks', () => {
+    const chunk = new AIMessageChunk({ content: 'Hello' })
+    expect(extractStreamingContent(chunk)).toEqual({ type: 'answer', content: 'Hello' })
+  })
+
+  it('ignores empty string chunks', () => {
+    const chunk = new AIMessageChunk({ content: '' })
+    expect(extractStreamingContent(chunk)).toBeNull()
+  })
+
+  it('prefers reasoning blocks in structured content', () => {
+    const chunk = new AIMessageChunk({
+      content: [{ type: 'reasoning', reasoning: 'plan step' }],
+    })
+    expect(extractStreamingContent(chunk)).toEqual({ type: 'reasoning', content: 'plan step' })
+  })
+
+  it('reads thinking blocks as reasoning', () => {
+    const chunk = new AIMessageChunk({
+      content: [{ type: 'thinking', reasoning: 'internal note' }],
+    })
+    expect(extractStreamingContent(chunk)).toEqual({ type: 'reasoning', content: 'internal note' })
+  })
+
+  it('reads text blocks as answer', () => {
+    const chunk = new AIMessageChunk({
+      content: [{ type: 'text', text: 'visible reply' }],
+    })
+    expect(extractStreamingContent(chunk)).toEqual({ type: 'answer', content: 'visible reply' })
+  })
+})
 
 describe('ThinkTagParser', () => {
   it('splits reasoning and answer in one chunk', () => {

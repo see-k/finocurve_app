@@ -6,6 +6,9 @@ import { KNOWN_MAIN_TABS } from './appBrowserRouteValidation'
 
 export const MAX_PAGE_TEXT_CHARS = 36_000
 
+/** Downsample captures so default screenshots stay small in model context. */
+export const MAX_SCREENSHOT_MAX_DIMENSION = 1280
+
 export function expectedMainTabFromPath(targetPath: string): string {
   const q = targetPath.split('?', 2)[1] ?? ''
   const t = new URLSearchParams(q).get('tab')
@@ -108,6 +111,27 @@ export function parseScreenshotScaleFactor(scaleFactor: unknown): number {
   return typeof scaleFactor === 'number' && Number.isFinite(scaleFactor) && scaleFactor > 0
     ? scaleFactor
     : 1
+}
+
+export function computeScreenshotDimensions(
+  width: number,
+  height: number,
+  options?: { maxDimension?: number; scaleFactor?: number }
+): { width: number; height: number } {
+  const maxDimension = options?.maxDimension ?? MAX_SCREENSHOT_MAX_DIMENSION
+  const scaleFactor = options?.scaleFactor ?? 1
+  let w = width
+  let h = height
+  if (w > maxDimension || h > maxDimension) {
+    const fit = Math.min(maxDimension / w, maxDimension / h)
+    w = Math.max(1, Math.round(w * fit))
+    h = Math.max(1, Math.round(h * fit))
+  }
+  if (scaleFactor !== 1) {
+    w = Math.round(w * scaleFactor)
+    h = Math.round(h * scaleFactor)
+  }
+  return { width: w, height: h }
 }
 
 export function parseScrollDeltas(

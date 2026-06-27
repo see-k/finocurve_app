@@ -13,6 +13,7 @@ import {
 } from './appBrowserRouteValidation'
 import {
   assemblePageTextPayload,
+  computeScreenshotDimensions,
   evaluateMainShellNavigation,
   parseScreenshotScaleFactor,
   parseScrollDeltas,
@@ -21,9 +22,6 @@ import {
 } from './appBrowserNavigationHelpers'
 
 export const BUILTIN_APP_BROWSER_SERVER_NAME = 'finocurve-app'
-
-/** Downsample captures so default screenshots stay small in model context. */
-const MAX_SCREENSHOT_MAX_DIMENSION = 1280
 
 function jsonResult(payload: Record<string, unknown>): string {
   return JSON.stringify(payload)
@@ -287,19 +285,18 @@ async function screenshotTool(args: Record<string, unknown>): Promise<string> {
 
     const image = await win.webContents.capturePage()
     let working = image
-    let { width: w, height: h } = working.getSize()
-    if (w > MAX_SCREENSHOT_MAX_DIMENSION || h > MAX_SCREENSHOT_MAX_DIMENSION) {
-      const fit = Math.min(MAX_SCREENSHOT_MAX_DIMENSION / w, MAX_SCREENSHOT_MAX_DIMENSION / h)
-      w = Math.max(1, Math.round(w * fit))
-      h = Math.max(1, Math.round(h * fit))
-      working = working.resize({ width: w, height: h })
+    const { width: w, height: h } = working.getSize()
+    const target = computeScreenshotDimensions(w, h, { scaleFactor: 1 })
+    if (target.width !== w || target.height !== h) {
+      working = working.resize({ width: target.width, height: target.height })
     }
     const { width: rw, height: rh } = working.getSize()
+    const scaled = computeScreenshotDimensions(rw, rh, { scaleFactor: scale })
     const resized =
       scale !== 1
         ? working.resize({
-            width: Math.round(rw * scale),
-            height: Math.round(rh * scale),
+            width: scaled.width,
+            height: scaled.height,
           })
         : working
     const pngBuffer = resized.toPNG()

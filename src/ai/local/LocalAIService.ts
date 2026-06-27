@@ -30,6 +30,7 @@ import {
   isVisionImageMime,
   normalizeChatFollowUps,
   parseAdvancedAnalysisResponse,
+  extractStreamingContent,
   parseContentToChunks,
   parseInsightResponse,
   ThinkTagParser,
@@ -133,28 +134,6 @@ async function messagesToLangChain(messages: ChatMessage[]): Promise<BaseMessage
     }
   }
   return out
-}
-
-/** Extract reasoning/answer content from a single streaming AIMessageChunk. */
-function extractStreamingContent(chunk: AIMessageChunk): { type: 'reasoning' | 'answer'; content: string } | null {
-  const content = chunk.content
-  if (typeof content === 'string') {
-    return content ? { type: 'answer', content } : null
-  }
-  if (Array.isArray(content)) {
-    for (const block of content) {
-      if (typeof block === 'object' && block !== null) {
-        const b = block as Record<string, unknown>
-        if ((b.type === 'reasoning' || b.type === 'thinking') && typeof b.reasoning === 'string' && b.reasoning) {
-          return { type: 'reasoning', content: b.reasoning }
-        }
-        if (b.type === 'text' && typeof b.text === 'string' && b.text) {
-          return { type: 'answer', content: b.text }
-        }
-      }
-    }
-  }
-  return null
 }
 
 export interface LocalAIServiceOptions {

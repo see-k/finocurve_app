@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assemblePageTextPayload,
+  computeScreenshotDimensions,
   evaluateMainShellNavigation,
   expectedMainTabFromPath,
   mainTabLabelMatchesExpected,
@@ -112,6 +113,28 @@ describe('assemblePageTextPayload', () => {
     expect(payload.text).toHaveLength(20)
     expect(payload.truncated).toBe(true)
     expect(payload.note).toContain('Truncated at 20 characters')
+  })
+})
+
+describe('computeScreenshotDimensions', () => {
+  it('downscales so the longest side fits the max dimension', () => {
+    expect(computeScreenshotDimensions(1920, 1080)).toEqual({ width: 1280, height: 720 })
+    expect(computeScreenshotDimensions(800, 1600)).toEqual({ width: 640, height: 1280 })
+  })
+
+  it('leaves small captures unchanged before scale factor', () => {
+    expect(computeScreenshotDimensions(640, 480)).toEqual({ width: 640, height: 480 })
+  })
+
+  it('applies scale factor after downscaling', () => {
+    expect(computeScreenshotDimensions(1920, 1080, { scaleFactor: 2 })).toEqual({
+      width: 2560,
+      height: 1440,
+    })
+  })
+
+  it('never returns zero dimensions', () => {
+    expect(computeScreenshotDimensions(1, 5000)).toEqual({ width: 1, height: 1280 })
   })
 })
 

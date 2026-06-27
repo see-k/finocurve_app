@@ -2,7 +2,7 @@
  * Pure parsing helpers for LocalAIService (streaming tags, follow-ups, attachments, JSON responses).
  */
 
-import type { AIMessage } from '@langchain/core/messages'
+import type { AIMessage, AIMessageChunk } from '@langchain/core/messages'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import type { ChatFollowUp, ChatStreamChunk, DocumentInsight } from '../types'
 
@@ -50,6 +50,30 @@ export function parseContentToChunks(message: AIMessage): ChatStreamChunk[] {
   if (answerPart) chunks.push({ type: 'answer', content: answerPart })
 
   return chunks.length > 0 ? chunks : [{ type: 'answer', content: raw }]
+}
+
+/** Extract reasoning/answer content from a single streaming AIMessageChunk. */
+export function extractStreamingContent(
+  chunk: AIMessageChunk
+): { type: 'reasoning' | 'answer'; content: string } | null {
+  const content = chunk.content
+  if (typeof content === 'string') {
+    return content ? { type: 'answer', content } : null
+  }
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (typeof block === 'object' && block !== null) {
+        const b = block as Record<string, unknown>
+        if ((b.type === 'reasoning' || b.type === 'thinking') && typeof b.reasoning === 'string' && b.reasoning) {
+          return { type: 'reasoning', content: b.reasoning }
+        }
+        if (b.type === 'text' && typeof b.text === 'string' && b.text) {
+          return { type: 'answer', content: b.text }
+        }
+      }
+    }
+  }
+  return null
 }
 
 export function hasAppBuiltinBrowserTools(mcpTools: StructuredToolInterface[]): boolean {
