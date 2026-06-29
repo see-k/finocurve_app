@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'node:buffer'
 import { APP_ROUTE_CATALOG, APP_ROUTE_TOPIC_ALIASES } from './appBrowserRouteValidation'
 
 const mockSend = vi.fn()
@@ -246,5 +247,119 @@ describe('withRemoteIndicator timing', () => {
       phase: 'end',
       toolName: 'app_browser_list_routes',
     })
+  })
+})
+
+describe('app browser tool success paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getMainBrowserWindow.mockReturnValue(mockWindow)
+    mockIsDestroyed.mockReturnValue(false)
+  })
+
+  it('screenshot hides overlay, captures PNG, and restores overlay', async () => {
+    vi.useFakeTimers()
+    const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    const makeImage = (w: number, h: number) => ({
+      getSize: () => ({ width: w, height: h }),
+      resize: ({ width, height }: { width: number; height: number }) => makeImage(width, height),
+      toPNG: () => pngBuffer,
+    })
+    mockExecuteJavaScript.mockResolvedValue(1)
+    mockCapturePage.mockResolvedValue(makeImage(2560, 1440))
+
+    const promise = callBuiltinAppBrowserTool('app_browser_screenshot', { scaleFactor: 1 })
+    await vi.runAllTimersAsync()
+    const result = await promise
+    const payload = JSON.parse(result!)
+
+    expect(payload.ok).toBe(true)
+    expect(payload.mimeType).toBe('image/png')
+    expect(payload.base64).toBe(pngBuffer.toString('base64'))
+    expect(payload.width).toBeLessThanOrEqual(1280)
+    expect(mockExecuteJavaScript).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
+
+  it('page_text returns assembled inner text payload', async () => {
+    mockExecuteJavaScript.mockResolvedValueOnce({
+      headings: ['Portfolio'],
+      listSnippets: ['- Cash'],
+      innerText: 'Portfolio overview',
+      currentPath: '/main?tab=portfolio',
+    })
+
+    const result = await callBuiltinAppBrowserTool('app_browser_page_text', { includeOutline: true })
+    const payload = JSON.parse(result!)
+
+    expect(payload.ok).toBe(true)
+    expect(payload.currentPath).toBe('/main?tab=portfolio')
+    expect(payload.text).toContain('Portfolio overview')
+    expect(payload.text).toContain('Portfolio')
+  })
+
+  it('click reports matched element and current path after delay', async () => {
+    vi.useFakeTimers()
+    mockExecuteJavaScript
+      .mockResolvedValueOnce({
+        ok: true,
+        matchCount: 1,
+        selectedIndex: 0,
+        element: { tag: 'button', text: 'Portfolio' },
+      })
+      .mockResolvedValueOnce('/main?tab=portfolio')
+
+    const promise = callBuiltinAppBrowserTool('app_browser_click', { text: 'Portfolio', exact: true })
+    await vi.runAllTimersAsync()
+    const result = await promise
+    const payload = JSON.parse(result!)
+
+    expect(payload.ok).toBe(true)
+    expect(payload.element.text).toBe('Portfolio')
+    expect(payload.currentPath).toBe('/main?tab=portfolio')
+    vi.useRealTimers()
+  })
+
+  it('scroll returns delta and scroll position metadata', async () => {
+    mockExecuteJavaScript.mockResolvedValueOnce({
+      scrollTarget: '.main-content__inner',
+      scrollX: 0,
+      scrollY: 240,
+      deltaScrolledY: 120,
+      deltaScrolledX: 0,
+      clientHeight: 800,
+      scrollHeight: 2400,
+    })
+
+    const result = await callBuiltinAppBrowserTool('app_browser_scroll', { deltaY: 120 })
+    const payload = JSON.parse(result!)
+
+    expect(payload.ok).toBe(true)
+    expect(payload.deltaY).toBe(120)
+    expect(payload.deltaScrolledY).toBe(120)
+    expect(payload.scrollTarget).toBe('.main-content__inner')
+  })
+
+  it('navigate reports mismatch when path and active nav label disagree', async () => {
+    vi.useFakeTimers()
+    mockExecuteJavaScript
+      .mockResolvedValueOnce('http://localhost/#/main?tab=portfolio')
+      .mockResolvedValueOnce({
+        currentPath: '/main?tab=portfolio',
+        activeNavLabel: 'Dashboard',
+      })
+
+    const promise = callBuiltinAppBrowserTool('app_browser_navigate', {
+      path: '/main?tab=portfolio',
+    })
+    await vi.runAllTimersAsync()
+    const result = await promise
+    const payload = JSON.parse(result!)
+
+    expect(payload.ok).toBe(false)
+    expect(payload.currentPath).toBe('/main?tab=portfolio')
+    expect(payload.activeNavLabel).toBe('Dashboard')
+    expect(payload.note).toContain('rendered tab')
+    vi.useRealTimers()
   })
 })
