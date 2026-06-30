@@ -29,6 +29,14 @@ import {
   trackerCreateGoalAI,
   trackerUpdateGoalAI,
 } from './trackerHandlers'
+import { ChatAbortRegistry } from './chatAbortRegistry'
+import {
+  buildAiCsvFileName,
+  buildAiDocumentKey,
+  buildAiReportFileName,
+  formatDualStorageSaveMessage,
+  recordStorageAttempt,
+} from './aiDocumentSaveHelpers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -204,36 +212,32 @@ async function saveCustomBrandedReportForChat(payload: {
   })
   const dateStr = new Date().toISOString().slice(0, 10)
   const slug = safeReportFileSlug(payload.title)
-  const fileName = `FinoCurve_AI_Report_${dateStr}_${slug}.pdf`
-  const key = `${DOCUMENTS_PREFIX}${fileName}`
+  const fileName = buildAiReportFileName(dateStr, slug)
+  const key = buildAiDocumentKey(fileName)
 
-  const notes: string[] = []
-  let savedAny = false
+  const attempt = { notes: [] as string[], savedAny: false }
   try {
     writeLocalStorageFile(key, pdf)
-    savedAny = true
-    notes.push(`Saved locally: ${key}`)
+    recordStorageAttempt(attempt, 'Local', true, `Saved locally: ${key}`)
   } catch (e) {
-    notes.push(`Local: ${e instanceof Error ? e.message : 'failed'}`)
+    recordStorageAttempt(attempt, 'Local', false, e instanceof Error ? e.message : 'failed')
   }
   try {
     const uploaded = await uploadS3IfConfigured(key, pdf, 'application/pdf')
     if (uploaded) {
-      savedAny = true
-      notes.push(`Uploaded to cloud (S3): ${key}`)
+      recordStorageAttempt(attempt, 'Cloud', true, `Uploaded to cloud (S3): ${key}`)
     }
   } catch (e) {
-    notes.push(`Cloud: ${e instanceof Error ? e.message : 'failed'}`)
+    recordStorageAttempt(attempt, 'Cloud', false, e instanceof Error ? e.message : 'failed')
   }
 
-  if (!savedAny) {
-    return `Could not save the PDF. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
-  }
-  return [
-    'Custom report PDF created with FinoCurve letterhead and branding.',
-    ...notes,
-    'The file is listed under finocurve/documents/ in the app.',
-  ].join('\n')
+  return formatDualStorageSaveMessage({
+    savedAny: attempt.savedAny,
+    notes: attempt.notes,
+    failureMessage: 'Could not save the PDF.',
+    successIntro: 'Custom report PDF created with FinoCurve letterhead and branding.',
+    successFooter: 'The file is listed under finocurve/documents/ in the app.',
+  })
 }
 
 async function saveCustomCsvForChat(payload: {
@@ -251,36 +255,33 @@ async function saveCustomCsvForChat(payload: {
   const bytes = new TextEncoder().encode(csvText)
   const dateStr = new Date().toISOString().slice(0, 10)
   const slug = safeCsvBaseName(payload.fileBaseName)
-  const fileName = `FinoCurve_AI_Data_${dateStr}_${slug}.csv`
-  const key = `${DOCUMENTS_PREFIX}${fileName}`
+  const fileName = buildAiCsvFileName(dateStr, slug)
+  const key = buildAiDocumentKey(fileName)
 
-  const notes: string[] = []
-  let savedAny = false
+  const attempt = { notes: [] as string[], savedAny: false }
   try {
     writeLocalStorageFile(key, bytes)
-    savedAny = true
-    notes.push(`Saved locally: ${key}`)
+    recordStorageAttempt(attempt, 'Local', true, `Saved locally: ${key}`)
   } catch (e) {
-    notes.push(`Local: ${e instanceof Error ? e.message : 'failed'}`)
+    recordStorageAttempt(attempt, 'Local', false, e instanceof Error ? e.message : 'failed')
   }
   try {
     const uploaded = await uploadS3IfConfigured(key, bytes, 'text/csv; charset=utf-8')
     if (uploaded) {
-      savedAny = true
-      notes.push(`Uploaded to cloud (S3): ${key}`)
+      recordStorageAttempt(attempt, 'Cloud', true, `Uploaded to cloud (S3): ${key}`)
     }
   } catch (e) {
-    notes.push(`Cloud: ${e instanceof Error ? e.message : 'failed'}`)
+    recordStorageAttempt(attempt, 'Cloud', false, e instanceof Error ? e.message : 'failed')
   }
 
-  if (!savedAny) {
-    return `Could not save the CSV. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
-  }
-  return [
-    'CSV file created (UTF-8 with BOM for Excel).',
-    ...notes,
-    'The file is listed under finocurve/documents/ in the app; the user can open it in Excel or Google Sheets.',
-  ].join('\n')
+  return formatDualStorageSaveMessage({
+    savedAny: attempt.savedAny,
+    notes: attempt.notes,
+    failureMessage: 'Could not save the CSV.',
+    successIntro: 'CSV file created (UTF-8 with BOM for Excel).',
+    successFooter:
+      'The file is listed under finocurve/documents/ in the app; the user can open it in Excel or Google Sheets.',
+  })
 }
 
 function storedConfigToAIConfig(stored: StoredAIConfig) {
@@ -508,7 +509,7 @@ export function registerAIHandlers(): void {
     return { insights }
   })
 
-  const chatAbortControllers = new Map<number, AbortController>()
+  const chatAbortRegistry = new ChatAbortRegistry()
 
   ipcMain.handle('ai-chat-stream', async (
     event,
@@ -521,9 +522,7 @@ export function registerAIHandlers(): void {
     const sender = event.sender
     const senderId = sender.id
 
-    chatAbortControllers.get(senderId)?.abort()
-    const controller = new AbortController()
-    chatAbortControllers.set(senderId, controller)
+    const controller = chatAbortRegistry.prepare(senderId)
 
     let reasoning = ''
     let answer = ''
@@ -551,13 +550,11 @@ export function registerAIHandlers(): void {
       if (controller.signal.aborted) {
         aborted = true
       } else {
-        chatAbortControllers.delete(senderId)
+        chatAbortRegistry.release(senderId, controller)
         throw err
       }
     } finally {
-      if (chatAbortControllers.get(senderId) === controller) {
-        chatAbortControllers.delete(senderId)
-      }
+      chatAbortRegistry.release(senderId, controller)
     }
 
     if (controller.signal.aborted) aborted = true
@@ -571,13 +568,7 @@ export function registerAIHandlers(): void {
   })
 
   ipcMain.handle('ai-chat-cancel', (event) => {
-    const controller = chatAbortControllers.get(event.sender.id)
-    if (controller) {
-      controller.abort()
-      chatAbortControllers.delete(event.sender.id)
-      return { ok: true }
-    }
-    return { ok: false }
+    return { ok: chatAbortRegistry.cancel(event.sender.id) }
   })
 
   ipcMain.handle('ai-generate-advanced-analysis', async (
