@@ -6,20 +6,16 @@ import finocurveLogo from '/images/finocurve-logo.png'
 import GlassTextField from '../components/glass/GlassTextField'
 import GlassContainer from '../components/glass/GlassContainer'
 import GlassIconButton from '../components/glass/GlassIconButton'
-import { DEFAULT_PREFS } from '../store/usePreferences'
-import type { UserPreferences } from '../types'
-import { normalizeStoredTheme } from '../theme/themes'
 import {
   getSavedLocalAccount,
   loadSavedLocalAccounts,
   upsertSavedLocalAccount,
 } from '../lib/savedLocalAccounts'
-import { shouldEnterMainAfterSignIn } from '../lib/onboardingRouting'
 import {
-  clearActiveUserDataStorage,
-  hasArchivedSessionForEmail,
-  restoreActiveSessionForEmail,
-} from '../lib/perUserLocalArchive'
+  buildSignInPreferences,
+  initialsFromName,
+  switchActiveSessionForSignIn,
+} from '../lib/loginSessionHelpers'
 import { prepareStorageForNewAccountSignup } from '../lib/prepareNewAccountSession'
 import {
   hashPassword,
@@ -29,18 +25,6 @@ import {
 } from '../lib/localPasswordAuth'
 import type { SavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
-
-function initialsFromName(name: string, email: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2)
-  }
-  if (parts.length === 1 && parts[0].length >= 2) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-  const local = email.split('@')[0] || email
-  return local.slice(0, 2).toUpperCase() || '?'
-}
 
 function SavedAccountBubble({
   acct,
@@ -136,37 +120,11 @@ export default function LoginScreen() {
       }
 
       const raw = localStorage.getItem('finocurve-preferences')
-      let parsed: Partial<UserPreferences> = {}
-      try {
-        if (raw) parsed = JSON.parse(raw) as Partial<UserPreferences>
-      } catch { /* ignore */ }
-      const theme = normalizeStoredTheme(
-        typeof parsed.theme === 'string' ? parsed.theme : null,
-      )
-      const merged: UserPreferences = {
-        ...DEFAULT_PREFS,
-        ...parsed,
-        theme,
-      }
-      merged.userEmail = em
-      if (saved.userName) merged.userName = saved.userName
-      if (saved.profilePicturePath) merged.profilePicturePath = saved.profilePicturePath
-
-      const goMain = shouldEnterMainAfterSignIn(merged, saved)
-      merged.hasCompletedOnboarding = goMain
+      const { preferences: merged, goMain } = buildSignInPreferences(em, saved, raw)
 
       localStorage.setItem('finocurve-preferences', JSON.stringify(merged))
-      // Avoid bleeding another profile's active session keys (or stale legacy
-      // single-session data) into this account. If we have no archive for this
-      // email, start with a clean active state; if we do, archive whatever's
-      // currently active first to be safe, then restore.
       const targetEmail = merged.userEmail || em
-      if (hasArchivedSessionForEmail(targetEmail)) {
-        clearActiveUserDataStorage()
-        restoreActiveSessionForEmail(targetEmail)
-      } else {
-        clearActiveUserDataStorage()
-      }
+      switchActiveSessionForSignIn(targetEmail)
       upsertSavedLocalAccount({
         email: targetEmail,
         userName: merged.userName,
