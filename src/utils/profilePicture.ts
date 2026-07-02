@@ -1,5 +1,5 @@
-/** Max dimension for profile picture (keeps file size small for localStorage) */
-const MAX_SIZE = 256
+import { computeProfileImageDimensions, PROFILE_IMAGE_MAX_SIZE } from './profilePictureDimensions'
+
 const JPEG_QUALITY = 0.85
 
 /**
@@ -19,16 +19,8 @@ export async function compressImageForProfile(file: File): Promise<string> {
         return
       }
 
-      let { width, height } = img
-      if (width > MAX_SIZE || height > MAX_SIZE) {
-        if (width > height) {
-          height = (height / width) * MAX_SIZE
-          width = MAX_SIZE
-        } else {
-          width = (width / height) * MAX_SIZE
-          height = MAX_SIZE
-        }
-      }
+      const scaled = computeProfileImageDimensions(img.width, img.height, PROFILE_IMAGE_MAX_SIZE)
+      const { width, height } = scaled
 
       canvas.width = width
       canvas.height = height

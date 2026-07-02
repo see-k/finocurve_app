@@ -17,12 +17,7 @@ import {
   switchActiveSessionForSignIn,
 } from '../lib/loginSessionHelpers'
 import { prepareStorageForNewAccountSignup } from '../lib/prepareNewAccountSession'
-import {
-  hashPassword,
-  isPasswordLongEnough,
-  PASSWORD_MIN_LENGTH,
-  verifyPassword,
-} from '../lib/localPasswordAuth'
+import { resolveLoginAuth } from '../lib/loginAuthResolution'
 import type { SavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
 
@@ -95,29 +90,21 @@ export default function LoginScreen() {
     setIsLoading(true)
     try {
       const saved = getSavedLocalAccount(em)
-      if (!saved) {
-        setAuthError('No profile on this device for that email. Create an account first.')
-        return
-      }
-
-      let newLocalAuth: { saltB64: string; digestB64: string } | undefined
-      const salt = saved.localAuthSaltB64
-      const digest = saved.localAuthDigestB64
-      if (salt && digest) {
-        const ok = await verifyPassword(pwd, salt, digest)
-        if (!ok) {
+      const authResult = await resolveLoginAuth(saved, pwd)
+      if (!authResult.ok) {
+        if (authResult.error === 'no_profile') {
+          setAuthError('No profile on this device for that email. Create an account first.')
+        } else if (authResult.error === 'incorrect_password') {
           setAuthError('Incorrect password.')
-          return
+        } else {
+          setAuthError(
+            `This profile has no stored password yet. Use at least ${authResult.minLength} characters once to set it.`,
+          )
         }
-      } else if (isPasswordLongEnough(pwd)) {
-        const h = await hashPassword(pwd)
-        newLocalAuth = { saltB64: h.saltB64, digestB64: h.hashB64 }
-      } else {
-        setAuthError(
-          `This profile has no stored password yet. Use at least ${PASSWORD_MIN_LENGTH} characters once to set it.`,
-        )
         return
       }
+      const newLocalAuth = authResult.newLocalAuth
+      if (!saved) return
 
       const raw = localStorage.getItem('finocurve-preferences')
       const { preferences: merged, goMain } = buildSignInPreferences(em, saved, raw)

@@ -9,6 +9,7 @@ import GlassIconButton from '../components/glass/GlassIconButton'
 import { DEFAULT_PREFS } from '../store/usePreferences'
 import type { UserPreferences } from '../types'
 import { normalizeStoredTheme } from '../theme/themes'
+import { canSubmitSignupForm } from '../lib/authFormValidation'
 import { hashPassword, isPasswordLongEnough, PASSWORD_MIN_LENGTH } from '../lib/localPasswordAuth'
 import { getSavedLocalAccount, upsertSavedLocalAccount } from '../lib/savedLocalAccounts'
 import './AuthScreen.css'
@@ -28,22 +29,11 @@ export default function SignupScreen() {
     requestAnimationFrame(() => setVisible(true))
   }, [])
 
-  const passwordsMatch = password === confirmPassword
-  const passwordLongEnough = isPasswordLongEnough(password)
   const trimmedName = name.trim()
   const trimmedEmail = email.trim()
-  // Lightweight email format check; full RFC validation is overkill for a local
-  // sign-up flow, but reject obvious garbage like whitespace-only or no `@`.
-  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
-  const canSubmit = !!(
-    trimmedName &&
-    trimmedEmail &&
-    emailLooksValid &&
-    password &&
-    confirmPassword &&
-    passwordsMatch &&
-    passwordLongEnough
-  )
+  const passwordsMatch = password === confirmPassword
+  const passwordLongEnough = isPasswordLongEnough(password)
+  const canSubmit = canSubmitSignupForm({ name, email, password, confirmPassword })
 
   const savedProfileForEmail = useMemo(() => {
     if (!trimmedEmail) return undefined

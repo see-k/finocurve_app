@@ -37,6 +37,7 @@ import {
   formatDualStorageSaveMessage,
   recordStorageAttempt,
 } from './aiDocumentSaveHelpers'
+import { storedConfigToAIConfig } from './aiConfigHelpers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -282,21 +283,6 @@ async function saveCustomCsvForChat(payload: {
     successFooter:
       'The file is listed under finocurve/documents/ in the app; the user can open it in Excel or Google Sheets.',
   })
-}
-
-function storedConfigToAIConfig(stored: StoredAIConfig) {
-  return {
-    provider: 'local' as const,
-    providerType: stored.provider,
-    model: stored.model,
-    ollamaBaseUrl: stored.ollamaBaseUrl ?? 'http://localhost:11434',
-    bedrockRegion: stored.bedrockRegion,
-    bedrockAccessKeyId: stored.bedrockAccessKeyId,
-    bedrockSecretKey: stored.bedrockSecretKey,
-    azureEndpoint: stored.azureEndpoint,
-    azureApiKey: stored.azureApiKey,
-    azureDeployment: stored.azureDeployment,
-  }
 }
 
 export function registerAIHandlers(): void {
