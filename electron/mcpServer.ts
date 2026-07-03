@@ -18,13 +18,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
 import { execFileSync } from 'node:child_process'
-import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
 import { APP_PACKAGE_VERSION } from './appPackageVersion'
 import { getBuiltinAppBrowserTools, callBuiltinAppBrowserTool } from './appBrowserTools'
-import { mergePathValues } from './mcpPathEnv'
 import { parseMCPConfig, type MCPServerDefinition } from './mcpConfigParser'
+import { buildMcpSpawnEnv, formatMcpToolResultContent, resolveMcpCommand } from './mcpSpawnHelpers'
 
 export { parseMCPConfig, type MCPServerDefinition }
 
@@ -53,13 +51,6 @@ interface ConnectedServer {
 
 const connectedServers = new Map<string, ConnectedServer>()
 const serverStatuses = new Map<string, MCPServerStatusInfo>()
-const COMMON_PATH_SEGMENTS = [
-  '/opt/homebrew/bin',
-  '/opt/homebrew/sbin',
-  '/usr/local/bin',
-  '/usr/local/sbin',
-  '/Library/Frameworks/Python.framework/Versions/Current/bin',
-]
 
 let cachedLoginShellPath: string | null | undefined
 
@@ -93,54 +84,6 @@ function getLoginShellPath(): string | undefined {
   }
 }
 
-function buildSpawnEnv(overrides?: Record<string, string>): Record<string, string> {
-  const loginShellPath = getLoginShellPath()
-  const mergedPath = mergePathValues(
-    overrides?.PATH,
-    process.env.PATH,
-    loginShellPath,
-    COMMON_PATH_SEGMENTS.join(path.delimiter)
-  )
-
-  return {
-    ...(process.env as Record<string, string | undefined>),
-    ...(overrides ?? {}),
-    ...(mergedPath ? { PATH: mergedPath } : {}),
-  } as Record<string, string>
-}
-
-function canExecute(filePath: string): boolean {
-  try {
-    fs.accessSync(filePath, fs.constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function resolveCommand(command: string, env: Record<string, string>): string {
-  if (!command.trim()) {
-    throw new Error('MCP server command is empty')
-  }
-
-  if (path.isAbsolute(command) || command.includes(path.sep)) {
-    return command
-  }
-
-  const pathValue = env.PATH || process.env.PATH || ''
-  for (const dir of pathValue.split(path.delimiter)) {
-    if (!dir) continue
-    const candidate = path.join(dir, command)
-    if (fs.existsSync(candidate) && canExecute(candidate)) {
-      return candidate
-    }
-  }
-
-  throw new Error(
-    `Command "${command}" was not found in PATH. In the packaged app, configure an absolute command path or ensure your shell exposes it in PATH.`
-  )
-}
-
 function setServerStatus(status: MCPServerStatusInfo): MCPServerStatusInfo {
   serverStatuses.set(status.name, status)
   return status
@@ -167,8 +110,8 @@ export async function startMCPServers(servers: MCPServerDefinition[]): Promise<M
     let stderrOutput = ''
 
     try {
-      const env = buildSpawnEnv(def.env)
-      const command = resolveCommand(def.command, env)
+      const env = buildMcpSpawnEnv(def.env, { loginShellPath: getLoginShellPath() })
+      const command = resolveMcpCommand(def.command, env)
       const transport = new StdioClientTransport({
         command,
         args: def.args,
@@ -288,15 +231,7 @@ export async function callMCPTool(
     if (!hasTool) continue
 
     const result = await entry.client.callTool({ name: toolName, arguments: args })
-    // Extract text content from the MCP response
-    const content = result.content
-    if (Array.isArray(content)) {
-      return content
-        .filter((c): c is { type: 'text'; text: string } => (c as { type?: string }).type === 'text')
-        .map((c) => c.text)
-        .join('\n')
-    }
-    return typeof content === 'string' ? content : JSON.stringify(content)
+    return formatMcpToolResultContent(result.content)
   }
   throw new Error(`MCP tool "${toolName}" not found on any connected server`)
 }

@@ -8,7 +8,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import type { Server } from 'node:http'
 import type { LocalAIService } from '../src/ai/local/LocalAIService'
 import { randomUUID } from 'node:crypto'
-import { APP_PACKAGE_VERSION } from './appPackageVersion'
+import { buildAgentCard, extractTextFromA2AParts, type A2AMessagePart } from './a2aProtocolHelpers'
 
 export const DEFAULT_PORT = 3847
 
@@ -54,14 +54,6 @@ export interface A2AServerStatusInfo {
 }
 
 // A2A Protocol types
-interface A2AMessagePart {
-  type?: string
-  kind?: string
-  text?: string
-  data?: unknown
-  mimeType?: string
-}
-
 interface A2AMessage {
   messageId?: string
   role: string
@@ -78,43 +70,6 @@ interface A2ATask {
     message?: A2AMessage
   }
   artifacts?: { parts: A2AMessagePart[] }[]
-}
-
-/**
- * Build the agent card for /.well-known/agent.json
- */
-function buildAgentCard(port: number) {
-  return {
-    name: 'FinoCurve AI',
-    description: 'Financial risk and document analysis assistant',
-    protocolVersion: '0.3.0',
-    url: `http://127.0.0.1:${port}/`,
-    version: APP_PACKAGE_VERSION,
-    capabilities: {
-      streaming: false,
-      pushNotifications: false,
-    },
-    skills: [
-      {
-        id: 'financial-analysis',
-        name: 'Financial Analysis',
-        description: 'Analyze financial documents, assess risk, provide portfolio insights, and answer questions about finance',
-      },
-    ],
-    defaultInputModes: ['text'],
-    defaultOutputModes: ['text'],
-    supportsAuthenticatedExtendedCard: false,
-  }
-}
-
-/**
- * Extract text from A2A message parts (handles both 'type' and 'kind' fields)
- */
-function extractTextFromParts(parts: A2AMessagePart[]): string {
-  return parts
-    .filter((p) => (p.type === 'text' || p.kind === 'text') && p.text)
-    .map((p) => p.text!)
-    .join('\n')
 }
 
 /**
@@ -210,7 +165,7 @@ export function startA2AServer(
               return
             }
 
-            const userText = extractTextFromParts(userMessage.parts)
+            const userText = extractTextFromA2AParts(userMessage.parts)
 
             if (!userText.trim()) {
               sendError(-32602, 'No text content found in message parts')

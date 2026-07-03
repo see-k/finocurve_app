@@ -13,6 +13,7 @@ import { registerPluginSettingsHandlers } from './pluginSettingsHandlers'
 import { registerMCPHandlers } from './mcpHandlers'
 import { stopMCPServers } from './mcpServer'
 import { setMainWindow } from './mainWindow'
+import { resolveAppProtocolRelativePath } from './appProtocolPath'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -47,10 +48,7 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 function registerAppProtocol() {
   protocol.handle(APP_PROTOCOL_SCHEME, (request) => {
     const requestUrl = new URL(request.url)
-    const rawPath = decodeURIComponent(requestUrl.pathname || '/')
-    const relativePath = rawPath === '/' ? 'index.html' : rawPath.replace(/^\/+/, '')
-    const normalizedPath = path.normalize(relativePath)
-    const safeRelativePath = normalizedPath.startsWith('..') ? 'index.html' : normalizedPath
+    const safeRelativePath = resolveAppProtocolRelativePath(requestUrl.pathname || '/')
 
     let filePath = path.join(process.env.DIST!, safeRelativePath)
     if (!fs.existsSync(filePath)) {
