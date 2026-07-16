@@ -98,4 +98,12 @@ describe('smart routing output', () => {
     expect(rankAgentsByRelevance('Can you review loan refinancing and interest payments?', agents)).toEqual(['loans'])
     expect(rankAgentsByRelevance('Please help me with this', agents)).toEqual([])
   })
+
+  it('uses professional specialties as strong smart-routing signals', () => {
+    const specialists = agents.map((agent) => agent.id === 'risk'
+      ? { ...agent, specialties: ['Estate planning', 'Tax-loss harvesting'] }
+      : agent)
+
+    expect(rankAgentsByRelevance('Help me with tax-loss harvesting', specialists)).toEqual(['risk'])
+  })
 })

@@ -95,7 +95,7 @@
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   cursor: default;
 }
 .stat-card__icon {
@@ -107,7 +107,7 @@
 .stat-card__icon--primary { background: rgba(99, 102, 241, 0.15); color: var(--brand-primary); }
 .stat-card__icon--success { background: rgba(16, 185, 129, 0.15); color: var(--status-success); }
 .stat-card__icon--error { background: rgba(239, 68, 68, 0.15); color: var(--status-error); }
-.stat-card__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat-card__info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .stat-card__label { font-size: 12px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-card__value {
   font-size: var(--text-lg);
@@ -171,7 +171,7 @@
 .dash-risk-card__summary {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   flex: 1;
   min-width: 0;
 }
@@ -192,12 +192,12 @@
 }
 .dash-risk-card__mini-stats {
   display: flex;
-  gap: 20px;
+  gap: 28px;
 }
 .dash-risk-card__mini-stats > div {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
 }
 .dash-risk-card__mini-stats span {
   font-size: 10px;
@@ -337,13 +337,13 @@
 .dash-holdings {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 12px;
 }
 .dash-holding-card {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -356,10 +356,17 @@
   background: var(--glass-bg-strong);
   flex-shrink: 0;
 }
-.dash-holding-card__info { flex: 1; min-width: 0; }
+.dash-holding-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .dash-holding-card__name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-holding-card__meta { font-size: 12px; color: var(--text-tertiary); }
-.dash-holding-card__right { text-align: right; }
+.dash-holding-card__info .valuation-disclosure { margin-top: 4px; }
+.dash-holding-card__right { text-align: right; padding-left: 8px; }
 .dash-holding-card__value { font-size: var(--text-md); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
 .dash-holding-card__change { font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 .dash-holding-card__change--up { color: var(--status-success); }

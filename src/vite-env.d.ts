@@ -266,6 +266,9 @@ interface Window {
     startServers: () => Promise<{ ok: boolean; error?: string; statuses?: MCPServerStatusInfo[] }>
     stopServers: () => Promise<{ ok: boolean }>
     getStatus: () => Promise<{ running: boolean; servers: MCPServerStatusInfo[] }>
+    listTools: () => Promise<{
+      tools: { serverName: string; name: string; description?: string }[]
+    }>
     getSettings: () => Promise<{ configFilePath: string | null; autoStart: boolean }>
     updateSettings: (settings: { autoStart?: boolean }) => Promise<{ ok: boolean; error?: string }>
   }

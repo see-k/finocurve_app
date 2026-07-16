@@ -121,6 +121,9 @@ export interface ChatContext {
     /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
     provider?: 'ollama' | 'bedrock' | 'azure'
     model?: string
+    /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
+    toolAccess?: 'all' | 'selected' | 'none'
+    enabledToolNames?: string[]
   }
   /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
   groupChat?: {

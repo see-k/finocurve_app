@@ -170,6 +170,7 @@ contextBridge.exposeInMainWorld('mcpAPI', {
   startServers: () => ipcRenderer.invoke('mcp:start-servers'),
   stopServers: () => ipcRenderer.invoke('mcp:stop-servers'),
   getStatus: () => ipcRenderer.invoke('mcp:get-status'),
+  listTools: () => ipcRenderer.invoke('mcp:list-tools'),
   getSettings: () => ipcRenderer.invoke('mcp:get-settings'),
   updateSettings: (settings: { autoStart?: boolean }) => ipcRenderer.invoke('mcp:update-settings', settings),
 })

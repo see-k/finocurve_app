@@ -79,6 +79,16 @@ export function registerMCPHandlers(): void {
     return { running: isMCPRunning(), servers: getMCPServerStatuses() }
   })
 
+  ipcMain.handle('mcp:list-tools', () => {
+    return {
+      tools: getAllMCPTools().map(({ serverName, name, description }) => ({
+        serverName,
+        name,
+        description,
+      })),
+    }
+  })
+
   ipcMain.handle('mcp:get-settings', () => {
     const config = loadMCPStorageConfig()
     return {

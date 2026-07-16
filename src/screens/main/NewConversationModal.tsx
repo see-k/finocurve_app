@@ -6,6 +6,7 @@ import GlassTextField from '../../components/glass/GlassTextField'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import { useAgents } from '../../store/useAgents'
 import type { Conversation } from '../../types/Conversation'
+import { isAgentActive } from '../../types/Agent'
 import './NewConversationModal.css'
 
 interface NewConversationModalProps {
@@ -14,9 +15,10 @@ interface NewConversationModalProps {
   onCreated: (conversation: Conversation) => void
 }
 
-/** Modal to pick one agent (1:1 chat) or several agents + a title (group chat). */
+/** Modal to pick one expert (1:1 chat) or several experts + a title (group chat). */
 export default function NewConversationModal({ onClose, onCreate, onCreated }: NewConversationModalProps) {
   const { agents } = useAgents()
+  const activeAgents = useMemo(() => agents.filter(isAgentActive), [agents])
   const [selected, setSelected] = useState<string[]>([])
   const [title, setTitle] = useState('')
 
@@ -24,9 +26,9 @@ export default function NewConversationModal({ onClose, onCreate, onCreated }: N
 
   const defaultTitle = useMemo(() => {
     if (selected.length === 0) return ''
-    const names = agents.filter((a) => selected.includes(a.id)).map((a) => a.name)
+    const names = activeAgents.filter((a) => selected.includes(a.id)).map((a) => a.name)
     return names.join(', ')
-  }, [selected, agents])
+  }, [selected, activeAgents])
 
   const toggleAgent = (agentId: string) => {
     setSelected((prev) => (prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId]))
@@ -45,16 +47,16 @@ export default function NewConversationModal({ onClose, onCreate, onCreated }: N
         <div onClick={(e) => e.stopPropagation()}>
           <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>New Chat</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 14 }}>
-            Pick one agent for a 1:1 chat, or several for a group chat with optional smart routing.
+            Pick one expert for a 1:1 chat, or several for a group chat with optional smart routing.
           </p>
 
-          {agents.length === 0 ? (
+          {activeAgents.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-              No agents yet — create one in Settings → AI Agents first.
+              No active experts yet — create or reactivate one in Settings → AI Experts first.
             </p>
           ) : (
             <div className="new-convo-modal__agents">
-              {agents.map((agent) => {
+              {activeAgents.map((agent) => {
                 const isSelected = selected.includes(agent.id)
                 return (
                   <button

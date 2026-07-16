@@ -214,7 +214,9 @@ export function rankAgentsByRelevance(userText: string, agents: Agent[]): string
   if (promptTokens.size === 0) return []
 
   const ranked = agents.map((agent, index) => {
-    const identityTokens = routingTokens(`${agent.name} ${agent.description ?? ''}`)
+    const identityTokens = routingTokens(
+      `${agent.name} ${agent.description ?? ''} ${(agent.specialties ?? []).join(' ')}`,
+    )
     const personaTokens = routingTokens(agent.systemPrompt)
     let score = 0
     for (const token of promptTokens) {
@@ -242,6 +244,7 @@ function buildSmartRoutingRequest(
     id: agent.id,
     name: agent.name,
     description: agent.description ?? '',
+    specialties: agent.specialties ?? [],
     expertise: agent.systemPrompt.replace(/\s+/g, ' ').trim().slice(0, 1_200),
   }))
   const recentContext = conversation.messages.slice(-6).map((message) => ({
@@ -406,6 +409,8 @@ export async function* runGroupTurn(
             systemPrompt: agent.systemPrompt,
             provider: agent.provider,
             model: agent.model,
+            toolAccess: agent.toolAccess,
+            enabledToolNames: agent.enabledToolNames,
           },
           groupChat: {
             participantNames,

@@ -4,6 +4,9 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowUp,
   Bot,
+  Check,
+  ChevronRight,
+  Menu,
   MessagesSquare,
   Plus,
   Search,
@@ -21,6 +24,7 @@ import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
 import { runGroupTurn, type SmartRoutingUpdate } from '../../ai/GroupChatOrchestrator'
 import type { Agent } from '../../types/Agent'
+import { isAgentActive } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
 import NewConversationModal from './NewConversationModal'
 import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
@@ -107,6 +111,8 @@ export default function ChatsScreen() {
     conversations,
     createConversation,
     appendMessage,
+    renameConversation,
+    setParticipants,
     setSmartRouting,
     deleteConversation,
   } = useConversations()
@@ -114,6 +120,9 @@ export default function ChatsScreen() {
   const { prefs } = usePreferences()
 
   const [showNewModal, setShowNewModal] = useState(false)
+  const [showChatSettings, setShowChatSettings] = useState(false)
+  const [draftParticipantIds, setDraftParticipantIds] = useState<string[]>([])
+  const [draftConversationTitle, setDraftConversationTitle] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
   const [conversationQuery, setConversationQuery] = useState('')
   const [input, setInput] = useState('')
@@ -141,6 +150,7 @@ export default function ChatsScreen() {
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerHighlightRef = useRef<HTMLDivElement>(null)
   const pendingCaretRef = useRef<number | null>(null)
+  const chatSettingsRef = useRef<HTMLDivElement>(null)
 
   const selectedId = searchParams.get('conversationId')
   const selected = useMemo(
@@ -153,6 +163,12 @@ export default function ChatsScreen() {
       setSearchParams({ tab: 'chats', conversationId: selected.id }, { replace: true })
     }
   }, [selected, searchParams, setSearchParams])
+
+  useEffect(() => {
+    setShowChatSettings(false)
+    setDraftParticipantIds(selected?.participantAgentIds ?? [])
+    setDraftConversationTitle(selected?.title ?? '')
+  }, [selected?.id])
 
   useEffect(() => {
     const getConfig = window.electronAPI?.aiConfigGet
@@ -232,6 +248,24 @@ export default function ChatsScreen() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [deleteTarget])
 
+  useEffect(() => {
+    if (!showChatSettings) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!chatSettingsRef.current?.contains(event.target as Node)) setShowChatSettings(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowChatSettings(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showChatSettings])
+
   const selectConversation = (id: string) => {
     setSearchParams({ tab: 'chats', conversationId: id }, { replace: true })
   }
@@ -259,7 +293,7 @@ export default function ChatsScreen() {
   const selectedParticipants: Agent[] = selected
     ? selected.participantAgentIds
         .map((id) => agentById.get(id))
-        .filter((agent): agent is Agent => !!agent)
+        .filter((agent): agent is Agent => !!agent && isAgentActive(agent))
     : []
   const latestUserMessageIndex = selected
     ? selected.messages.reduce(
@@ -328,7 +362,7 @@ export default function ChatsScreen() {
   }
 
   const handleSend = async () => {
-    if (!selected || !input.trim() || loading) return
+    if (!selected || selectedParticipants.length === 0 || !input.trim() || loading) return
     const text = input.trim()
     setInput('')
     setMentionDraft(null)
@@ -347,8 +381,8 @@ export default function ChatsScreen() {
     appendMessage(selected.id, userMessage)
 
     try {
-      if (selected.participantAgentIds.length === 1) {
-        const agent = agentById.get(selected.participantAgentIds[0])
+      if (selectedParticipants.length === 1) {
+        const agent = selectedParticipants[0]
         if (!agent || !window.electronAPI?.aiChatStream) return
         streamingAgentIdRef.current = agent.id
         setStreamingAgentId(agent.id)
@@ -372,6 +406,8 @@ export default function ChatsScreen() {
                 systemPrompt: agent.systemPrompt,
                 provider: agent.provider,
                 model: agent.model,
+                toolAccess: agent.toolAccess,
+                enabledToolNames: agent.enabledToolNames,
               },
             },
           })
@@ -391,9 +427,7 @@ export default function ChatsScreen() {
           unsubscribe?.()
         }
       } else {
-        const participants = selected.participantAgentIds
-          .map((id) => agentById.get(id))
-          .filter(Boolean) as typeof agents
+        const participants = selectedParticipants
 
         for await (const result of runGroupTurn(selected, participants, userMessage, {
           signal: controller.signal,
@@ -496,6 +530,55 @@ export default function ChatsScreen() {
 
     deleteConversation(deleteTarget.id)
     setDeleteTarget(null)
+  }
+
+  const toggleChatSettings = () => {
+    if (!selected) return
+    setShowChatSettings((isOpen) => {
+      if (!isOpen) {
+        setDraftParticipantIds(selected.participantAgentIds)
+        setDraftConversationTitle(selected.title)
+      }
+      return !isOpen
+    })
+  }
+
+  const toggleDraftParticipant = (agentId: string) => {
+    setDraftParticipantIds((current) => (
+      current.includes(agentId)
+        ? current.filter((id) => id !== agentId)
+        : [...current, agentId]
+    ))
+  }
+
+  const availableDraftParticipantIds = draftParticipantIds.filter((id) => agentById.has(id))
+  const participantDraftChanged = selected
+    ? availableDraftParticipantIds.length !== selected.participantAgentIds.length ||
+      availableDraftParticipantIds.some((id, index) => id !== selected.participantAgentIds[index])
+    : false
+  const titleDraftChanged = selected
+    ? draftConversationTitle.trim() !== selected.title
+    : false
+
+  const saveChatSettings = () => {
+    if (!selected || availableDraftParticipantIds.length === 0 || loading) return
+
+    const currentDefaultTitle = selected.participantAgentIds
+      .map((id) => agentById.get(id)?.name)
+      .filter(Boolean)
+      .join(', ')
+    const nextDefaultTitle = availableDraftParticipantIds
+      .map((id) => agentById.get(id)?.name)
+      .filter(Boolean)
+      .join(', ')
+    const requestedTitle = draftConversationTitle.trim()
+    const nextTitle = !requestedTitle || requestedTitle === currentDefaultTitle
+      ? nextDefaultTitle || 'Chat'
+      : requestedTitle
+
+    setParticipants(selected.id, availableDraftParticipantIds)
+    if (nextTitle !== selected.title) renameConversation(selected.id, nextTitle)
+    setDraftConversationTitle(nextTitle)
   }
 
   return (
@@ -618,60 +701,166 @@ export default function ChatsScreen() {
               <h2>{conversationTitle(selected)}</h2>
               <p>
                 <span className="chats-screen__status-dot" />
-                {selectedParticipants.length > 1
+                {selectedParticipants.length === 0
+                  ? 'No active experts in this conversation'
+                  : selectedParticipants.length > 1
                   ? `You + ${selectedParticipants.length} private AI advisors`
                   : `You + ${selectedParticipants[0]?.name || 'private AI advisor'}`}
               </p>
             </div>
             <div className="chats-screen__header-actions">
-              <button
-                type="button"
-                className="chats-screen__agent-settings"
-                onClick={() => navigate('/settings/agents')}
-                aria-label="Configure AI agents"
-                title="Configure AI agents"
-              >
-                <Bot size={15} />
-              </button>
-              {selectedParticipants.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={selected.smartRoutingEnabled === true}
-                    className={`chats-screen__smart-routing-toggle ${selected.smartRoutingEnabled ? 'chats-screen__smart-routing-toggle--active' : ''}`}
-                    onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
-                    disabled={loading}
-                    title="Use a private routing pass to choose who responds and in what order. @mentions still take priority."
-                  >
-                    <Sparkles size={13} />
-                    <span>Smart routing</span>
-                    <i aria-hidden="true"><b /></i>
-                  </button>
-                  <button
-                    type="button"
-                    className="chats-screen__router-settings"
-                    onClick={() => navigate('/settings/ai-config/router')}
-                    aria-label="Configure router agent"
-                    title="Configure router agent"
-                  >
-                    <Settings2 size={14} />
-                  </button>
-                </>
-              )}
               <div className="chats-screen__header-mark" aria-hidden="true">
                 <Sparkles size={15} />
                 <span>Curated intelligence</span>
               </div>
-              <button
-                type="button"
-                className="chats-screen__header-delete"
-                onClick={() => setDeleteTarget(selected)}
-                aria-label={`Delete ${conversationTitle(selected)}`}
-                title="Delete conversation"
-              >
-                <Trash2 size={16} />
-              </button>
+              <div className="chats-screen__chat-settings" ref={chatSettingsRef}>
+                <button
+                  type="button"
+                  className={`chats-screen__chat-settings-trigger ${showChatSettings ? 'chats-screen__chat-settings-trigger--active' : ''}`}
+                  onClick={toggleChatSettings}
+                  aria-label="Chat settings"
+                  aria-haspopup="dialog"
+                  aria-expanded={showChatSettings}
+                  aria-controls="chat-settings-popover"
+                  title="Chat settings"
+                >
+                  <Menu size={18} />
+                </button>
+
+                {showChatSettings && (
+                  <div
+                    id="chat-settings-popover"
+                    className="chats-screen__chat-settings-popover"
+                    role="dialog"
+                    aria-label="Chat settings"
+                  >
+                    <div className="chats-screen__chat-settings-heading">
+                      <span>
+                        <strong>Chat settings</strong>
+                        <small>Manage this conversation</small>
+                      </span>
+                      <span className="chats-screen__chat-settings-count">
+                        <Users size={12} /> {selectedParticipants.length}
+                      </span>
+                    </div>
+
+                    <label className="chats-screen__chat-title-field">
+                      <span>Conversation name</span>
+                      <input
+                        type="text"
+                        value={draftConversationTitle}
+                        onChange={(event) => setDraftConversationTitle(event.target.value)}
+                        disabled={loading}
+                        maxLength={80}
+                      />
+                    </label>
+
+                    <section className="chats-screen__chat-settings-section" aria-labelledby="chat-participants-heading">
+                      <div className="chats-screen__chat-settings-section-heading">
+                        <span>
+                          <strong id="chat-participants-heading">Participants</strong>
+                          <small>Add or remove AI advisors</small>
+                        </span>
+                        <small>{availableDraftParticipantIds.length} selected</small>
+                      </div>
+
+                      {agents.length > 0 ? (
+                        <div className="chats-screen__participant-picker">
+                          {agents.map((agent) => {
+                            const isSelected = availableDraftParticipantIds.includes(agent.id)
+                            const isActive = isAgentActive(agent)
+                            return (
+                              <button
+                                key={agent.id}
+                                type="button"
+                                className={`${isSelected ? 'chats-screen__participant-option--selected' : ''} ${isActive ? '' : 'chats-screen__participant-option--inactive'}`}
+                                onClick={() => toggleDraftParticipant(agent.id)}
+                                disabled={loading || (!isActive && !isSelected)}
+                                aria-pressed={isSelected}
+                              >
+                                <UserAvatar src={agent.image} initials={getInitials(agent.name)} size={30} />
+                                <span>
+                                  <strong>{agent.name}</strong>
+                                  <small>{isActive ? agent.description || 'Private AI advisor' : 'Inactive expert'}</small>
+                                </span>
+                                <i aria-hidden="true">{isSelected && <Check size={12} />}</i>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="chats-screen__no-agents">Create an AI agent before changing participants.</p>
+                      )}
+
+                      {availableDraftParticipantIds.length === 0 && (
+                        <p className="chats-screen__participant-error">A chat needs at least one agent.</p>
+                      )}
+
+                      <button
+                        type="button"
+                        className="chats-screen__save-chat-settings"
+                        onClick={saveChatSettings}
+                        disabled={
+                          loading ||
+                          availableDraftParticipantIds.length === 0 ||
+                          (!participantDraftChanged && !titleDraftChanged)
+                        }
+                      >
+                        Save changes
+                      </button>
+                    </section>
+
+                    {selectedParticipants.length > 1 && (
+                      <section className="chats-screen__chat-settings-section">
+                        <div className="chats-screen__routing-setting">
+                          <span>
+                            <strong><Sparkles size={13} /> Smart routing</strong>
+                            <small>Choose the best advisors for each prompt</small>
+                          </span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-label="Smart routing"
+                            aria-checked={selected.smartRoutingEnabled === true}
+                            className={`chats-screen__settings-switch ${selected.smartRoutingEnabled ? 'chats-screen__settings-switch--active' : ''}`}
+                            onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
+                            disabled={loading}
+                            title="@mentions still take priority over smart routing."
+                          >
+                            <i aria-hidden="true" />
+                          </button>
+                        </div>
+                      </section>
+                    )}
+
+                    <div className="chats-screen__chat-settings-links">
+                      <button type="button" onClick={() => navigate('/settings/agents')}>
+                        <Bot size={14} />
+                        <span><strong>Manage AI experts</strong><small>Create or edit expert profiles</small></span>
+                        <ChevronRight size={14} />
+                      </button>
+                      {selectedParticipants.length > 1 && (
+                        <button type="button" onClick={() => navigate('/settings/ai-config/router')}>
+                          <Settings2 size={14} />
+                          <span><strong>Router configuration</strong><small>Model and routing preferences</small></span>
+                          <ChevronRight size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="chats-screen__chat-settings-delete"
+                      onClick={() => {
+                        setShowChatSettings(false)
+                        setDeleteTarget(selected)
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete conversation
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
@@ -915,11 +1104,13 @@ export default function ChatsScreen() {
                       composerHighlightRef.current.scrollTop = event.currentTarget.scrollTop
                     }
                   }}
-                  placeholder={selectedParticipants.length > 1
+                  placeholder={selectedParticipants.length === 0
+                    ? 'Reactivate or add an expert to continue…'
+                    : selectedParticipants.length > 1
                     ? 'Message everyone, or @ an advisor directly…'
                     : `Message ${conversationTitle(selected)}…`}
                   rows={1}
-                  disabled={loading}
+                  disabled={loading || selectedParticipants.length === 0}
                   aria-label={`Message ${conversationTitle(selected)}`}
                   aria-autocomplete="list"
                   aria-expanded={!!mentionDraft && mentionSuggestions.length > 0}
@@ -962,7 +1153,7 @@ export default function ChatsScreen() {
                 type="button"
                 className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
                 onClick={loading ? handleStop : () => void handleSend()}
-                disabled={!loading && !input.trim()}
+                disabled={!loading && (!input.trim() || selectedParticipants.length === 0)}
                 aria-label={loading ? 'Stop response' : 'Send message'}
                 title={loading ? 'Stop response' : 'Send message'}
               >

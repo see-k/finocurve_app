@@ -83,6 +83,22 @@ export function useConversations() {
     )))
   }, [])
 
+  const setParticipants = useCallback((id: string, participantAgentIds: string[]) => {
+    const uniqueParticipantIds = [...new Set(participantAgentIds)]
+    if (uniqueParticipantIds.length === 0) return
+
+    setConversations((prev) => prev.map((c) => (
+      c.id === id
+        ? {
+            ...c,
+            participantAgentIds: uniqueParticipantIds,
+            smartRoutingEnabled: uniqueParticipantIds.length > 1 && c.smartRoutingEnabled === true,
+            updatedAt: new Date().toISOString(),
+          }
+        : c
+    )))
+  }, [])
+
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id))
   }, [])
@@ -96,6 +112,7 @@ export function useConversations() {
     appendMessage,
     replaceMessages,
     setSmartRouting,
+    setParticipants,
     deleteConversation,
   }
 }
