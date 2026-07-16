@@ -4,6 +4,7 @@
   grid-template-columns: minmax(272px, 318px) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
+  margin-left: 16px;
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: 22px;
