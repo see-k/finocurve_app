@@ -59,6 +59,20 @@ export async function* runGroupTurn(
       ...(m.attachments && m.attachments.length > 0 ? { attachments: m.attachments } : {}),
     }))
 
+    // Once another participant has answered, the transcript ends in an
+    // assistant turn. Some providers treat that shape as an assistant prefill
+    // (Claude/Bedrock rejects it outright), so hand the conversation back to
+    // the user role before asking the next agent to contribute. This message is
+    // request-only and is never persisted in the visible conversation.
+    if (apiMessages[apiMessages.length - 1]?.role === 'assistant') {
+      apiMessages.push({
+        role: 'user',
+        content:
+          `Continue the group conversation as ${agent.name}. Respond to the user's most recent ` +
+          'message, taking the other participants\' replies into account and adding your own useful perspective.',
+      })
+    }
+
     const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
       if (chunk.type === 'follow_ups') return
       options.onChunk?.({ type: chunk.type, agentId, content: chunk.content })

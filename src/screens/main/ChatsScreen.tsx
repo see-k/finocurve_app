@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
-  MainContainer, Sidebar, ConversationList, Conversation as ChatscopeConversation,
-  ChatContainer, MessageList, Message,
-} from '@chatscope/chat-ui-kit-react'
-import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css'
-import { Plus, Send, Square, Users, MessagesSquare } from 'lucide-react'
-import GlassContainer from '../../components/glass/GlassContainer'
-import GlassButton from '../../components/glass/GlassButton'
-import GlassIconButton from '../../components/glass/GlassIconButton'
-import GlassTextField from '../../components/glass/GlassTextField'
+  ArrowUp,
+  MessagesSquare,
+  Plus,
+  Search,
+  Sparkles,
+  Square,
+  Trash2,
+  Users,
+} from 'lucide-react'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import ChatMessageContent from '../../components/ai/ChatMessageContent'
 import { usePortfolio } from '../../store/usePortfolio'
@@ -21,21 +22,42 @@ import type { Conversation, ConversationMessage } from '../../types/Conversation
 import NewConversationModal from './NewConversationModal'
 import './ChatsScreen.css'
 
+function formatConversationTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const daysAgo = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000)
+
+  if (daysAgo === 0) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  }
+  if (daysAgo === 1) return 'Yesterday'
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
 export default function ChatsScreen() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { agents } = useAgents()
-  const { conversations, createConversation, appendMessage } = useConversations()
+  const { conversations, createConversation, appendMessage, deleteConversation } = useConversations()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
 
   const [showNewModal, setShowNewModal] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
+  const [conversationQuery, setConversationQuery] = useState('')
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const streamingAgentIdRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const stoppedRef = useRef(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
 
   const selectedId = searchParams.get('conversationId')
   const selected = useMemo(
@@ -49,12 +71,53 @@ export default function ChatsScreen() {
     }
   }, [selected, searchParams, setSearchParams])
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [selected?.id, selected?.messages.length, streamingText])
+
+  useEffect(() => {
+    const textarea = composerRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`
+  }, [input])
+
+  useEffect(() => {
+    if (!deleteTarget) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDeleteTarget(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deleteTarget])
+
   const selectConversation = (id: string) => {
     setSearchParams({ tab: 'chats', conversationId: id }, { replace: true })
   }
 
   const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'You'
+
+  const conversationTitle = (conversation: Conversation) =>
+    conversation.title ||
+    conversation.participantAgentIds
+      .map((id) => agentById.get(id)?.name)
+      .filter(Boolean)
+      .join(', ') ||
+    'Chat'
+
+  const visibleConversations = conversations.filter((conversation) => {
+    const query = conversationQuery.trim().toLocaleLowerCase()
+    if (!query) return true
+    const lastMessage = conversation.messages[conversation.messages.length - 1]
+    return `${conversationTitle(conversation)} ${lastMessage?.content ?? ''}`
+      .toLocaleLowerCase()
+      .includes(query)
+  })
+
+  const selectedParticipants = selected
+    ? selected.participantAgentIds.map((id) => agentById.get(id)).filter(Boolean)
+    : []
 
   const portfolioSummary = portfolio && totalValue > 0
     ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
@@ -96,43 +159,54 @@ export default function ChatsScreen() {
       if (selected.participantAgentIds.length === 1) {
         const agent = agentById.get(selected.participantAgentIds[0])
         if (!agent || !window.electronAPI?.aiChatStream) return
+        streamingAgentIdRef.current = agent.id
         setStreamingAgentId(agent.id)
         setStreamingText('')
 
         const unsubscribe = window.electronAPI.onAiChatChunk?.((chunk) => {
-          if (chunk.type === 'answer') setStreamingText((prev) => prev + chunk.content)
+          if (chunk.type === 'answer') setStreamingText((previous) => previous + chunk.content)
         })
 
-        const chatMessages = [...selected.messages, userMessage].map((m) => ({
-          role: m.role,
-          content: m.content,
-        }))
-        const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
-          messages: chatMessages,
-          context: { ...baseContext, agentPersona: { name: agent.name, systemPrompt: agent.systemPrompt } },
-        })
-        unsubscribe?.()
-
-        if (!aborted && !stoppedRef.current) {
-          appendMessage(selected.id, {
-            role: 'assistant',
-            content: reply || 'No response.',
-            senderAgentId: agent.id,
-            senderName: agent.name,
-            senderAvatar: agent.image,
-            reasoning,
-            followUps,
+        try {
+          const chatMessages = [...selected.messages, userMessage].map((message) => ({
+            role: message.role,
+            content: message.content,
+          }))
+          const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
+            messages: chatMessages,
+            context: { ...baseContext, agentPersona: { name: agent.name, systemPrompt: agent.systemPrompt } },
           })
+
+          if (!aborted && !stoppedRef.current) {
+            appendMessage(selected.id, {
+              role: 'assistant',
+              content: reply || 'No response.',
+              senderAgentId: agent.id,
+              senderName: agent.name,
+              senderAvatar: agent.image,
+              reasoning,
+              followUps,
+            })
+          }
+        } finally {
+          unsubscribe?.()
         }
       } else {
-        const participants = selected.participantAgentIds.map((id) => agentById.get(id)).filter(Boolean) as typeof agents
+        const participants = selected.participantAgentIds
+          .map((id) => agentById.get(id))
+          .filter(Boolean) as typeof agents
+
         for await (const result of runGroupTurn(selected, participants, userMessage, {
           signal: controller.signal,
           baseContext,
           onChunk: (chunk) => {
-            if (chunk.type === 'answer') {
+            if (chunk.type !== 'answer') return
+            if (streamingAgentIdRef.current === chunk.agentId) {
+              setStreamingText((previous) => previous + chunk.content)
+            } else {
+              streamingAgentIdRef.current = chunk.agentId
               setStreamingAgentId(chunk.agentId)
-              setStreamingText((prev) => (streamingAgentId === chunk.agentId ? prev + chunk.content : chunk.content))
+              setStreamingText(chunk.content)
             }
           },
         })) {
@@ -146,139 +220,314 @@ export default function ChatsScreen() {
             reasoning: result.reasoning,
             followUps: result.followUps,
           })
+          streamingAgentIdRef.current = null
+          setStreamingAgentId(null)
           setStreamingText('')
         }
       }
     } finally {
+      streamingAgentIdRef.current = null
       setStreamingAgentId(null)
       setStreamingText('')
       setLoading(false)
+      abortRef.current = null
     }
   }
 
   const handleFollowUp = (prompt: string) => {
     setInput(prompt)
+    requestAnimationFrame(() => composerRef.current?.focus())
   }
 
-  const conversationTitle = (c: Conversation) =>
-    c.title || c.participantAgentIds.map((id) => agentById.get(id)?.name).filter(Boolean).join(', ') || 'Chat'
+  const handleDeleteConversation = () => {
+    if (!deleteTarget) return
 
-  const conversationAvatarAgent = (c: Conversation) => agentById.get(c.participantAgentIds[0])
+    if (deleteTarget.id === selected?.id) {
+      if (loading) handleStop()
+      const nextConversation = conversations.find((conversation) => conversation.id !== deleteTarget.id)
+      setSearchParams(
+        nextConversation
+          ? { tab: 'chats', conversationId: nextConversation.id }
+          : { tab: 'chats' },
+        { replace: true },
+      )
+    }
+
+    deleteConversation(deleteTarget.id)
+    setDeleteTarget(null)
+  }
 
   return (
     <div className="chats-screen">
-      <MainContainer responsive className="chats-screen__main">
-        <Sidebar position="left" scrollable className="chats-screen__sidebar">
-          <div className="chats-screen__sidebar-header">
-            <h2 className="chats-screen__sidebar-title">
-              <MessagesSquare size={18} /> Chats
-            </h2>
-            <GlassIconButton icon={<Plus size={18} />} onClick={() => setShowNewModal(true)} size={36} title="New chat" />
+      <aside className="chats-screen__sidebar" aria-label="Conversations">
+        <div className="chats-screen__sidebar-header">
+          <div>
+            <span className="chats-screen__eyebrow">FinoCurve AI</span>
+            <h1 className="chats-screen__sidebar-title">Conversations</h1>
           </div>
-          {conversations.length === 0 ? (
-            <p className="chats-screen__empty">
-              No chats yet. Start a conversation with one of your agents.
-            </p>
-          ) : (
-            <ConversationList>
-              {conversations.map((c) => {
-                const agent = conversationAvatarAgent(c)
-                const isGroup = c.participantAgentIds.length > 1
-                const lastMessage = c.messages[c.messages.length - 1]
-                return (
-                  <ChatscopeConversation
-                    key={c.id}
-                    name={conversationTitle(c)}
-                    lastSenderName={lastMessage?.senderName}
-                    info={lastMessage?.content?.slice(0, 60) || 'No messages yet'}
-                    active={selected?.id === c.id}
-                    onClick={() => selectConversation(c.id)}
-                  >
-                    {isGroup ? (
-                      <Users size={20} className="chats-screen__group-icon" />
-                    ) : (
-                      <UserAvatar src={agent?.image} initials={getInitials(agent?.name)} size={40} />
-                    )}
-                  </ChatscopeConversation>
-                )
-              })}
-            </ConversationList>
-          )}
-        </Sidebar>
+          <button
+            type="button"
+            className="chats-screen__new-button"
+            onClick={() => setShowNewModal(true)}
+            aria-label="Start a new chat"
+            title="New chat"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
 
-        {selected ? (
-          <ChatContainer>
-            <MessageList className="chats-screen__message-list">
-              {selected.messages.map((m, idx) => (
-                <Message
-                  key={idx}
-                  model={{
-                    direction: m.role === 'user' ? 'outgoing' : 'incoming',
-                    position: 'single',
-                  }}
-                >
-                  {m.role === 'assistant' && (
-                    <Message.Header sender={m.senderName} />
-                  )}
-                  <Message.CustomContent>
-                    <ChatMessageContent
-                      role={m.role}
-                      content={m.content}
-                      attachments={m.attachments}
-                      reasoning={m.reasoning}
-                      followUps={m.followUps}
-                      disabled={loading}
-                      onFollowUpClick={handleFollowUp}
-                    />
-                  </Message.CustomContent>
-                </Message>
-              ))}
-              {streamingAgentId && (
-                <Message model={{ direction: 'incoming', position: 'single' }}>
-                  <Message.Header sender={agentById.get(streamingAgentId)?.name} />
-                  <Message.CustomContent>
-                    <ChatMessageContent role="assistant" content={streamingText || '…'} />
-                  </Message.CustomContent>
-                </Message>
-              )}
-            </MessageList>
-          </ChatContainer>
-        ) : (
-          <div className="chats-screen__placeholder">
-            <MessagesSquare size={40} />
-            <p>Select or start a chat with one of your agents.</p>
-            <GlassButton text="New Chat" icon={<Plus size={16} />} onClick={() => setShowNewModal(true)} isPrimary width="auto" />
-          </div>
-        )}
-      </MainContainer>
-
-      {selected && (
-        <GlassContainer className="chats-screen__composer" padding="12px" borderRadius={16}>
-          <GlassTextField
-            value={input}
-            onChange={setInput}
-            placeholder={`Message ${conversationTitle(selected)}...`}
-            maxLines={2}
-            disabled={loading}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void handleSend()
-              }
-            }}
+        <label className="chats-screen__search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            value={conversationQuery}
+            onChange={(event) => setConversationQuery(event.target.value)}
+            placeholder="Search conversations"
           />
-          {loading ? (
-            <GlassIconButton icon={<Square size={16} />} onClick={handleStop} size={40} title="Stop" />
+        </label>
+
+        <div className="chats-screen__conversation-list">
+          {conversations.length === 0 ? (
+            <div className="chats-screen__empty-list">
+              <MessagesSquare size={22} />
+              <p>Your conversations will live here.</p>
+              <button type="button" onClick={() => setShowNewModal(true)}>Start a chat</button>
+            </div>
+          ) : visibleConversations.length === 0 ? (
+            <p className="chats-screen__no-results">No conversations match “{conversationQuery}”.</p>
           ) : (
-            <GlassIconButton
-              icon={<Send size={16} />}
-              onClick={() => void handleSend()}
-              size={40}
-              title="Send"
-              disabled={!input.trim()}
-            />
+            visibleConversations.map((conversation) => {
+              const participant = agentById.get(conversation.participantAgentIds[0])
+              const isGroup = conversation.participantAgentIds.length > 1
+              const lastMessage = conversation.messages[conversation.messages.length - 1]
+
+              return (
+                <div
+                  key={conversation.id}
+                  className={`chats-screen__conversation-row ${selected?.id === conversation.id ? 'chats-screen__conversation-row--active' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className={`chats-screen__conversation ${selected?.id === conversation.id ? 'chats-screen__conversation--active' : ''}`}
+                    onClick={() => selectConversation(conversation.id)}
+                    aria-current={selected?.id === conversation.id ? 'page' : undefined}
+                  >
+                    <span className="chats-screen__conversation-avatar">
+                      {isGroup ? (
+                        <span className="chats-screen__group-avatar"><Users size={17} /></span>
+                      ) : (
+                        <UserAvatar src={participant?.image} initials={getInitials(participant?.name)} size={40} />
+                      )}
+                    </span>
+                    <span className="chats-screen__conversation-copy">
+                      <span className="chats-screen__conversation-heading">
+                        <strong>{conversationTitle(conversation)}</strong>
+                        <time dateTime={conversation.updatedAt}>{formatConversationTime(conversation.updatedAt)}</time>
+                      </span>
+                      <span className="chats-screen__conversation-preview">
+                        {lastMessage ? `${lastMessage.senderName}: ${lastMessage.content}` : 'A new conversation'}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chats-screen__conversation-delete"
+                    onClick={() => setDeleteTarget(conversation)}
+                    aria-label={`Delete ${conversationTitle(conversation)}`}
+                    title="Delete conversation"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )
+            })
           )}
-        </GlassContainer>
+        </div>
+
+        <div className="chats-screen__sidebar-footer">
+          <span>{conversations.length} {conversations.length === 1 ? 'conversation' : 'conversations'}</span>
+          <span className="chats-screen__private-label">Private workspace</span>
+        </div>
+      </aside>
+
+      {selected ? (
+        <section className="chats-screen__conversation-pane" aria-label={conversationTitle(selected)}>
+          <header className="chats-screen__chat-header">
+            <div className="chats-screen__participant-stack" aria-hidden="true">
+              <UserAvatar
+                src={prefs.profilePicturePath}
+                initials={getInitials(userName)}
+                size={38}
+                className="chats-screen__stacked-avatar chats-screen__stacked-avatar--user"
+              />
+              {selectedParticipants.slice(0, 3).map((participant, index) => (
+                <UserAvatar
+                  key={participant!.id}
+                  src={participant!.image}
+                  initials={getInitials(participant!.name)}
+                  size={38}
+                  className={`chats-screen__stacked-avatar chats-screen__stacked-avatar--${index}`}
+                />
+              ))}
+              {selectedParticipants.length === 0 && (
+                <span className="chats-screen__group-avatar"><Sparkles size={17} /></span>
+              )}
+            </div>
+            <div className="chats-screen__chat-heading">
+              <h2>{conversationTitle(selected)}</h2>
+              <p>
+                <span className="chats-screen__status-dot" />
+                {selectedParticipants.length > 1
+                  ? `You + ${selectedParticipants.length} private AI advisors`
+                  : `You + ${selectedParticipants[0]?.name || 'private AI advisor'}`}
+              </p>
+            </div>
+            <div className="chats-screen__header-actions">
+              <div className="chats-screen__header-mark" aria-hidden="true">
+                <Sparkles size={15} />
+                <span>Curated intelligence</span>
+              </div>
+              <button
+                type="button"
+                className="chats-screen__header-delete"
+                onClick={() => setDeleteTarget(selected)}
+                aria-label={`Delete ${conversationTitle(selected)}`}
+                title="Delete conversation"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </header>
+
+          <div className="chats-screen__messages" role="log" aria-live="polite" aria-busy={loading}>
+            <div className="chats-screen__messages-inner">
+              {selected.messages.length === 0 && !streamingAgentId ? (
+                <div className="chats-screen__welcome">
+                  <span className="chats-screen__welcome-icon"><Sparkles size={22} /></span>
+                  <span className="chats-screen__eyebrow">Private advisory</span>
+                  <h2>What would you like to understand?</h2>
+                  <p>
+                    Ask for analysis, a second opinion, or a clear next step. Your advisors can use the financial context already in FinoCurve.
+                  </p>
+                  <div className="chats-screen__starters" aria-label="Conversation starters">
+                    {['Review my portfolio', 'Where is my biggest risk?', 'Summarize my financial position'].map((prompt) => (
+                      <button key={prompt} type="button" onClick={() => handleFollowUp(prompt)}>{prompt}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                selected.messages.map((message, index) => (
+                  <article
+                    key={`${index}-${message.senderName}`}
+                    className={`chats-screen__message chats-screen__message--${message.role}`}
+                  >
+                    {message.role === 'assistant' && (
+                      <UserAvatar
+                        src={message.senderAvatar}
+                        initials={getInitials(message.senderName)}
+                        size={32}
+                        className="chats-screen__message-avatar"
+                      />
+                    )}
+                    <div className="chats-screen__message-column">
+                      <div className="chats-screen__message-meta">
+                        <span>{message.role === 'user' ? userName : message.senderName}</span>
+                        {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
+                        {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
+                      </div>
+                      <div className="chats-screen__message-bubble">
+                        <ChatMessageContent
+                          role={message.role}
+                          content={message.content}
+                          attachments={message.attachments}
+                          reasoning={message.reasoning}
+                          followUps={message.followUps}
+                          disabled={loading}
+                          onFollowUpClick={handleFollowUp}
+                        />
+                      </div>
+                    </div>
+                    {message.role === 'user' && (
+                      <UserAvatar
+                        src={message.senderAvatar || prefs.profilePicturePath}
+                        initials={getInitials(userName)}
+                        size={32}
+                        className="chats-screen__message-avatar chats-screen__message-avatar--user"
+                      />
+                    )}
+                  </article>
+                ))
+              )}
+
+              {streamingAgentId && (
+                <article className="chats-screen__message chats-screen__message--assistant chats-screen__message--streaming">
+                  <UserAvatar
+                    src={agentById.get(streamingAgentId)?.image}
+                    initials={getInitials(agentById.get(streamingAgentId)?.name)}
+                    size={32}
+                    className="chats-screen__message-avatar"
+                  />
+                  <div className="chats-screen__message-column">
+                    <div className="chats-screen__message-meta">
+                      <span>{agentById.get(streamingAgentId)?.name}</span>
+                      <span className="chats-screen__thinking-label">Thinking</span>
+                    </div>
+                    <div className="chats-screen__message-bubble">
+                      {streamingText ? (
+                        <ChatMessageContent role="assistant" content={streamingText} />
+                      ) : (
+                        <span className="chats-screen__typing" aria-label="Advisor is thinking">
+                          <i /><i /><i />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          <footer className="chats-screen__composer-shell">
+            <div className="chats-screen__composer">
+              <textarea
+                ref={composerRef}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder={`Message ${conversationTitle(selected)}…`}
+                rows={1}
+                disabled={loading}
+                aria-label={`Message ${conversationTitle(selected)}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    void handleSend()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
+                onClick={loading ? handleStop : () => void handleSend()}
+                disabled={!loading && !input.trim()}
+                aria-label={loading ? 'Stop response' : 'Send message'}
+                title={loading ? 'Stop response' : 'Send message'}
+              >
+                {loading ? <Square size={15} fill="currentColor" /> : <ArrowUp size={19} />}
+              </button>
+            </div>
+            <p>Enter to send <span>·</span> Shift + Enter for a new line</p>
+          </footer>
+        </section>
+      ) : (
+        <section className="chats-screen__placeholder">
+          <span><MessagesSquare size={28} /></span>
+          <h2>Your private advisory room</h2>
+          <p>Start a focused conversation with one or more AI advisors.</p>
+          <button type="button" onClick={() => setShowNewModal(true)}>
+            <Plus size={16} /> New conversation
+          </button>
+        </section>
       )}
 
       {showNewModal && (
@@ -290,6 +539,38 @@ export default function ChatsScreen() {
             selectConversation(conversation.id)
           }}
         />
+      )}
+
+      {deleteTarget && createPortal(
+        <div
+          className="chats-screen__delete-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeleteTarget(null)
+          }}
+        >
+          <div
+            className="chats-screen__delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-conversation-title"
+            aria-describedby="delete-conversation-description"
+          >
+            <span className="chats-screen__delete-dialog-icon"><Trash2 size={20} /></span>
+            <span className="chats-screen__eyebrow">Permanent action</span>
+            <h2 id="delete-conversation-title">Delete this conversation?</h2>
+            <p id="delete-conversation-description">
+              “{conversationTitle(deleteTarget)}” and {deleteTarget.messages.length}{' '}
+              {deleteTarget.messages.length === 1 ? 'message' : 'messages'} will be permanently removed.
+            </p>
+            <div className="chats-screen__delete-dialog-actions">
+              <button type="button" onClick={() => setDeleteTarget(null)}>Keep conversation</button>
+              <button type="button" className="chats-screen__delete-confirm" onClick={handleDeleteConversation}>
+                <Trash2 size={14} /> Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
