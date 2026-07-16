@@ -15,7 +15,29 @@ function load(): Conversation[] {
 }
 
 function save(conversations: Conversation[]) {
-  try { setCoreDataItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations)) } catch { /* ignore */ }
+  try {
+    setCoreDataItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations))
+  } catch {
+    // Attachment payloads are useful during the live session but can exceed the
+    // local compatibility cache. Preserve the transcript and file metadata.
+    const withoutAttachmentPayloads = conversations.map((conversation) => ({
+      ...conversation,
+      messages: conversation.messages.map((message) => (
+        !message.attachments?.length
+          ? message
+          : {
+              ...message,
+              attachments: message.attachments.map((attachment) => ({
+                ...attachment,
+                dataBase64: '',
+              })),
+            }
+      )),
+    }))
+    try {
+      setCoreDataItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(withoutAttachmentPayloads))
+    } catch { /* ignore */ }
+  }
 }
 
 function makeId(): string {

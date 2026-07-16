@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -6,8 +14,10 @@ import {
   Bot,
   Check,
   ChevronRight,
+  FileText,
   Menu,
   MessagesSquare,
+  Paperclip,
   Plus,
   Search,
   Settings2,
@@ -15,6 +25,7 @@ import {
   Square,
   Trash2,
   Users,
+  X,
 } from 'lucide-react'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import ChatMessageContent, { renderTextWithMentions } from '../../components/ai/ChatMessageContent'
@@ -26,6 +37,7 @@ import { runGroupTurn, type SmartRoutingUpdate } from '../../ai/GroupChatOrchest
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
+import type { ChatAttachment } from '../../ai/types'
 import NewConversationModal from './NewConversationModal'
 import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
 import './ChatsScreen.css'
@@ -67,6 +79,51 @@ interface AgentProviderPresentation {
   showProvider: boolean
   primaryProvider: 'ollama' | 'bedrock' | 'azure'
   primaryModel: string
+}
+
+interface PendingAttachment extends ChatAttachment {
+  id: string
+  size: number
+  objectUrl?: string
+}
+
+const MAX_CHAT_ATTACHMENTS = 6
+const MAX_CHAT_ATTACHMENT_BYTES = 4 * 1024 * 1024
+const CHAT_ATTACHMENT_ACCEPT =
+  'image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf,text/plain,text/csv,application/csv,.json,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.txt,.csv,.pdf'
+const CHAT_ATTACHMENT_EXTENSIONS = new Set([
+  'csv', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'json', 'markdown', 'md',
+  'pdf', 'png', 'txt', 'webp', 'xml', 'yaml', 'yml',
+])
+
+function fileToBase64Data(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      const comma = result.indexOf(',')
+      resolve(comma >= 0 ? result.slice(comma + 1) : result)
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function isSupportedAttachment(file: File): boolean {
+  const extension = file.name.split('.').pop()?.toLocaleLowerCase() ?? ''
+  return (
+    ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(file.type) ||
+    file.type === 'application/pdf' ||
+    file.type.startsWith('text/') ||
+    ['application/json', 'application/xml', 'application/x-yaml'].includes(file.type) ||
+    CHAT_ATTACHMENT_EXTENSIONS.has(extension)
+  )
+}
+
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 function findMentionDraft(value: string, caret: number): MentionDraft | null {
@@ -126,6 +183,10 @@ export default function ChatsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
   const [conversationQuery, setConversationQuery] = useState('')
   const [input, setInput] = useState('')
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [isReadingAttachments, setIsReadingAttachments] = useState(false)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
@@ -149,8 +210,13 @@ export default function ChatsScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerHighlightRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingAttachmentsRef = useRef<PendingAttachment[]>([])
+  const attachmentReadInProgressRef = useRef(false)
+  const dragDepthRef = useRef(0)
   const pendingCaretRef = useRef<number | null>(null)
   const chatSettingsRef = useRef<HTMLDivElement>(null)
+  pendingAttachmentsRef.current = pendingAttachments
 
   const selectedId = searchParams.get('conversationId')
   const selected = useMemo(
@@ -165,10 +231,24 @@ export default function ChatsScreen() {
   }, [selected, searchParams, setSearchParams])
 
   useEffect(() => {
+    pendingAttachmentsRef.current.forEach((attachment) => {
+      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
+    })
+    pendingAttachmentsRef.current = []
+    setPendingAttachments([])
+    setAttachmentError(null)
+    dragDepthRef.current = 0
+    setIsDraggingFiles(false)
     setShowChatSettings(false)
     setDraftParticipantIds(selected?.participantAgentIds ?? [])
     setDraftConversationTitle(selected?.title ?? '')
   }, [selected?.id])
+
+  useEffect(() => () => {
+    pendingAttachmentsRef.current.forEach((attachment) => {
+      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
+    })
+  }, [])
 
   useEffect(() => {
     const getConfig = window.electronAPI?.aiConfigGet
@@ -361,9 +441,122 @@ export default function ChatsScreen() {
     void window.electronAPI?.aiChatCancel?.()
   }
 
+  const removePendingAttachment = (id: string) => {
+    setPendingAttachments((current) => {
+      const removed = current.find((attachment) => attachment.id === id)
+      if (removed?.objectUrl) URL.revokeObjectURL(removed.objectUrl)
+      const next = current.filter((attachment) => attachment.id !== id)
+      pendingAttachmentsRef.current = next
+      return next
+    })
+    setAttachmentError(null)
+  }
+
+  const addAttachmentFiles = async (files: File[]) => {
+    if (files.length === 0 || attachmentReadInProgressRef.current || loading) return
+
+    attachmentReadInProgressRef.current = true
+    setIsReadingAttachments(true)
+    let availableSlots = MAX_CHAT_ATTACHMENTS - pendingAttachmentsRef.current.length
+    const accepted: PendingAttachment[] = []
+    let nextError: string | null = null
+
+    try {
+      for (const file of files) {
+        if (availableSlots <= 0) {
+          nextError = `You can attach up to ${MAX_CHAT_ATTACHMENTS} files to one message.`
+          break
+        }
+        if (!isSupportedAttachment(file)) {
+          nextError = `“${file.name}” is not a supported image, PDF, or text document.`
+          continue
+        }
+        if (file.size > MAX_CHAT_ATTACHMENT_BYTES) {
+          nextError = `“${file.name}” is larger than the 4 MB file limit.`
+          continue
+        }
+
+        try {
+          const mimeType = file.type || 'application/octet-stream'
+          accepted.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            name: file.name,
+            mimeType,
+            dataBase64: await fileToBase64Data(file),
+            size: file.size,
+            objectUrl: mimeType.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+          })
+          availableSlots -= 1
+        } catch {
+          nextError = `Could not read “${file.name}”.`
+        }
+      }
+
+      if (accepted.length > 0) {
+        const next = [...pendingAttachmentsRef.current, ...accepted]
+        pendingAttachmentsRef.current = next
+        setPendingAttachments(next)
+      }
+      setAttachmentError(nextError)
+    } finally {
+      attachmentReadInProgressRef.current = false
+      setIsReadingAttachments(false)
+    }
+  }
+
+  const hasDraggedFiles = (event: DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer.types).includes('Files')
+
+  const handleComposerDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event) || loading) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setIsDraggingFiles(true)
+  }
+
+  const handleComposerDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event) || loading) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleComposerDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDraggingFiles(false)
+  }
+
+  const handleComposerDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event) || loading) return
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDraggingFiles(false)
+    void addAttachmentFiles(Array.from(event.dataTransfer.files))
+  }
+
   const handleSend = async () => {
-    if (!selected || selectedParticipants.length === 0 || !input.trim() || loading) return
+    if (
+      !selected ||
+      selectedParticipants.length === 0 ||
+      (!input.trim() && pendingAttachments.length === 0) ||
+      loading ||
+      isReadingAttachments
+    ) return
     const text = input.trim()
+    const apiAttachments: ChatAttachment[] = pendingAttachments.map((attachment) => ({
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      dataBase64: attachment.dataBase64,
+    }))
+    const displayContent = text || '(See attached files)'
+
+    pendingAttachments.forEach((attachment) => {
+      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
+    })
+    pendingAttachmentsRef.current = []
+    setPendingAttachments([])
+    setAttachmentError(null)
     setInput('')
     setMentionDraft(null)
     setSmartRoutingStatus(null)
@@ -374,9 +567,10 @@ export default function ChatsScreen() {
 
     const userMessage: ConversationMessage = {
       role: 'user',
-      content: text,
+      content: displayContent,
       senderName: userName,
       senderAvatar: prefs.profilePicturePath ?? undefined,
+      ...(apiAttachments.length > 0 ? { attachments: apiAttachments } : {}),
     }
     appendMessage(selected.id, userMessage)
 
@@ -393,10 +587,16 @@ export default function ChatsScreen() {
         })
 
         try {
-          const chatMessages = [...selected.messages, userMessage].map((message) => ({
-            role: message.role,
-            content: message.content,
-          }))
+          const chatMessages = [...selected.messages, userMessage].map((message) => {
+            const attachments = message.role === 'user'
+              ? message.attachments?.filter((attachment) => attachment.dataBase64.length > 0)
+              : undefined
+            return {
+              role: message.role,
+              content: message.content,
+              ...(attachments?.length ? { attachments } : {}),
+            }
+          })
           const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
             messages: chatMessages,
             context: {
@@ -1076,92 +1276,171 @@ export default function ChatsScreen() {
                 </button>
               </div>
             )}
-            <div className="chats-screen__composer">
-              <div className={`chats-screen__composer-input ${input ? 'chats-screen__composer-input--has-value' : ''}`}>
-                <div
-                  ref={composerHighlightRef}
-                  className="chats-screen__composer-highlight"
-                  aria-hidden="true"
-                >
-                  {input ? renderTextWithMentions(input, mentionNames) : '\u200b'}
+            <div
+              className={`chats-screen__composer ${isDraggingFiles ? 'chats-screen__composer--dragging' : ''}`}
+              onDragEnter={handleComposerDragEnter}
+              onDragOver={handleComposerDragOver}
+              onDragLeave={handleComposerDragLeave}
+              onDrop={handleComposerDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="chats-screen__file-input"
+                accept={CHAT_ATTACHMENT_ACCEPT}
+                multiple
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(event) => {
+                  const files = event.currentTarget.files
+                    ? Array.from(event.currentTarget.files)
+                    : []
+                  event.currentTarget.value = ''
+                  void addAttachmentFiles(files)
+                }}
+              />
+              {pendingAttachments.length > 0 && (
+                <div className="chats-screen__pending-files" aria-label="Files ready to send">
+                  {pendingAttachments.map((attachment) => (
+                    <div key={attachment.id} className="chats-screen__pending-file">
+                      {attachment.objectUrl ? (
+                        <img src={attachment.objectUrl} alt="" />
+                      ) : (
+                        <span className="chats-screen__pending-file-icon" aria-hidden="true">
+                          <FileText size={16} />
+                        </span>
+                      )}
+                      <span className="chats-screen__pending-file-copy">
+                        <strong>{attachment.name}</strong>
+                        <small>{attachment.objectUrl ? 'Image' : 'Document'} · {formatAttachmentSize(attachment.size)}</small>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removePendingAttachment(attachment.id)}
+                        disabled={loading}
+                        aria-label={`Remove ${attachment.name}`}
+                        title="Remove attachment"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <textarea
-                  ref={composerRef}
-                  value={input}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setInput(nextValue)
-                    updateMentionDraft(nextValue, event.target.selectionStart ?? nextValue.length)
-                  }}
-                  onSelect={(event) => {
-                    updateMentionDraft(
-                      event.currentTarget.value,
-                      event.currentTarget.selectionStart ?? event.currentTarget.value.length,
-                    )
-                  }}
-                  onScroll={(event) => {
-                    if (composerHighlightRef.current) {
-                      composerHighlightRef.current.scrollTop = event.currentTarget.scrollTop
-                    }
-                  }}
-                  placeholder={selectedParticipants.length === 0
-                    ? 'Reactivate or add an expert to continue…'
-                    : selectedParticipants.length > 1
-                    ? 'Message everyone, or @ an advisor directly…'
-                    : `Message ${conversationTitle(selected)}…`}
-                  rows={1}
-                  disabled={loading || selectedParticipants.length === 0}
-                  aria-label={`Message ${conversationTitle(selected)}`}
-                  aria-autocomplete="list"
-                  aria-expanded={!!mentionDraft && mentionSuggestions.length > 0}
-                  aria-controls={mentionDraft ? 'chat-mention-suggestions' : undefined}
-                  aria-activedescendant={mentionDraft && mentionSuggestions[activeMentionIndex]
-                    ? `chat-mention-option-${mentionSuggestions[activeMentionIndex].id}`
-                    : undefined}
-                  onKeyDown={(event) => {
-                    if (mentionDraft && mentionSuggestions.length > 0) {
-                      if (event.key === 'ArrowDown') {
-                        event.preventDefault()
-                        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
-                        return
+              )}
+              <div className="chats-screen__composer-row">
+                <button
+                  type="button"
+                  className="chats-screen__attach"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={
+                    loading ||
+                    isReadingAttachments ||
+                    pendingAttachments.length >= MAX_CHAT_ATTACHMENTS ||
+                    selectedParticipants.length === 0
+                  }
+                  aria-label="Attach files or images"
+                  title="Attach files or images"
+                >
+                  <Paperclip size={18} />
+                </button>
+                <div className={`chats-screen__composer-input ${input ? 'chats-screen__composer-input--has-value' : ''}`}>
+                  <div
+                    ref={composerHighlightRef}
+                    className="chats-screen__composer-highlight"
+                    aria-hidden="true"
+                  >
+                    {input ? renderTextWithMentions(input, mentionNames) : '\u200b'}
+                  </div>
+                  <textarea
+                    ref={composerRef}
+                    value={input}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      setInput(nextValue)
+                      updateMentionDraft(nextValue, event.target.selectionStart ?? nextValue.length)
+                    }}
+                    onSelect={(event) => {
+                      updateMentionDraft(
+                        event.currentTarget.value,
+                        event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                      )
+                    }}
+                    onScroll={(event) => {
+                      if (composerHighlightRef.current) {
+                        composerHighlightRef.current.scrollTop = event.currentTarget.scrollTop
                       }
-                      if (event.key === 'ArrowUp') {
-                        event.preventDefault()
-                        setActiveMentionIndex((current) =>
-                          (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
-                        return
-                      }
-                      if (event.key === 'Enter' || event.key === 'Tab') {
-                        event.preventDefault()
-                        selectMention(mentionSuggestions[activeMentionIndex].name)
-                        return
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        setMentionDraft(null)
-                        return
-                      }
-                    }
-                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    }}
+                    onPaste={(event) => {
+                      const files = Array.from(event.clipboardData.files)
+                      if (files.length === 0) return
                       event.preventDefault()
-                      void handleSend()
-                    }
-                  }}
-                />
+                      void addAttachmentFiles(files)
+                    }}
+                    placeholder={selectedParticipants.length === 0
+                      ? 'Reactivate or add an expert to continue…'
+                      : selectedParticipants.length > 1
+                      ? 'Message everyone, or @ an advisor directly…'
+                      : `Message ${conversationTitle(selected)}…`}
+                    rows={1}
+                    disabled={loading || selectedParticipants.length === 0}
+                    aria-label={`Message ${conversationTitle(selected)}`}
+                    aria-autocomplete="list"
+                    aria-expanded={!!mentionDraft && mentionSuggestions.length > 0}
+                    aria-controls={mentionDraft ? 'chat-mention-suggestions' : undefined}
+                    aria-activedescendant={mentionDraft && mentionSuggestions[activeMentionIndex]
+                      ? `chat-mention-option-${mentionSuggestions[activeMentionIndex].id}`
+                      : undefined}
+                    onKeyDown={(event) => {
+                      if (mentionDraft && mentionSuggestions.length > 0) {
+                        if (event.key === 'ArrowDown') {
+                          event.preventDefault()
+                          setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
+                          return
+                        }
+                        if (event.key === 'ArrowUp') {
+                          event.preventDefault()
+                          setActiveMentionIndex((current) =>
+                            (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+                          return
+                        }
+                        if (event.key === 'Enter' || event.key === 'Tab') {
+                          event.preventDefault()
+                          selectMention(mentionSuggestions[activeMentionIndex].name)
+                          return
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault()
+                          setMentionDraft(null)
+                          return
+                        }
+                      }
+                      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                        event.preventDefault()
+                        void handleSend()
+                      }
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
+                  onClick={loading ? handleStop : () => void handleSend()}
+                  disabled={!loading && (
+                    (!input.trim() && pendingAttachments.length === 0) ||
+                    selectedParticipants.length === 0 ||
+                    isReadingAttachments
+                  )}
+                  aria-label={loading ? 'Stop response' : 'Send message'}
+                  title={loading ? 'Stop response' : 'Send message'}
+                >
+                  {loading ? <Square size={15} fill="currentColor" /> : <ArrowUp size={19} />}
+                </button>
               </div>
-              <button
-                type="button"
-                className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
-                onClick={loading ? handleStop : () => void handleSend()}
-                disabled={!loading && (!input.trim() || selectedParticipants.length === 0)}
-                aria-label={loading ? 'Stop response' : 'Send message'}
-                title={loading ? 'Stop response' : 'Send message'}
-              >
-                {loading ? <Square size={15} fill="currentColor" /> : <ArrowUp size={19} />}
-              </button>
             </div>
+            {attachmentError && <div className="chats-screen__attachment-error" role="alert">{attachmentError}</div>}
             <p>
               {selectedParticipants.length > 1 && <><b>@mention for a direct reply</b><span>·</span></>}
+              <b>Attach, paste, or drop files</b><span>·</span>
               Enter to send <span>·</span> Shift + Enter for a new line
             </p>
           </footer>

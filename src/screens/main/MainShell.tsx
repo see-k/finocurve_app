@@ -78,11 +78,11 @@ const navGroups: Array<{
   },
   {
     id: 'ai',
-    label: 'AI collaboration',
+    label: 'Agents and conversations',
     description: 'Your experts and conversations',
     icon: <EarthIcon size={20} />,
     items: [
-      { id: 'experts', label: 'AI Experts', description: 'Build and manage specialist profiles', icon: <UsersRound size={20} /> },
+      { id: 'experts', label: 'Experts', description: 'Build and manage specialist profiles', icon: <UsersRound size={20} /> },
       { id: 'chats', label: 'Chats', description: 'Work with experts and assistants', icon: <MessagesSquare size={20} /> },
     ],
   },
