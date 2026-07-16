@@ -98,6 +98,12 @@ export interface ChatContext {
   riskMetrics?: string
   /** When set, layers a custom Agent's persona on top of the base FinoCurve system prompt. */
   agentPersona?: { name: string; systemPrompt: string }
+  /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
+  groupChat?: {
+    participantNames: string[]
+    /** True when the user explicitly @mentioned this turn's responder. */
+    directlyAddressed: boolean
+  }
 }
 
 /** Chunk from chat stream - reasoning (thinking) vs answer content vs suggested follow-ups. */

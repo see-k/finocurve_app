@@ -155,6 +155,76 @@ function sanitizeToolResultForModel(text: string): string {
   return out
 }
 
+/**
+ * Bedrock streams reasoning text and its signature as separate partial blocks.
+ * AIMessageChunk.concat can leave the signature block with `text: null`; when
+ * LangChain replays that assistant turn before tool results, Bedrock rejects
+ * the null union member. Merge adjacent reasoning blocks ourselves and drop a
+ * signature-only orphan that cannot be replayed validly.
+ */
+export function sanitizeAIContentForReplay(
+  content: AIMessageChunk['content'],
+  streamedReasoningText = '',
+): AIMessageChunk['content'] {
+  if (!Array.isArray(content)) return content
+
+  const sanitized: typeof content = []
+  let reasoningText = ''
+  let reasoningSignature = ''
+  let collectingReasoning = false
+  let usedStreamedReasoningFallback = false
+
+  const flushReasoning = () => {
+    const replayText = reasoningText || (!usedStreamedReasoningFallback ? streamedReasoningText : '')
+    if (collectingReasoning && replayText) {
+      sanitized.push({
+        type: 'reasoning_content',
+        reasoningText: {
+          text: replayText,
+          ...(reasoningSignature ? { signature: reasoningSignature } : {}),
+        },
+      })
+      if (!reasoningText && replayText === streamedReasoningText) usedStreamedReasoningFallback = true
+    }
+    reasoningText = ''
+    reasoningSignature = ''
+    collectingReasoning = false
+  }
+
+  for (const block of content) {
+    if (
+      typeof block === 'object' &&
+      block !== null &&
+      'type' in block &&
+      block.type === 'reasoning_content'
+    ) {
+      const reasoningBlock = block as {
+        reasoningText?: { text?: unknown; signature?: unknown }
+        redactedContent?: unknown
+      }
+
+      if (typeof reasoningBlock.redactedContent === 'string' && reasoningBlock.redactedContent) {
+        flushReasoning()
+        sanitized.push(block)
+        continue
+      }
+
+      collectingReasoning = true
+      const text = reasoningBlock.reasoningText?.text
+      const signature = reasoningBlock.reasoningText?.signature
+      if (typeof text === 'string') reasoningText += text
+      if (typeof signature === 'string') reasoningSignature += signature
+      continue
+    }
+
+    flushReasoning()
+    sanitized.push(block)
+  }
+
+  flushReasoning()
+  return sanitized
+}
+
 function hasAppBuiltinBrowserTools(mcpTools: StructuredToolInterface[]): boolean {
   return mcpTools.some((t) => typeof t.name === 'string' && t.name.startsWith('app_browser_'))
 }
@@ -330,6 +400,15 @@ function extractStreamingContent(chunk: AIMessageChunk): { type: 'reasoning' | '
         const b = block as Record<string, unknown>
         if ((b.type === 'reasoning' || b.type === 'thinking') && typeof b.reasoning === 'string' && b.reasoning) {
           return { type: 'reasoning', content: b.reasoning }
+        }
+        if (
+          b.type === 'reasoning_content' &&
+          typeof b.reasoningText === 'object' &&
+          b.reasoningText !== null &&
+          typeof (b.reasoningText as { text?: unknown }).text === 'string' &&
+          (b.reasoningText as { text: string }).text
+        ) {
+          return { type: 'reasoning', content: (b.reasoningText as { text: string }).text }
         }
         if (b.type === 'text' && typeof b.text === 'string' && b.text) {
           return { type: 'answer', content: b.text }
@@ -512,7 +591,20 @@ export class LocalAIService implements AIService {
     ]
     if (context.agentPersona) {
       systemParts.push(
-        `You are currently acting as "${context.agentPersona.name}", a custom agent persona. Persona instructions: ${context.agentPersona.systemPrompt}`
+        `Your display name is "${context.agentPersona.name}". Embody this configured persona naturally: ${context.agentPersona.systemPrompt} ` +
+        'Speak directly in the first person and begin with the substance of the answer. Do not announce or describe your identity, job title, role, or persona.'
+      )
+    }
+    if (context.groupChat && context.agentPersona) {
+      const peerNames = context.groupChat.participantNames.filter(
+        (name) => name !== context.agentPersona?.name,
+      )
+      systemParts.push(
+        `You are participating in a live group conversation${peerNames.length > 0 ? ` with ${peerNames.join(', ')}` : ''}. ` +
+        'Messages prefixed with [Name]: are peer contributions from other advisors. Engage with useful peer points naturally: you may address a peer by name, agree, challenge, ask them a focused question, or build on their analysis. Add distinct value and avoid repeating what another participant already said. ' +
+        (context.groupChat.directlyAddressed
+          ? 'The user explicitly addressed you with an @mention, so answer their request directly.'
+          : 'The group was addressed generally; contribute only what your perspective genuinely adds.')
       )
     }
     if (this.options.saveCustomBrandedReport) {
@@ -624,6 +716,7 @@ export class LocalAIService implements AIService {
         throw err
       }
       let accumulated: AIMessageChunk | null = null
+      let streamedReasoningText = ''
       const thinkParser = new ThinkTagParser()
       let needsSeparator = yieldedText
 
@@ -639,6 +732,7 @@ export class LocalAIService implements AIService {
               needsSeparator = false
             }
             if (extracted.type === 'reasoning') {
+              streamedReasoningText += extracted.content
               yield { type: 'reasoning', content: extracted.content }
             } else {
               const parsed = thinkParser.parse(extracted.content)
@@ -655,7 +749,7 @@ export class LocalAIService implements AIService {
       if (!accumulated) return
 
       const aiMessage = new AIMessage({
-        content: accumulated.content,
+        content: sanitizeAIContentForReplay(accumulated.content, streamedReasoningText),
         tool_calls: accumulated.tool_calls,
         additional_kwargs: accumulated.additional_kwargs,
       })

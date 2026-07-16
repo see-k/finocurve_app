@@ -144,6 +144,16 @@
   word-break: break-word;
 }
 
+.ai-chat-mention {
+  padding: 1px 5px 2px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 32%, var(--glass-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+  color: color-mix(in srgb, var(--brand-primary) 78%, var(--text-primary));
+  font: inherit;
+  font-weight: 650;
+}
+
 .ai-chat-msg-attachments {
   display: flex;
   flex-wrap: wrap;

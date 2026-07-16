@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
@@ -12,12 +12,13 @@ import {
   Users,
 } from 'lucide-react'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
-import ChatMessageContent from '../../components/ai/ChatMessageContent'
+import ChatMessageContent, { renderTextWithMentions } from '../../components/ai/ChatMessageContent'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
 import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
+import type { Agent } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
 import NewConversationModal from './NewConversationModal'
 import './ChatsScreen.css'
@@ -38,6 +39,34 @@ function formatConversationTime(value: string): string {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
+interface MentionDraft {
+  start: number
+  end: number
+  query: string
+}
+
+function findMentionDraft(value: string, caret: number): MentionDraft | null {
+  const beforeCaret = value.slice(0, caret)
+  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret)
+  if (!match) return null
+  return {
+    start: beforeCaret.length - match[2].length - 1,
+    end: caret,
+    query: match[2],
+  }
+}
+
+function escapeMentionPattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function containsMention(value: string, name: string): boolean {
+  return new RegExp(
+    `(^|\\s)@${escapeMentionPattern(name)}(?=$|[\\s,.;:!?])`,
+    'i',
+  ).test(value)
+}
+
 export default function ChatsScreen() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -53,11 +82,15 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const [mentionDraft, setMentionDraft] = useState<MentionDraft | null>(null)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const streamingAgentIdRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const stoppedRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const composerHighlightRef = useRef<HTMLDivElement>(null)
+  const pendingCaretRef = useRef<number | null>(null)
 
   const selectedId = searchParams.get('conversationId')
   const selected = useMemo(
@@ -80,6 +113,17 @@ export default function ChatsScreen() {
     if (!textarea) return
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`
+  }, [input])
+
+  useLayoutEffect(() => {
+    const requestedCaret = pendingCaretRef.current
+    const textarea = composerRef.current
+    if (requestedCaret === null || !textarea) return
+
+    pendingCaretRef.current = null
+    const caret = Math.min(requestedCaret, textarea.value.length)
+    textarea.focus({ preventScroll: true })
+    textarea.setSelectionRange(caret, caret)
   }, [input])
 
   useEffect(() => {
@@ -115,8 +159,45 @@ export default function ChatsScreen() {
       .includes(query)
   })
 
-  const selectedParticipants = selected
-    ? selected.participantAgentIds.map((id) => agentById.get(id)).filter(Boolean)
+  const selectedParticipants: Agent[] = selected
+    ? selected.participantAgentIds
+        .map((id) => agentById.get(id))
+        .filter((agent): agent is Agent => !!agent)
+    : []
+
+  const firstNameCounts = new Map<string, number>()
+  selectedParticipants.forEach((participant) => {
+    const firstName = participant.name.trim().split(/\s+/)[0].toLocaleLowerCase()
+    firstNameCounts.set(firstName, (firstNameCounts.get(firstName) ?? 0) + 1)
+  })
+  const mentionNames = [
+    ...selectedParticipants.map((participant) => participant.name),
+    ...selectedParticipants
+      .map((participant) => participant.name.trim().split(/\s+/)[0])
+      .filter((firstName) => firstNameCounts.get(firstName.toLocaleLowerCase()) === 1),
+    'everyone',
+    'all',
+  ]
+  const mentionSuggestions = mentionDraft
+    ? [
+        ...selectedParticipants.map((participant) => ({
+          id: participant.id,
+          name: participant.name,
+          image: participant.image,
+          description: participant.description || 'Private AI advisor',
+          everyone: false,
+        })),
+        {
+          id: 'everyone',
+          name: 'everyone',
+          image: undefined,
+          description: 'Invite every advisor in a fresh order',
+          everyone: true,
+        },
+      ].filter((option) => {
+        const query = mentionDraft.query.toLocaleLowerCase()
+        return !query || option.name.toLocaleLowerCase().includes(query)
+      })
     : []
 
   const portfolioSummary = portfolio && totalValue > 0
@@ -142,6 +223,7 @@ export default function ChatsScreen() {
     if (!selected || !input.trim() || loading) return
     const text = input.trim()
     setInput('')
+    setMentionDraft(null)
     setLoading(true)
     stoppedRef.current = false
     const controller = new AbortController()
@@ -236,7 +318,43 @@ export default function ChatsScreen() {
 
   const handleFollowUp = (prompt: string) => {
     setInput(prompt)
+    setMentionDraft(null)
     requestAnimationFrame(() => composerRef.current?.focus())
+  }
+
+  const selectMention = (name: string) => {
+    const mention = `@${name}`
+    const textarea = composerRef.current
+    const currentInput = textarea?.value ?? input
+    const currentCaret = textarea?.selectionStart ?? currentInput.length
+    const currentMentionDraft = textarea
+      ? findMentionDraft(currentInput, currentCaret)
+      : mentionDraft
+    let nextInput: string
+    let nextCaret: number
+
+    if (currentMentionDraft) {
+      nextInput = `${currentInput.slice(0, currentMentionDraft.start)}${mention} ${currentInput.slice(currentMentionDraft.end)}`
+      nextCaret = currentMentionDraft.start + mention.length + 1
+    } else {
+      if (containsMention(currentInput, name)) {
+        requestAnimationFrame(() => composerRef.current?.focus())
+        return
+      }
+      const withoutTrailingSpace = currentInput.trimEnd()
+      nextInput = `${withoutTrailingSpace}${withoutTrailingSpace ? ' ' : ''}${mention} `
+      nextCaret = nextInput.length
+    }
+
+    pendingCaretRef.current = nextCaret
+    setInput(nextInput)
+    setMentionDraft(null)
+    setActiveMentionIndex(0)
+  }
+
+  const updateMentionDraft = (value: string, caret: number) => {
+    setMentionDraft(findMentionDraft(value, caret))
+    setActiveMentionIndex(0)
   }
 
   const handleDeleteConversation = () => {
@@ -442,6 +560,7 @@ export default function ChatsScreen() {
                           attachments={message.attachments}
                           reasoning={message.reasoning}
                           followUps={message.followUps}
+                          mentionNames={mentionNames}
                           disabled={loading}
                           onFollowUpClick={handleFollowUp}
                         />
@@ -489,22 +608,152 @@ export default function ChatsScreen() {
           </div>
 
           <footer className="chats-screen__composer-shell">
+            {mentionDraft && mentionSuggestions.length > 0 && (
+              <div
+                className="chats-screen__mention-popover"
+                role="listbox"
+                id="chat-mention-suggestions"
+                aria-label="Mention suggestions"
+              >
+                <div className="chats-screen__mention-popover-header">
+                  <span>Address someone</span>
+                  <small>↑↓ navigate · Enter select</small>
+                </div>
+                {mentionSuggestions.map((option, index) => (
+                  <button
+                    key={option.id}
+                    id={`chat-mention-option-${option.id}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeMentionIndex}
+                    className={index === activeMentionIndex ? 'chats-screen__mention-option--active' : ''}
+                    onMouseEnter={() => setActiveMentionIndex(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      selectMention(option.name)
+                    }}
+                  >
+                    {option.everyone ? (
+                      <span className="chats-screen__mention-everyone"><Users size={15} /></span>
+                    ) : (
+                      <UserAvatar src={option.image} initials={getInitials(option.name)} size={30} />
+                    )}
+                    <span className="chats-screen__mention-option-copy">
+                      <strong>@{option.name}</strong>
+                      <small>{option.description}</small>
+                    </span>
+                    <span className="chats-screen__mention-route">
+                      {option.everyone ? 'Group' : 'Direct'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedParticipants.length > 1 && (
+              <div className="chats-screen__mentions" aria-label="Address an advisor">
+                <span>To</span>
+                {selectedParticipants.map((participant) => (
+                  <button
+                    key={participant.id}
+                    type="button"
+                    className={
+                      containsMention(input, participant.name) ||
+                      (firstNameCounts.get(participant.name.trim().split(/\s+/)[0].toLocaleLowerCase()) === 1 &&
+                        containsMention(input, participant.name.trim().split(/\s+/)[0]))
+                        ? 'chats-screen__mention-chip--active'
+                        : ''
+                    }
+                    onClick={() => selectMention(participant.name)}
+                    disabled={loading}
+                    title={`Only ${participant.name} will respond`}
+                  >
+                    @{participant.name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={containsMention(input, 'everyone') || containsMention(input, 'all')
+                    ? 'chats-screen__mention-chip--active'
+                    : ''}
+                  onClick={() => selectMention('everyone')}
+                  disabled={loading}
+                  title="Invite every advisor in a fresh order"
+                >
+                  @everyone
+                </button>
+              </div>
+            )}
             <div className="chats-screen__composer">
-              <textarea
-                ref={composerRef}
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder={`Message ${conversationTitle(selected)}…`}
-                rows={1}
-                disabled={loading}
-                aria-label={`Message ${conversationTitle(selected)}`}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault()
-                    void handleSend()
-                  }
-                }}
-              />
+              <div className={`chats-screen__composer-input ${input ? 'chats-screen__composer-input--has-value' : ''}`}>
+                <div
+                  ref={composerHighlightRef}
+                  className="chats-screen__composer-highlight"
+                  aria-hidden="true"
+                >
+                  {input ? renderTextWithMentions(input, mentionNames) : '\u200b'}
+                </div>
+                <textarea
+                  ref={composerRef}
+                  value={input}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setInput(nextValue)
+                    updateMentionDraft(nextValue, event.target.selectionStart ?? nextValue.length)
+                  }}
+                  onSelect={(event) => {
+                    updateMentionDraft(
+                      event.currentTarget.value,
+                      event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+                    )
+                  }}
+                  onScroll={(event) => {
+                    if (composerHighlightRef.current) {
+                      composerHighlightRef.current.scrollTop = event.currentTarget.scrollTop
+                    }
+                  }}
+                  placeholder={selectedParticipants.length > 1
+                    ? 'Message everyone, or @ an advisor directly…'
+                    : `Message ${conversationTitle(selected)}…`}
+                  rows={1}
+                  disabled={loading}
+                  aria-label={`Message ${conversationTitle(selected)}`}
+                  aria-autocomplete="list"
+                  aria-expanded={!!mentionDraft && mentionSuggestions.length > 0}
+                  aria-controls={mentionDraft ? 'chat-mention-suggestions' : undefined}
+                  aria-activedescendant={mentionDraft && mentionSuggestions[activeMentionIndex]
+                    ? `chat-mention-option-${mentionSuggestions[activeMentionIndex].id}`
+                    : undefined}
+                  onKeyDown={(event) => {
+                    if (mentionDraft && mentionSuggestions.length > 0) {
+                      if (event.key === 'ArrowDown') {
+                        event.preventDefault()
+                        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
+                        return
+                      }
+                      if (event.key === 'ArrowUp') {
+                        event.preventDefault()
+                        setActiveMentionIndex((current) =>
+                          (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+                        return
+                      }
+                      if (event.key === 'Enter' || event.key === 'Tab') {
+                        event.preventDefault()
+                        selectMention(mentionSuggestions[activeMentionIndex].name)
+                        return
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        setMentionDraft(null)
+                        return
+                      }
+                    }
+                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      void handleSend()
+                    }
+                  }}
+                />
+              </div>
               <button
                 type="button"
                 className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
@@ -516,7 +765,10 @@ export default function ChatsScreen() {
                 {loading ? <Square size={15} fill="currentColor" /> : <ArrowUp size={19} />}
               </button>
             </div>
-            <p>Enter to send <span>·</span> Shift + Enter for a new line</p>
+            <p>
+              {selectedParticipants.length > 1 && <><b>@mention for a direct reply</b><span>·</span></>}
+              Enter to send <span>·</span> Shift + Enter for a new line
+            </p>
           </footer>
         </section>
       ) : (

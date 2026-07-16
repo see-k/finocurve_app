@@ -1,7 +1,41 @@
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import './ChatMessageContent.css'
+
+function escapeMentionRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function renderTextWithMentions(text: string, mentionNames: string[]): ReactNode {
+  const names = Array.from(
+    new Set(mentionNames.map((name) => name.trim()).filter(Boolean)),
+  ).sort((left, right) => right.length - left.length)
+  if (names.length === 0) return text
+
+  const pattern = new RegExp(
+    `(^|\\s)(@(?:${names.map(escapeMentionRegExp).join('|')}))(?=$|[\\s,.;:!?])`,
+    'gi',
+  )
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    const mentionStart = match.index + match[1].length
+    if (mentionStart > cursor) parts.push(text.slice(cursor, mentionStart))
+    parts.push(
+      <mark key={`${mentionStart}-${match[2]}`} className="ai-chat-mention">
+        {match[2]}
+      </mark>,
+    )
+    cursor = mentionStart + match[2].length
+  }
+
+  if (cursor < text.length) parts.push(text.slice(cursor))
+  return parts.length > 0 ? parts : text
+}
 
 export function isImageAttachmentMime(mime: string): boolean {
   const m = mime.toLowerCase().split(';')[0].trim()
@@ -50,6 +84,8 @@ export interface ChatMessageContentProps {
   reasoning?: string
   /** Suggested follow-up prompts to render as clickable chips (assistant messages only). */
   followUps?: ChatFollowUp[]
+  /** Agent/display names that should be highlighted when @mentioned in user text. */
+  mentionNames?: string[]
   /** Disables follow-up chips while a response is in flight. */
   disabled?: boolean
   onFollowUpClick?: (prompt: string) => void
@@ -67,6 +103,7 @@ export default function ChatMessageContent({
   attachments,
   reasoning,
   followUps,
+  mentionNames = [],
   disabled,
   onFollowUpClick,
 }: ChatMessageContentProps) {
@@ -116,7 +153,7 @@ export default function ChatMessageContent({
           Attached files (payload not restored after reload — re-attach to use in new messages)
         </span>
       ) : content !== '(See attached files)' ? (
-        <span className="ai-chat-user-text">{content}</span>
+        <span className="ai-chat-user-text">{renderTextWithMentions(content, mentionNames)}</span>
       ) : null}
     </div>
   )
