@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams, useMatch, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
-  Search, PenLine, Target, MessagesSquare, UsersRound, Bot, WalletCards, PackagePlus,
+  Search, PenLine, Target, MessagesSquare, UsersRound, Workflow, WalletCards, PackagePlus,
+  EarthIcon,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -79,7 +80,7 @@ const navGroups: Array<{
     id: 'ai',
     label: 'AI collaboration',
     description: 'Your experts and conversations',
-    icon: <Bot size={20} />,
+    icon: <EarthIcon size={20} />,
     items: [
       { id: 'experts', label: 'AI Experts', description: 'Build and manage specialist profiles', icon: <UsersRound size={20} /> },
       { id: 'chats', label: 'Chats', description: 'Work with experts and assistants', icon: <MessagesSquare size={20} /> },
@@ -309,16 +310,43 @@ export default function MainShell() {
 
             <div className="fab-container">
               {showFabMenu && (
-                <div className="fab-menu">
-                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/search')}>
-                    <Search size={16} /> Search Public
-                  </button>
-                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/manual')}>
-                    <PenLine size={16} /> Add Manual
-                  </button>
-                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/loan')}>
-                    <Landmark size={16} /> Add Loan
-                  </button>
+                <div className="nav-group-popover nav-add-popover" role="menu" aria-label="Add asset">
+                  <div className="nav-group-popover__header">
+                    <span><PackagePlus size={18} /></span>
+                    <div>
+                      <strong>Add asset</strong>
+                      <small>Add to your financial position</small>
+                    </div>
+                  </div>
+                  <div className="nav-group-popover__list">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nav-group-popover__item"
+                      onClick={() => handleFabOption('/add-asset/search')}
+                    >
+                      <span className="nav-group-popover__item-icon"><Search size={17} /></span>
+                      <span><strong>Search public assets</strong><small>Stocks, ETFs, funds and crypto</small></span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nav-group-popover__item"
+                      onClick={() => handleFabOption('/add-asset/manual')}
+                    >
+                      <span className="nav-group-popover__item-icon"><PenLine size={17} /></span>
+                      <span><strong>Add manual asset</strong><small>Private or manually valued positions</small></span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nav-group-popover__item"
+                      onClick={() => handleFabOption('/add-asset/loan')}
+                    >
+                      <span className="nav-group-popover__item-icon"><Landmark size={17} /></span>
+                      <span><strong>Add loan</strong><small>Mortgages and other liabilities</small></span>
+                    </button>
+                  </div>
                 </div>
               )}
               <button

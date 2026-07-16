@@ -374,74 +374,10 @@
   position: relative;
 }
 
-.nav-item.nav-add-action {
-  border: 1px solid color-mix(in srgb, var(--brand-primary) 38%, var(--glass-border));
-  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
-  color: var(--brand-primary);
-}
-
 .nav-item.nav-add-action--open {
-  background: var(--primary-alpha-20);
-  box-shadow: 0 0 0 2px var(--primary-alpha-40);
-}
-
-/* FAB pop-up menu — opens to the RIGHT of the fab button */
-.fab-menu {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + 12px);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  /* Solid panel — glass-bg-strong was too see-through over dashboard content */
-  background: var(--surface);
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  backdrop-filter: blur(var(--glass-blur-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  animation: fabSlideRight 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 170px;
-}
-
-@keyframes fabSlideRight {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-.fab-menu__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-  white-space: nowrap;
-  width: 100%;
-}
-
-.fab-menu__item:hover {
-  background: var(--glass-bg);
-  color: var(--text-primary);
-}
-
-.fab-menu__item:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: -2px;
-  border-radius: 10px;
-}
-
-.fab-menu__item svg {
+  background: var(--glass-bg-strong);
   color: var(--brand-primary);
-  flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 28%, transparent);
 }
 
 .fab-overlay {
@@ -502,12 +438,6 @@
   background: var(--primary-alpha-20);
 }
 
-[data-theme^="light"] .fab-menu {
-  background: var(--surface);
-  border-color: var(--glass-border);
-  box-shadow: 0 8px 28px var(--glass-shadow), 0 0 0 1px rgba(0, 0, 0, 0.04);
-}
-
 /* Reduced motion: nav entrance, pulses, and hover scales */
 @media (prefers-reduced-motion: reduce) {
   .nav-bar {
@@ -538,7 +468,4 @@
     animation: none;
   }
 
-  .fab-menu {
-    animation: none;
-  }
 }
