@@ -19,7 +19,7 @@ import GlassButton from '../../../components/glass/GlassButton'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import { useAgents } from '../../../store/useAgents'
 import { useConversations } from '../../../store/useConversations'
-import { getAgentToolCount, isAgentActive } from '../../../types/Agent'
+import { getAgentToolCount, isAgentActive, isDefaultAgent } from '../../../types/Agent'
 import { mergeExpertToolDefinitions } from '../../../ai/toolCatalog'
 import '../SettingsSubScreen.css'
 import './AgentsScreen.css'
@@ -194,11 +194,12 @@ export default function AgentsListScreen() {
           <div className="expert-directory-grid">
             {visibleAgents.map((agent) => {
               const active = isAgentActive(agent)
+              const isDefault = isDefaultAgent(agent)
               const toolCount = getAgentToolCount(agent, availableToolCount)
               return (
                 <article key={agent.id} className={`expert-card ${active ? '' : 'expert-card--inactive'}`}>
                   <div className="expert-card__cover">
-                    <span>{agent.specialties?.[0] || 'FinoCurve expert'}</span>
+                    <span>{isDefault ? 'Default assistant' : agent.specialties?.[0] || 'FinoCurve expert'}</span>
                     <span className={active ? 'agent-status agent-status--active' : 'agent-status agent-status--inactive'}>
                       <i /> {active ? 'Available' : 'Inactive'}
                     </span>
@@ -209,7 +210,10 @@ export default function AgentsListScreen() {
                       <BadgeCheck size={18} aria-label="Configured expert" />
                     </div>
                     <div className="expert-card__identity">
-                      <h2>{agent.name}</h2>
+                      <h2>
+                        {agent.name}
+                        {isDefault && <span className="expert-card__default-badge">Default</span>}
+                      </h2>
                       <p>{agent.description || 'FinoCurve AI specialist'}</p>
                       <span className="agents-list__provider-badge">
                         {agent.provider === 'ollama' && 'Ollama'}
@@ -248,15 +252,17 @@ export default function AgentsListScreen() {
                       >
                         <Pencil size={15} /> Edit
                       </button>
-                      <button
-                        type="button"
-                        className="expert-card__delete"
-                        onClick={() => setDeleteTarget(agent.id)}
-                        title="Delete expert"
-                        aria-label={`Delete ${agent.name}`}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {!isDefault && (
+                        <button
+                          type="button"
+                          className="expert-card__delete"
+                          onClick={() => setDeleteTarget(agent.id)}
+                          title="Delete expert"
+                          aria-label={`Delete ${agent.name}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>

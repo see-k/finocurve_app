@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Agent, AgentInput } from '../types/Agent'
+import { createDefaultAgent, isDefaultAgent } from '../types/Agent'
 import { AGENTS_STORAGE_KEY, getCoreDataItem, setCoreDataItem } from '../lib/coreDataStorage'
+
+/**
+ * Guarantee the built-in default assistant always exists (fresh installs and migration for existing
+ * users who have experts but no default). Keeps the app to at least one agent at all times.
+ */
+function ensureDefaultAgent(agents: Agent[]): Agent[] {
+  if (agents.some(isDefaultAgent)) return agents
+  return [createDefaultAgent(), ...agents]
+}
 
 function load(): Agent[] {
   try {
     const stored = getCoreDataItem(AGENTS_STORAGE_KEY)
-    if (stored) return JSON.parse(stored)
+    if (stored) return ensureDefaultAgent(JSON.parse(stored) as Agent[])
   } catch { /* ignore */ }
-  return []
+  return ensureDefaultAgent([])
 }
 
 function save(agents: Agent[]) {
@@ -59,7 +69,7 @@ export function useAgents() {
   }, [])
 
   const deleteAgent = useCallback((id: string) => {
-    setAgents((prev) => prev.filter((a) => a.id !== id))
+    setAgents((prev) => prev.filter((a) => a.id !== id || isDefaultAgent(a)))
   }, [])
 
   return { agents, getAgent, createAgent, updateAgent, deleteAgent }

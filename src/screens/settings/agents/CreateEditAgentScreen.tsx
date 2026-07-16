@@ -58,6 +58,7 @@ export default function CreateEditAgentScreen() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const existing = isEditing ? getAgent(agentId!) : undefined
+  const isDefault = !!existing?.isDefault
 
   const [visible, setVisible] = useState(false)
   const [name, setName] = useState(existing?.name || '')
@@ -380,7 +381,7 @@ export default function CreateEditAgentScreen() {
               className="agent-editor-action agent-editor-action--save"
               title={isEditing ? 'Save expert profile' : 'Create expert profile'}
             />
-            {isEditing && (
+            {isEditing && !isDefault && (
               <GlassIconButton
                 icon={<Trash2 size={20} />}
                 onClick={() => setShowDeleteConfirm(true)}
@@ -447,7 +448,11 @@ export default function CreateEditAgentScreen() {
               <span className="agent-availability-card__icon"><Power size={16} /></span>
               <span>
                 <strong>Expert availability</strong>
-                <small>Inactive experts stay saved but cannot join or respond in conversations.</small>
+                <small>
+                  {isDefault
+                    ? 'The default assistant is always available and cannot be deactivated.'
+                    : 'Inactive experts stay saved but cannot join or respond in conversations.'}
+                </small>
               </span>
               <button
                 type="button"
@@ -456,6 +461,7 @@ export default function CreateEditAgentScreen() {
                 aria-checked={isActive}
                 aria-label="Expert availability"
                 onClick={() => setIsActive((current) => !current)}
+                disabled={isDefault}
               >
                 <span className="settings-toggle__thumb" />
               </button>

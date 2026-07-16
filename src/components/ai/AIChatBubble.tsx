@@ -2,9 +2,12 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip } from 'lucide-react'
+import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip, ChevronDown, Check } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
+import { useAgents } from '../../store/useAgents'
+import { DEFAULT_AGENT_ID, isAgentActive, isDefaultAgent } from '../../types/Agent'
+import type { Agent } from '../../types/Agent'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
@@ -61,7 +64,24 @@ interface PendingAttachment {
 
 const PREFS_STORAGE_KEY = 'finocurve-preferences'
 const PANEL_SIZE_KEY = 'finocurve-ai-chat-panel-size'
+const SELECTED_AGENT_KEY = 'finocurve-ai-bubble-agent-id'
 const MAX_PERSISTED_MESSAGES = 200
+
+function loadSelectedAgentId(): string {
+  try {
+    return localStorage.getItem(SELECTED_AGENT_KEY) || DEFAULT_AGENT_ID
+  } catch {
+    return DEFAULT_AGENT_ID
+  }
+}
+
+function persistSelectedAgentId(id: string) {
+  try {
+    localStorage.setItem(SELECTED_AGENT_KEY, id)
+  } catch {
+    /* ignore */
+  }
+}
 
 const PANEL_DEFAULT_W = 380
 const PANEL_DEFAULT_H = 520
@@ -224,10 +244,37 @@ export default function AIChatBubble() {
   const location = useLocation()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
+  const { agents } = useAgents()
   const chatStorageKey = useMemo(
     () => chatStorageKeyForUser(prefs.userEmail, prefs.isGuest),
     [prefs.userEmail, prefs.isGuest]
   )
+
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(loadSelectedAgentId)
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+
+  // Agents available in the switcher: the default plus every active expert.
+  const selectableAgents = useMemo(
+    () => agents.filter((a) => isDefaultAgent(a) || isAgentActive(a)),
+    [agents]
+  )
+  const defaultAgent = useMemo(
+    () => agents.find(isDefaultAgent),
+    [agents]
+  )
+  // Resolve the active agent, falling back to the default if the stored pick was deleted/deactivated.
+  const activeAgent: Agent | undefined = useMemo(
+    () => selectableAgents.find((a) => a.id === selectedAgentId) ?? defaultAgent ?? selectableAgents[0],
+    [selectableAgents, selectedAgentId, defaultAgent]
+  )
+  const activeAgentRef = useRef<Agent | undefined>(activeAgent)
+  activeAgentRef.current = activeAgent
+
+  const selectAgent = useCallback((id: string) => {
+    setSelectedAgentId(id)
+    persistSelectedAgentId(id)
+    setAgentMenuOpen(false)
+  }, [])
 
   const initialPanelDims = useMemo(() => {
     const loaded = loadPanelSize()
@@ -525,6 +572,7 @@ export default function AIChatBubble() {
         }
       })
 
+      const agent = activeAgentRef.current
       const { text: response, reasoning, followUps, aborted } = await streamChat({
         messages: chatMessages,
         context: {
@@ -533,6 +581,18 @@ export default function AIChatBubble() {
           documentCount: undefined,
           portfolioContext,
           riskMetrics: undefined,
+          ...(agent
+            ? {
+                agentPersona: {
+                  name: agent.name,
+                  systemPrompt: agent.systemPrompt,
+                  provider: agent.provider,
+                  model: agent.model,
+                  toolAccess: agent.toolAccess,
+                  enabledToolNames: agent.enabledToolNames,
+                },
+              }
+            : {}),
         },
       })
 
@@ -575,6 +635,7 @@ export default function AIChatBubble() {
     !!window.electronAPI?.aiChatStream
 
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'You'
+  const assistantAvatarSrc = activeAgent?.image || aiAvatar
 
   if (!visible) return null
 
@@ -587,7 +648,61 @@ export default function AIChatBubble() {
         >
         <GlassContainer padding="16px" borderRadius={16} className="ai-chat-panel">
           <div className="ai-chat-header">
-            <span className="ai-chat-title">AI Assistant</span>
+            <div className="ai-chat-agent-picker">
+              <button
+                type="button"
+                className="ai-chat-agent-trigger"
+                onClick={() => setAgentMenuOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={agentMenuOpen}
+                aria-label="Switch AI agent"
+                title="Switch AI agent"
+              >
+                <span className="ai-chat-agent-trigger__avatar">
+                  {activeAgent?.image ? (
+                    <img src={activeAgent.image} alt="" />
+                  ) : (
+                    <img src={aiAvatar} alt="" />
+                  )}
+                </span>
+                <span className="ai-chat-agent-trigger__name">{activeAgent?.name || 'AI Assistant'}</span>
+                <ChevronDown size={15} className={`ai-chat-agent-trigger__caret ${agentMenuOpen ? 'ai-chat-agent-trigger__caret--open' : ''}`} />
+              </button>
+              {agentMenuOpen && (
+                <>
+                  <div className="ai-chat-agent-menu-backdrop" onClick={() => setAgentMenuOpen(false)} />
+                  <ul className="ai-chat-agent-menu" role="listbox" aria-label="Available agents">
+                    {selectableAgents.map((agent) => {
+                      const selected = agent.id === activeAgent?.id
+                      return (
+                        <li key={agent.id} role="option" aria-selected={selected}>
+                          <button
+                            type="button"
+                            className={`ai-chat-agent-option ${selected ? 'ai-chat-agent-option--selected' : ''}`}
+                            onClick={() => selectAgent(agent.id)}
+                          >
+                            <span className="ai-chat-agent-option__avatar">
+                              {agent.image ? (
+                                <img src={agent.image} alt="" />
+                              ) : isDefaultAgent(agent) ? (
+                                <img src={aiAvatar} alt="" />
+                              ) : (
+                                <span className="ai-chat-agent-option__initials">{getInitials(agent.name)}</span>
+                              )}
+                            </span>
+                            <span className="ai-chat-agent-option__text">
+                              <span className="ai-chat-agent-option__name">{agent.name}</span>
+                              {isDefaultAgent(agent) && <span className="ai-chat-agent-option__tag">Default</span>}
+                            </span>
+                            {selected && <Check size={15} className="ai-chat-agent-option__check" />}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
             <div className="ai-chat-header-actions">
               <button
                 className="ai-chat-header-btn"
@@ -637,7 +752,7 @@ export default function AIChatBubble() {
               <div key={i} className={`ai-chat-msg-wrap ai-chat-msg-wrap--${msg.role}`}>
                 <div className="ai-chat-msg-avatar">
                   {msg.role === 'assistant' ? (
-                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
+                    <img src={assistantAvatarSrc} alt="AI" className="ai-chat-avatar-img" />
                   ) : (
                     <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
                   )}
@@ -682,7 +797,7 @@ export default function AIChatBubble() {
                 </div>
                 <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
                   <div className="ai-chat-msg-avatar">
-                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
+                    <img src={assistantAvatarSrc} alt="AI" className="ai-chat-avatar-img" />
                   </div>
                   <div className="ai-chat-msg ai-chat-msg--assistant">
                     {streaming.reasoning && (

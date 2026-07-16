@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams, useMatch, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
-  Plus, Search, PenLine, Target, MessagesSquare, UsersRound,
+  Search, PenLine, Target, MessagesSquare, UsersRound, Bot, WalletCards, PackagePlus,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -31,22 +31,66 @@ import { TickerTapeWidget } from '../../components/TradingViewWidgets'
 import type { MainTab } from '../../types'
 import './MainShell.css'
 
-const TAB_IDS: MainTab[] = [
-  'dashboard', 'portfolio', 'markets', 'news', 'risk', 'insights', 'reports', 'tracker', 'experts', 'chats', 'settings',
+type NavItem = { id: MainTab; label: string; icon: React.ReactNode; description?: string }
+
+const dashboardNavItem: NavItem = {
+  id: 'dashboard',
+  label: 'Dashboard',
+  icon: <LayoutDashboard size={20} />,
+}
+
+const settingsNavItem: NavItem = {
+  id: 'settings',
+  label: 'Settings',
+  icon: <Settings size={20} />,
+}
+
+const navGroups: Array<{
+  id: string
+  label: string
+  description: string
+  icon: React.ReactNode
+  items: NavItem[]
+}> = [
+  {
+    id: 'portfolio',
+    label: 'Portfolio',
+    description: 'Manage your financial position',
+    icon: <WalletCards size={20} />,
+    items: [
+      { id: 'portfolio', label: 'Holdings & loans', description: 'Positions, allocation and liabilities', icon: <Briefcase size={20} /> },
+      { id: 'tracker', label: 'Net worth tracker', description: 'Personal net worth and financial goals', icon: <Target size={20} /> },
+    ],
+  },
+  {
+    id: 'research',
+    label: 'Research and analysis',
+    description: 'Market intelligence and reporting',
+    icon: <Search size={20} />,
+    items: [
+      { id: 'markets', label: 'Markets', description: 'Prices, charts and market activity', icon: <BarChart3 size={20} /> },
+      { id: 'news', label: 'News & data', description: 'Financial news and disclosures', icon: <Newspaper size={20} /> },
+      { id: 'risk', label: 'Risk analysis', description: 'Exposure, volatility and concentration', icon: <Shield size={20} /> },
+      { id: 'insights', label: 'Insights', description: 'Research and portfolio analytics', icon: <Landmark size={20} /> },
+      { id: 'reports', label: 'Reports', description: 'Documents and generated analysis', icon: <FileText size={20} /> },
+    ],
+  },
+  {
+    id: 'ai',
+    label: 'AI collaboration',
+    description: 'Your experts and conversations',
+    icon: <Bot size={20} />,
+    items: [
+      { id: 'experts', label: 'AI Experts', description: 'Build and manage specialist profiles', icon: <UsersRound size={20} /> },
+      { id: 'chats', label: 'Chats', description: 'Work with experts and assistants', icon: <MessagesSquare size={20} /> },
+    ],
+  },
 ]
 
-const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
-  { id: 'portfolio', label: 'Portfolio', icon: <Briefcase size={20} /> },
-  { id: 'markets', label: 'Markets', icon: <BarChart3 size={20} /> },
-  { id: 'news', label: 'News & Data', icon: <Newspaper size={20} /> },
-  { id: 'risk', label: 'Risk analysis', icon: <Shield size={20} /> },
-  { id: 'insights', label: 'Insights', icon: <Landmark size={20} /> },
-  { id: 'reports', label: 'Reports', icon: <FileText size={20} /> },
-  { id: 'tracker', label: 'Tracker', icon: <Target size={20} /> },
-  { id: 'experts', label: 'AI Experts', icon: <UsersRound size={20} /> },
-  { id: 'chats', label: 'Chats', icon: <MessagesSquare size={20} /> },
-  { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
+const TAB_IDS: MainTab[] = [
+  dashboardNavItem.id,
+  ...navGroups.flatMap((group) => group.items.map((item) => item.id)),
+  settingsNavItem.id,
 ]
 
 export default function MainShell() {
@@ -92,6 +136,21 @@ export default function MainShell() {
       : isSettingsArea
         ? 'settings'
         : activeTab
+  const activeNavGroupId = navGroups.find((group) => (
+    group.items.some((item) => item.id === navActiveTab)
+  ))?.id ?? null
+  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!openNavGroup && !showFabMenu) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpenNavGroup(null)
+      setShowFabMenu(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openNavGroup, showFabMenu])
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -137,7 +196,7 @@ export default function MainShell() {
   return (
     <div className="main-shell">
       {/* Pill-shaped floating navbar on left */}
-      <nav className="nav-bar">
+      <nav className="nav-bar" aria-label="Main navigation">
         {/* Logo */}
         <div className="nav-logo titlebar-drag">
           <img
@@ -150,47 +209,132 @@ export default function MainShell() {
 
         {/* Pill container */}
         <div className="nav-pill">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`nav-item ${navActiveTab === tab.id ? 'nav-item--active' : ''}`}
-              onClick={() => goToShellTab(tab.id)}
-              data-tooltip={tab.label}
-              aria-current={navActiveTab === tab.id ? 'page' : undefined}
-            >
-              {tab.icon}
-              {navActiveTab === tab.id && <span className="nav-item__indicator" />}
-            </button>
-          ))}
-        </div>
+          <button
+            type="button"
+            className={`nav-item nav-standalone-item ${navActiveTab === dashboardNavItem.id ? 'nav-item--active' : ''}`}
+            onClick={() => {
+              setOpenNavGroup(null)
+              setShowFabMenu(false)
+              goToShellTab(dashboardNavItem.id)
+            }}
+            data-tooltip={dashboardNavItem.label}
+            aria-current={navActiveTab === dashboardNavItem.id ? 'page' : undefined}
+          >
+            {dashboardNavItem.icon}
+            {navActiveTab === dashboardNavItem.id && <span className="nav-item__indicator" />}
+          </button>
 
-        {/* FAB / Add Asset button */}
-        <div className="nav-fab-area">
-          <div className="fab-container">
-            {showFabMenu && (
-              <div className="fab-menu">
-                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/search')}>
-                  <Search size={16} /> Search Public
-                </button>
-                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/manual')}>
-                  <PenLine size={16} /> Add Manual
-                </button>
-                <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/loan')}>
-                  <Landmark size={16} /> Add Loan
-                </button>
-              </div>
-            )}
+          <span className="nav-pill__separator" aria-hidden="true" />
+
+          {navGroups.map((group) => (
+            <div
+              key={group.id}
+              className="nav-group"
+              role="group"
+              aria-label={group.label}
+            >
+              <button
+                type="button"
+                className={`nav-item nav-group-toggle ${activeNavGroupId === group.id ? 'nav-group-toggle--contains-active' : ''}`}
+                onClick={() => {
+                  setOpenNavGroup((current) => current === group.id ? null : group.id)
+                  setShowFabMenu(false)
+                }}
+                data-tooltip={group.label}
+                aria-expanded={openNavGroup === group.id}
+                aria-haspopup="menu"
+                aria-controls={`nav-group-popover-${group.id}`}
+              >
+                {group.icon}
+              </button>
+
+              {openNavGroup === group.id && (
+                <div
+                  id={`nav-group-popover-${group.id}`}
+                  className="nav-group-popover"
+                  role="menu"
+                  aria-label={group.label}
+                >
+                  <div className="nav-group-popover__header">
+                    <span>{group.icon}</span>
+                    <div>
+                      <strong>{group.label}</strong>
+                      <small>{group.description}</small>
+                    </div>
+                  </div>
+                  <div className="nav-group-popover__list">
+                  {group.items.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="menuitem"
+                      className={`nav-group-popover__item ${navActiveTab === tab.id ? 'nav-group-popover__item--active' : ''}`}
+                      onClick={() => {
+                        setOpenNavGroup(null)
+                        goToShellTab(tab.id)
+                      }}
+                      aria-current={navActiveTab === tab.id ? 'page' : undefined}
+                    >
+                      <span className="nav-group-popover__item-icon">{tab.icon}</span>
+                      <span>
+                        <strong>{tab.label}</strong>
+                        <small>{tab.description}</small>
+                      </span>
+                      {navActiveTab === tab.id && <i aria-hidden="true" />}
+                    </button>
+                  ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <span className="nav-pill__separator" aria-hidden="true" />
+
+          <div className="nav-static-controls" role="group" aria-label="App controls">
             <button
               type="button"
-              className={`nav-fab ${showFabMenu ? 'nav-fab--open' : ''}`}
-              onClick={() => setShowFabMenu(!showFabMenu)}
-              data-tooltip="Add Asset"
-              aria-expanded={showFabMenu}
-              aria-haspopup="true"
+              className={`nav-item nav-standalone-item ${navActiveTab === settingsNavItem.id ? 'nav-item--active' : ''}`}
+              onClick={() => {
+                setOpenNavGroup(null)
+                setShowFabMenu(false)
+                goToShellTab(settingsNavItem.id)
+              }}
+              data-tooltip={settingsNavItem.label}
+              aria-current={navActiveTab === settingsNavItem.id ? 'page' : undefined}
             >
-              <Plus size={20} />
+              {settingsNavItem.icon}
+              {navActiveTab === settingsNavItem.id && <span className="nav-item__indicator" />}
             </button>
+
+            <div className="fab-container">
+              {showFabMenu && (
+                <div className="fab-menu">
+                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/search')}>
+                    <Search size={16} /> Search Public
+                  </button>
+                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/manual')}>
+                    <PenLine size={16} /> Add Manual
+                  </button>
+                  <button type="button" className="fab-menu__item" onClick={() => handleFabOption('/add-asset/loan')}>
+                    <Landmark size={16} /> Add Loan
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                className={`nav-item nav-add-action ${showFabMenu ? 'nav-add-action--open' : ''}`}
+                onClick={() => {
+                  setOpenNavGroup(null)
+                  setShowFabMenu((current) => !current)
+                }}
+                data-tooltip="Add Asset"
+                aria-expanded={showFabMenu}
+                aria-haspopup="true"
+              >
+                <PackagePlus size={20} />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -218,8 +362,16 @@ export default function MainShell() {
         </main>
       </div>
 
-      {/* Click-away for FAB menu */}
-      {showFabMenu && <div className="fab-overlay" onClick={() => setShowFabMenu(false)} />}
+      {/* Click-away for navigation popovers */}
+      {(showFabMenu || openNavGroup) && (
+        <div
+          className="fab-overlay"
+          onClick={() => {
+            setShowFabMenu(false)
+            setOpenNavGroup(null)
+          }}
+        />
+      )}
     </div>
   )
 }
