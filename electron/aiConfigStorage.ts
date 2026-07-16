@@ -24,6 +24,8 @@ export interface StoredAIConfig {
   routerOllamaBaseUrl?: string
   routerShowProvider?: boolean
   routerVerbose?: boolean
+  /** Show each custom agent's resolved provider/model beside its chat name. */
+  agentShowProvider?: boolean
   a2aEnabled: boolean
   a2aPort?: number
   a2aAutoStart?: boolean
@@ -40,6 +42,7 @@ const DEFAULT_CONFIG: StoredAIConfig = {
   routerOllamaBaseUrl: 'http://localhost:11434',
   routerShowProvider: false,
   routerVerbose: false,
+  agentShowProvider: false,
   a2aEnabled: false,
   a2aPort: 3847,
   a2aAutoStart: false,

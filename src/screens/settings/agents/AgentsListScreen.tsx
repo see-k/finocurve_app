@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Bot, Plus, Pencil, Trash2, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Bot, Eye, Plus, Pencil, Trash2, MessageSquare } from 'lucide-react'
 import GlassContainer from '../../../components/glass/GlassContainer'
 import GlassButton from '../../../components/glass/GlassButton'
 import GlassIconButton from '../../../components/glass/GlassIconButton'
@@ -16,8 +16,42 @@ export default function AgentsListScreen() {
   const { findOneOnOne, createConversation } = useConversations()
   const [visible, setVisible] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [aiConfig, setAIConfig] = useState<AIConfigFromMain | null>(null)
+  const [showProviderInChat, setShowProviderInChat] = useState(false)
+  const [displaySaving, setDisplaySaving] = useState(false)
+  const [displayError, setDisplayError] = useState<string | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+
+  useEffect(() => {
+    let active = true
+    void window.electronAPI?.aiConfigGet?.().then((config) => {
+      if (!active) return
+      setAIConfig(config)
+      setShowProviderInChat(config.agentShowProvider ?? false)
+    }).catch(() => {
+      if (active) setDisplayError('Could not load agent display settings.')
+    })
+    return () => { active = false }
+  }, [])
+
+  const handleShowProviderToggle = async () => {
+    if (!aiConfig || !window.electronAPI?.aiConfigSave || displaySaving) return
+    const nextValue = !showProviderInChat
+    setShowProviderInChat(nextValue)
+    setDisplaySaving(true)
+    setDisplayError(null)
+    try {
+      const nextConfig = { ...aiConfig, agentShowProvider: nextValue }
+      await window.electronAPI.aiConfigSave(nextConfig)
+      setAIConfig(nextConfig)
+    } catch {
+      setShowProviderInChat(!nextValue)
+      setDisplayError('Could not save the agent display setting.')
+    } finally {
+      setDisplaySaving(false)
+    }
+  }
 
   const handleDelete = () => {
     if (deleteTarget) deleteAgent(deleteTarget)
@@ -60,13 +94,50 @@ export default function AgentsListScreen() {
             width="auto"
           />
 
+          <div className="agents-display-options">
+            <div className="agents-display-options__heading">
+              <span className="agents-display-options__icon"><Eye size={15} /></span>
+              <span>
+                <strong>Conversation display</strong>
+                <small>Optional model details shown beside custom agents in chat</small>
+              </span>
+            </div>
+            <div className="agents-display-options__row">
+              <span>
+                <strong>Show model provider</strong>
+                <small>Display the resolved provider and model, including agents using the primary model.</small>
+              </span>
+              <button
+                type="button"
+                className={`settings-toggle ${showProviderInChat ? 'settings-toggle--on' : ''}`}
+                role="switch"
+                aria-checked={showProviderInChat}
+                aria-label="Show custom agent model providers in chat"
+                onClick={() => void handleShowProviderToggle()}
+                disabled={!aiConfig || displaySaving}
+              >
+                <span className="settings-toggle__thumb" />
+              </button>
+            </div>
+            {displayError && <p className="agents-display-options__error">{displayError}</p>}
+          </div>
+
           {agents.length > 0 ? (
             <div className="agents-list" style={{ marginTop: 20 }}>
               {agents.map((agent) => (
                 <div key={agent.id} className="agents-list__item">
                   <UserAvatar src={agent.image} initials={getInitials(agent.name)} size={44} />
                   <div className="agents-list__item-info">
-                    <p className="agents-list__item-name">{agent.name}</p>
+                    <div className="agents-list__item-title">
+                      <p className="agents-list__item-name">{agent.name}</p>
+                      <span className="agents-list__provider-badge">
+                        {agent.provider === 'ollama' && 'Ollama'}
+                        {agent.provider === 'bedrock' && 'Bedrock'}
+                        {agent.provider === 'azure' && 'Azure OpenAI'}
+                        {!agent.provider && 'Primary model'}
+                        {agent.model && <b>· {agent.model}</b>}
+                      </span>
+                    </div>
                     <p className="agents-list__item-desc">
                       {agent.description || agent.systemPrompt}
                     </p>

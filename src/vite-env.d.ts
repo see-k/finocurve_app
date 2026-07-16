@@ -24,6 +24,7 @@ interface AIConfigFromMain {
   routerOllamaBaseUrl?: string
   routerShowProvider?: boolean
   routerVerbose?: boolean
+  agentShowProvider?: boolean
   a2aEnabled: boolean
 }
 

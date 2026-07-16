@@ -301,6 +301,7 @@ function storedConfigToAIConfig(stored: StoredAIConfig) {
 export function registerAIHandlers(): void {
   let aiService: LocalAIService | null = null
   let routerService: LocalAIService | null = null
+  const agentServices = new Map<string, LocalAIService>()
 
   function createService(stored: StoredAIConfig): LocalAIService {
     return new LocalAIService({
@@ -358,9 +359,36 @@ export function registerAIHandlers(): void {
     return routerService
   }
 
+  function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): LocalAIService {
+    if (!persona.provider) return getService()
+
+    const stored = loadAIConfig()
+    const providerDefaults: Record<NonNullable<typeof persona.provider>, string> = {
+      ollama: 'llama3.2',
+      bedrock: 'anthropic.claude-3-haiku-20240307-v1:0',
+      azure: 'gpt-4',
+    }
+    const model = persona.model?.trim() ||
+      (stored.provider === persona.provider ? stored.model : providerDefaults[persona.provider])
+    const cacheKey = `${persona.provider}:${model}`
+    const cached = agentServices.get(cacheKey)
+    if (cached) return cached
+
+    const agentConfig: StoredAIConfig = {
+      ...stored,
+      provider: persona.provider,
+      model,
+      ...(persona.provider === 'azure' ? { azureDeployment: model } : {}),
+    }
+    const service = createService(agentConfig)
+    agentServices.set(cacheKey, service)
+    return service
+  }
+
   function resetService() {
     aiService = null
     routerService = null
+    agentServices.clear()
   }
 
   // =============================================
@@ -543,7 +571,9 @@ export function registerAIHandlers(): void {
   ) => {
     const service = payload.context.backgroundTask === 'group-routing'
       ? getRouterService()
-      : getService()
+      : payload.context.agentPersona?.provider
+        ? getAgentService(payload.context.agentPersona)
+        : getService()
     const sender = event.sender
     const senderId = sender.id
 

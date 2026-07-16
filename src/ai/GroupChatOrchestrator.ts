@@ -401,7 +401,12 @@ export async function* runGroupTurn(
         messages: apiMessages,
         context: {
           ...(options.baseContext ?? {}),
-          agentPersona: { name: agent.name, systemPrompt: agent.systemPrompt },
+          agentPersona: {
+            name: agent.name,
+            systemPrompt: agent.systemPrompt,
+            provider: agent.provider,
+            model: agent.model,
+          },
           groupChat: {
             participantNames,
             directlyAddressed: responderPlan.directlyAddressed,

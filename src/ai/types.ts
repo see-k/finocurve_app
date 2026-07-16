@@ -97,7 +97,13 @@ export interface ChatContext {
   /** Risk metrics summary for tool use (passed from renderer) */
   riskMetrics?: string
   /** When set, layers a custom Agent's persona on top of the base FinoCurve system prompt. */
-  agentPersona?: { name: string; systemPrompt: string }
+  agentPersona?: {
+    name: string
+    systemPrompt: string
+    /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
+    provider?: 'ollama' | 'bedrock' | 'azure'
+    model?: string
+  }
   /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
   groupChat?: {
     participantNames: string[]

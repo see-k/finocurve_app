@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowUp,
+  Bot,
   MessagesSquare,
   Plus,
   Search,
@@ -57,6 +58,12 @@ interface RouterPresentation {
   model: string
 }
 
+interface AgentProviderPresentation {
+  showProvider: boolean
+  primaryProvider: 'ollama' | 'bedrock' | 'azure'
+  primaryModel: string
+}
+
 function findMentionDraft(value: string, caret: number): MentionDraft | null {
   const beforeCaret = value.slice(0, caret)
   const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret)
@@ -79,7 +86,7 @@ function containsMention(value: string, name: string): boolean {
   ).test(value)
 }
 
-function getRouterProviderLabel(provider: 'ollama' | 'bedrock' | 'azure', model: string): string {
+function getModelProviderLabel(provider: 'ollama' | 'bedrock' | 'azure', model: string): string {
   if (provider === 'ollama') return 'Ollama'
   if (provider === 'azure') return 'Azure OpenAI'
   if (/anthropic|claude/i.test(model)) return 'Anthropic via Bedrock'
@@ -119,6 +126,11 @@ export default function ChatsScreen() {
     providerLabel: '',
     model: '',
   })
+  const [agentProviderPresentation, setAgentProviderPresentation] = useState<AgentProviderPresentation>({
+    showProvider: false,
+    primaryProvider: 'ollama',
+    primaryModel: 'llama3.2',
+  })
   const [mentionDraft, setMentionDraft] = useState<MentionDraft | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const streamingAgentIdRef = useRef<string | null>(null)
@@ -154,14 +166,39 @@ export default function ChatsScreen() {
       setRouterPresentation({
         showProvider: config.routerShowProvider ?? false,
         verbose: config.routerVerbose ?? false,
-        providerLabel: getRouterProviderLabel(provider, model),
+        providerLabel: getModelProviderLabel(provider, model),
         model,
+      })
+      setAgentProviderPresentation({
+        showProvider: config.agentShowProvider ?? false,
+        primaryProvider: config.provider,
+        primaryModel: config.provider === 'azure'
+          ? (config.azureDeployment || config.model)
+          : config.model,
       })
     }).catch(() => {
       // Display preferences are optional; routing itself remains available.
     })
     return () => { current = false }
   }, [])
+
+  const renderAgentProvider = (agentId?: string) => {
+    if (!agentProviderPresentation.showProvider || !agentId) return null
+    const agent = agents.find((candidate) => candidate.id === agentId)
+    if (!agent) return null
+    const provider = agent.provider || agentProviderPresentation.primaryProvider
+    const model = agent.model || agentProviderPresentation.primaryModel
+    const providerLabel = getModelProviderLabel(provider, model)
+    return (
+      <span
+        className="chats-screen__agent-provider"
+        title={`${providerLabel} · ${model}`}
+      >
+        <b>{providerLabel}</b>
+        <em>{model}</em>
+      </span>
+    )
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' })
@@ -323,7 +360,15 @@ export default function ChatsScreen() {
           }))
           const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
             messages: chatMessages,
-            context: { ...baseContext, agentPersona: { name: agent.name, systemPrompt: agent.systemPrompt } },
+            context: {
+              ...baseContext,
+              agentPersona: {
+                name: agent.name,
+                systemPrompt: agent.systemPrompt,
+                provider: agent.provider,
+                model: agent.model,
+              },
+            },
           })
 
           if (!aborted && !stoppedRef.current) {
@@ -574,6 +619,15 @@ export default function ChatsScreen() {
               </p>
             </div>
             <div className="chats-screen__header-actions">
+              <button
+                type="button"
+                className="chats-screen__agent-settings"
+                onClick={() => navigate('/settings/agents')}
+                aria-label="Configure AI agents"
+                title="Configure AI agents"
+              >
+                <Bot size={15} />
+              </button>
               {selectedParticipants.length > 1 && (
                 <>
                   <button
@@ -648,6 +702,7 @@ export default function ChatsScreen() {
                         <div className="chats-screen__message-meta">
                           <span>{message.role === 'user' ? userName : message.senderName}</span>
                           {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
+                          {message.role === 'assistant' && renderAgentProvider(message.senderAgentId)}
                           {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
                         </div>
                         <div className="chats-screen__message-bubble">
@@ -733,6 +788,7 @@ export default function ChatsScreen() {
                     <div className="chats-screen__message-meta">
                       <span>{agentById.get(streamingAgentId)?.name}</span>
                       <span className="chats-screen__thinking-label">Thinking</span>
+                      {renderAgentProvider(streamingAgentId)}
                     </div>
                     <div className="chats-screen__message-bubble">
                       {streamingText ? (
