@@ -66,6 +66,7 @@ const APP_ROUTE_CATALOG: Array<{
   { path: '/settings/tracker-storage', description: 'Settings — tracker storage.', requiresAuth: true },
   { path: '/settings/ai-config/provider', description: 'Settings — AI provider selection.', requiresAuth: true },
   { path: '/settings/ai-config/model', description: 'Settings — AI model & connection test.', requiresAuth: true },
+  { path: '/settings/ai-config/router', description: 'Settings — smart group-chat router model.', requiresAuth: true },
   { path: '/settings/ai-config/a2a', description: 'Settings — A2A protocol server.', requiresAuth: true },
   { path: '/settings/ai-config/mcp', description: 'Settings — MCP servers.', requiresAuth: true },
   { path: '/settings/agents', description: 'Settings — list of custom AI agents.', requiresAuth: true },

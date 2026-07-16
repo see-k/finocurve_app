@@ -19,6 +19,9 @@ interface AIConfigFromMain {
   azureEndpoint?: string
   azureApiKey?: string
   azureDeployment?: string
+  routerProvider?: 'default' | 'ollama'
+  routerModel?: string
+  routerOllamaBaseUrl?: string
   a2aEnabled: boolean
 }
 

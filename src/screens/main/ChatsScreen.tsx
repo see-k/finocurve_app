@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowUp,
   MessagesSquare,
   Plus,
   Search,
+  Settings2,
   Sparkles,
   Square,
   Trash2,
@@ -73,6 +74,7 @@ function containsMention(value: string, name: string): boolean {
 
 export default function ChatsScreen() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { agents } = useAgents()
   const {
@@ -526,19 +528,30 @@ export default function ChatsScreen() {
             </div>
             <div className="chats-screen__header-actions">
               {selectedParticipants.length > 1 && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={selected.smartRoutingEnabled === true}
-                  className={`chats-screen__smart-routing-toggle ${selected.smartRoutingEnabled ? 'chats-screen__smart-routing-toggle--active' : ''}`}
-                  onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
-                  disabled={loading}
-                  title="Use a private routing pass to choose who responds and in what order. @mentions still take priority."
-                >
-                  <Sparkles size={13} />
-                  <span>Smart routing</span>
-                  <i aria-hidden="true"><b /></i>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={selected.smartRoutingEnabled === true}
+                    className={`chats-screen__smart-routing-toggle ${selected.smartRoutingEnabled ? 'chats-screen__smart-routing-toggle--active' : ''}`}
+                    onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
+                    disabled={loading}
+                    title="Use a private routing pass to choose who responds and in what order. @mentions still take priority."
+                  >
+                    <Sparkles size={13} />
+                    <span>Smart routing</span>
+                    <i aria-hidden="true"><b /></i>
+                  </button>
+                  <button
+                    type="button"
+                    className="chats-screen__router-settings"
+                    onClick={() => navigate('/settings/ai-config/router')}
+                    aria-label="Configure router agent"
+                    title="Configure router agent"
+                  >
+                    <Settings2 size={14} />
+                  </button>
+                </>
               )}
               <div className="chats-screen__header-mark" aria-hidden="true">
                 <Sparkles size={15} />

@@ -300,44 +300,67 @@ function storedConfigToAIConfig(stored: StoredAIConfig) {
 
 export function registerAIHandlers(): void {
   let aiService: LocalAIService | null = null
+  let routerService: LocalAIService | null = null
+
+  function createService(stored: StoredAIConfig): LocalAIService {
+    return new LocalAIService({
+      getDocumentContent,
+      getPortfolioContext: async () => loadPortfolioCache(),
+      getDocumentList: async () => listDocumentsFromLocal(),
+      getReportList: async () => listReportsFromLocal(),
+      getRiskMetrics: async () => 'Not available',
+      getCongressCache: async () => getCongressCacheData(),
+      getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
+      getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
+        getSECFilingContentData(tickerOrCik, accessionNumber),
+      getMCPTools: () => getMCPLangChainTools(),
+      saveCustomBrandedReport: saveCustomBrandedReportForChat,
+      saveCustomCsvDocument: saveCustomCsvForChat,
+      appendNetWorthEntry: trackerAppendNetWorthAI,
+      getNetWorthLogSummary: trackerGetNetWorthLogSummary,
+      getTrackerGoalsSummary: async () => trackerGetGoalsSummary(loadPortfolioCache()),
+      createTrackerGoal: async (args) =>
+        trackerCreateGoalAI({
+          ...args,
+          portfolio: loadPortfolioCache(),
+        }),
+      updateTrackerGoal: async (args) =>
+        trackerUpdateGoalAI({
+          ...args,
+          portfolio: loadPortfolioCache(),
+        }),
+      config: storedConfigToAIConfig(stored),
+    })
+  }
 
   function getService(): LocalAIService {
     if (!aiService) {
-      const stored = loadAIConfig()
-      aiService = new LocalAIService({
-        getDocumentContent,
-        getPortfolioContext: async () => loadPortfolioCache(),
-        getDocumentList: async () => listDocumentsFromLocal(),
-        getReportList: async () => listReportsFromLocal(),
-        getRiskMetrics: async () => 'Not available',
-        getCongressCache: async () => getCongressCacheData(),
-        getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
-        getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
-          getSECFilingContentData(tickerOrCik, accessionNumber),
-        getMCPTools: () => getMCPLangChainTools(),
-        saveCustomBrandedReport: saveCustomBrandedReportForChat,
-        saveCustomCsvDocument: saveCustomCsvForChat,
-        appendNetWorthEntry: trackerAppendNetWorthAI,
-        getNetWorthLogSummary: trackerGetNetWorthLogSummary,
-        getTrackerGoalsSummary: async () => trackerGetGoalsSummary(loadPortfolioCache()),
-        createTrackerGoal: async (args) =>
-          trackerCreateGoalAI({
-            ...args,
-            portfolio: loadPortfolioCache(),
-          }),
-        updateTrackerGoal: async (args) =>
-          trackerUpdateGoalAI({
-            ...args,
-            portfolio: loadPortfolioCache(),
-          }),
-        config: storedConfigToAIConfig(stored),
-      })
+      aiService = createService(loadAIConfig())
     }
     return aiService
   }
 
+  function getRouterService(): LocalAIService {
+    const stored = loadAIConfig()
+    if (!stored.routerProvider || stored.routerProvider === 'default') return getService()
+
+    if (!routerService) {
+      routerService = createService({
+        ...stored,
+        provider: 'ollama',
+        model: stored.routerModel?.trim() || 'llama3.2',
+        ollamaBaseUrl:
+          stored.routerOllamaBaseUrl?.trim() ||
+          stored.ollamaBaseUrl ||
+          'http://localhost:11434',
+      })
+    }
+    return routerService
+  }
+
   function resetService() {
     aiService = null
+    routerService = null
   }
 
   // =============================================
@@ -356,6 +379,7 @@ export function registerAIHandlers(): void {
   ipcMain.handle('ai-config-save', async (_event, payload: StoredAIConfig) => {
     const existing = loadAIConfig()
     const toSave: StoredAIConfig = {
+      ...existing,
       ...payload,
       bedrockSecretKey: payload.bedrockSecretKey && payload.bedrockSecretKey !== '••••••••'
         ? payload.bedrockSecretKey
@@ -517,7 +541,9 @@ export function registerAIHandlers(): void {
       context: ChatContext
     }
   ) => {
-    const service = getService()
+    const service = payload.context.backgroundTask === 'group-routing'
+      ? getRouterService()
+      : getService()
     const sender = event.sender
     const senderId = sender.id
 
