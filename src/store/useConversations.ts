@@ -43,6 +43,7 @@ export function useConversations() {
       id: makeId(),
       title: input.title,
       participantAgentIds: input.participantAgentIds,
+      smartRoutingEnabled: input.smartRoutingEnabled ?? false,
       messages: [],
       createdAt: now,
       updatedAt: now,
@@ -71,6 +72,14 @@ export function useConversations() {
     )))
   }, [])
 
+  const setSmartRouting = useCallback((id: string, enabled: boolean) => {
+    setConversations((prev) => prev.map((c) => (
+      c.id === id
+        ? { ...c, smartRoutingEnabled: enabled, updatedAt: new Date().toISOString() }
+        : c
+    )))
+  }, [])
+
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id))
   }, [])
@@ -83,6 +92,7 @@ export function useConversations() {
     renameConversation,
     appendMessage,
     replaceMessages,
+    setSmartRouting,
     deleteConversation,
   }
 }

@@ -45,7 +45,7 @@ export default function NewConversationModal({ onClose, onCreate, onCreated }: N
         <div onClick={(e) => e.stopPropagation()}>
           <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>New Chat</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 14 }}>
-            Pick one agent for a 1:1 chat, or several for a group chat where every agent replies in sequence.
+            Pick one agent for a 1:1 chat, or several for a group chat with optional smart routing.
           </p>
 
           {agents.length === 0 ? (

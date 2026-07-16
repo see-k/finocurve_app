@@ -21,16 +21,19 @@ export interface ConversationMessage {
 
 /**
  * A persistent chat thread with one or more Agents. A 1:1 chat is simply a Conversation
- * with a single participant; group chats have multiple participantAgentIds who each reply,
- * in order, to every user message.
+ * with a single participant; group chats have multiple participantAgentIds. A group can
+ * either invite everyone in sequence or use smart routing to choose the useful responders.
  */
 export interface Conversation {
   id: string
   title: string
   participantAgentIds: string[]
+  /** When enabled, a hidden routing pass chooses which group participants reply and in what order. */
+  smartRoutingEnabled?: boolean
   messages: ConversationMessage[]
   createdAt: string
   updatedAt: string
 }
 
-export type ConversationInput = Pick<Conversation, 'title' | 'participantAgentIds'>
+export type ConversationInput = Pick<Conversation, 'title' | 'participantAgentIds'> &
+  Partial<Pick<Conversation, 'smartRoutingEnabled'>>

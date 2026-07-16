@@ -104,6 +104,8 @@ export interface ChatContext {
     /** True when the user explicitly @mentioned this turn's responder. */
     directlyAddressed: boolean
   }
+  /** Internal, non-conversational model pass. It never appears as a chat participant. */
+  backgroundTask?: 'group-routing'
 }
 
 /** Chunk from chat stream - reasoning (thinking) vs answer content vs suggested follow-ups. */

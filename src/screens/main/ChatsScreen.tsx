@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
@@ -17,7 +17,7 @@ import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
-import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
+import { runGroupTurn, type SmartRoutingUpdate } from '../../ai/GroupChatOrchestrator'
 import type { Agent } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
 import NewConversationModal from './NewConversationModal'
@@ -43,6 +43,10 @@ interface MentionDraft {
   start: number
   end: number
   query: string
+}
+
+interface SmartRoutingStatus extends SmartRoutingUpdate {
+  conversationId: string
 }
 
 function findMentionDraft(value: string, caret: number): MentionDraft | null {
@@ -71,7 +75,13 @@ export default function ChatsScreen() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { agents } = useAgents()
-  const { conversations, createConversation, appendMessage, deleteConversation } = useConversations()
+  const {
+    conversations,
+    createConversation,
+    appendMessage,
+    setSmartRouting,
+    deleteConversation,
+  } = useConversations()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
 
@@ -82,6 +92,7 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const [smartRoutingStatus, setSmartRoutingStatus] = useState<SmartRoutingStatus | null>(null)
   const [mentionDraft, setMentionDraft] = useState<MentionDraft | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const streamingAgentIdRef = useRef<string | null>(null)
@@ -106,7 +117,7 @@ export default function ChatsScreen() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [selected?.id, selected?.messages.length, streamingText])
+  }, [selected?.id, selected?.messages.length, streamingText, smartRoutingStatus?.phase])
 
   useEffect(() => {
     const textarea = composerRef.current
@@ -164,6 +175,12 @@ export default function ChatsScreen() {
         .map((id) => agentById.get(id))
         .filter((agent): agent is Agent => !!agent)
     : []
+  const latestUserMessageIndex = selected
+    ? selected.messages.reduce(
+        (latestIndex, message, index) => message.role === 'user' ? index : latestIndex,
+        -1,
+      )
+    : -1
 
   const firstNameCounts = new Map<string, number>()
   selectedParticipants.forEach((participant) => {
@@ -215,6 +232,7 @@ export default function ChatsScreen() {
 
   const handleStop = () => {
     stoppedRef.current = true
+    setSmartRoutingStatus(null)
     abortRef.current?.abort()
     void window.electronAPI?.aiChatCancel?.()
   }
@@ -224,6 +242,7 @@ export default function ChatsScreen() {
     const text = input.trim()
     setInput('')
     setMentionDraft(null)
+    setSmartRoutingStatus(null)
     setLoading(true)
     stoppedRef.current = false
     const controller = new AbortController()
@@ -281,6 +300,10 @@ export default function ChatsScreen() {
         for await (const result of runGroupTurn(selected, participants, userMessage, {
           signal: controller.signal,
           baseContext,
+          smartRouting: selected.smartRoutingEnabled === true,
+          onSmartRoutingUpdate: (update) => {
+            setSmartRoutingStatus({ ...update, conversationId: selected.id })
+          },
           onChunk: (chunk) => {
             if (chunk.type !== 'answer') return
             if (streamingAgentIdRef.current === chunk.agentId) {
@@ -311,6 +334,7 @@ export default function ChatsScreen() {
       streamingAgentIdRef.current = null
       setStreamingAgentId(null)
       setStreamingText('')
+      setSmartRoutingStatus(null)
       setLoading(false)
       abortRef.current = null
     }
@@ -501,6 +525,21 @@ export default function ChatsScreen() {
               </p>
             </div>
             <div className="chats-screen__header-actions">
+              {selectedParticipants.length > 1 && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={selected.smartRoutingEnabled === true}
+                  className={`chats-screen__smart-routing-toggle ${selected.smartRoutingEnabled ? 'chats-screen__smart-routing-toggle--active' : ''}`}
+                  onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
+                  disabled={loading}
+                  title="Use a private routing pass to choose who responds and in what order. @mentions still take priority."
+                >
+                  <Sparkles size={13} />
+                  <span>Smart routing</span>
+                  <i aria-hidden="true"><b /></i>
+                </button>
+              )}
               <div className="chats-screen__header-mark" aria-hidden="true">
                 <Sparkles size={15} />
                 <span>Curated intelligence</span>
@@ -519,7 +558,7 @@ export default function ChatsScreen() {
 
           <div className="chats-screen__messages" role="log" aria-live="polite" aria-busy={loading}>
             <div className="chats-screen__messages-inner">
-              {selected.messages.length === 0 && !streamingAgentId ? (
+              {selected.messages.length === 0 && !streamingAgentId && !smartRoutingStatus ? (
                 <div className="chats-screen__welcome">
                   <span className="chats-screen__welcome-icon"><Sparkles size={22} /></span>
                   <span className="chats-screen__eyebrow">Private advisory</span>
@@ -535,46 +574,68 @@ export default function ChatsScreen() {
                 </div>
               ) : (
                 selected.messages.map((message, index) => (
-                  <article
-                    key={`${index}-${message.senderName}`}
-                    className={`chats-screen__message chats-screen__message--${message.role}`}
-                  >
-                    {message.role === 'assistant' && (
-                      <UserAvatar
-                        src={message.senderAvatar}
-                        initials={getInitials(message.senderName)}
-                        size={32}
-                        className="chats-screen__message-avatar"
-                      />
-                    )}
-                    <div className="chats-screen__message-column">
-                      <div className="chats-screen__message-meta">
-                        <span>{message.role === 'user' ? userName : message.senderName}</span>
-                        {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
-                        {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
-                      </div>
-                      <div className="chats-screen__message-bubble">
-                        <ChatMessageContent
-                          role={message.role}
-                          content={message.content}
-                          attachments={message.attachments}
-                          reasoning={message.reasoning}
-                          followUps={message.followUps}
-                          mentionNames={mentionNames}
-                          disabled={loading}
-                          onFollowUpClick={handleFollowUp}
+                  <Fragment key={`${index}-${message.senderName}`}>
+                    <article className={`chats-screen__message chats-screen__message--${message.role}`}>
+                      {message.role === 'assistant' && (
+                        <UserAvatar
+                          src={message.senderAvatar}
+                          initials={getInitials(message.senderName)}
+                          size={32}
+                          className="chats-screen__message-avatar"
                         />
+                      )}
+                      <div className="chats-screen__message-column">
+                        <div className="chats-screen__message-meta">
+                          <span>{message.role === 'user' ? userName : message.senderName}</span>
+                          {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
+                          {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
+                        </div>
+                        <div className="chats-screen__message-bubble">
+                          <ChatMessageContent
+                            role={message.role}
+                            content={message.content}
+                            attachments={message.attachments}
+                            reasoning={message.reasoning}
+                            followUps={message.followUps}
+                            mentionNames={mentionNames}
+                            disabled={loading}
+                            onFollowUpClick={handleFollowUp}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    {message.role === 'user' && (
-                      <UserAvatar
-                        src={message.senderAvatar || prefs.profilePicturePath}
-                        initials={getInitials(userName)}
-                        size={32}
-                        className="chats-screen__message-avatar chats-screen__message-avatar--user"
-                      />
-                    )}
-                  </article>
+                      {message.role === 'user' && (
+                        <UserAvatar
+                          src={message.senderAvatar || prefs.profilePicturePath}
+                          initials={getInitials(userName)}
+                          size={32}
+                          className="chats-screen__message-avatar chats-screen__message-avatar--user"
+                        />
+                      )}
+                    </article>
+                    {message.role === 'user' &&
+                      index === latestUserMessageIndex &&
+                      smartRoutingStatus?.conversationId === selected.id && (
+                        <div className="chats-screen__routing-status" role="status" aria-live="polite">
+                          <span className="chats-screen__routing-status-icon"><Sparkles size={13} /></span>
+                          <span className="chats-screen__routing-status-copy">
+                            <strong>
+                              {smartRoutingStatus.phase === 'selecting' ? 'Smart routing' : 'Response priority'}
+                            </strong>
+                            <small>
+                              {smartRoutingStatus.phase === 'selecting'
+                                ? 'Matching this prompt to the right advisors'
+                                : smartRoutingStatus.agentIds
+                                    .map((agentId) => agentById.get(agentId)?.name)
+                                    .filter(Boolean)
+                                    .join(' → ')}
+                            </small>
+                          </span>
+                          {smartRoutingStatus.phase === 'selecting' && (
+                            <span className="chats-screen__routing-pulse" aria-hidden="true"><i /><i /><i /></span>
+                          )}
+                        </div>
+                      )}
+                  </Fragment>
                 ))
               )}
 

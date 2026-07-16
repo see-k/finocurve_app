@@ -22,11 +22,22 @@ export interface RunGroupTurnOptions {
   onChunk?: (chunk: GroupTurnChunk) => void
   /** Extra chat context shared with every participant (route, portfolio, etc). */
   baseContext?: Record<string, unknown>
+  /** Uses a hidden model pass to choose responders and their order for non-mentioned turns. */
+  smartRouting?: boolean
+  /** Reports the hidden routing pass without exposing its model output in the transcript. */
+  onSmartRoutingUpdate?: (update: SmartRoutingUpdate) => void
 }
 
 export interface GroupResponderPlan {
   agentIds: string[]
   directlyAddressed: boolean
+  source: 'mention' | 'everyone' | 'random' | 'smart'
+}
+
+export interface SmartRoutingUpdate {
+  phase: 'selecting' | 'selected'
+  agentIds: string[]
+  fallback?: boolean
 }
 
 function escapeRegExp(value: string): string {
@@ -66,7 +77,11 @@ export function planGroupResponders(
   const availableIds = conversation.participantAgentIds.filter((id) => agentById.has(id))
 
   if (mentionIndex(userText, 'everyone') >= 0 || mentionIndex(userText, 'all') >= 0) {
-    return { agentIds: shuffleAgentIds(availableIds, random), directlyAddressed: false }
+    return {
+      agentIds: shuffleAgentIds(availableIds, random),
+      directlyAddressed: false,
+      source: 'everyone',
+    }
   }
 
   const firstNameCounts = new Map<string, number>()
@@ -91,16 +106,182 @@ export function planGroupResponders(
     .sort((left, right) => left.index - right.index)
 
   if (mentioned.length > 0) {
-    return { agentIds: mentioned.map((mention) => mention.agentId), directlyAddressed: true }
+    return {
+      agentIds: mentioned.map((mention) => mention.agentId),
+      directlyAddressed: true,
+      source: 'mention',
+    }
   }
 
-  return { agentIds: shuffleAgentIds(availableIds, random), directlyAddressed: false }
+  return {
+    agentIds: shuffleAgentIds(availableIds, random),
+    directlyAddressed: false,
+    source: 'random',
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** Parses and validates the router's JSON against the agents actually in the room. */
+export function parseSmartRoutingResponse(raw: string, agents: Agent[]): string[] {
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start < 0 || end <= start) return []
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.slice(start, end + 1))
+  } catch {
+    return []
+  }
+  if (!isRecord(parsed)) return []
+
+  let selections: unknown[] = []
+  if (Array.isArray(parsed.routes)) {
+    selections = [...parsed.routes].sort((left, right) => {
+      const leftPriority = isRecord(left) && typeof left.priority === 'number' ? left.priority : Number.MAX_SAFE_INTEGER
+      const rightPriority = isRecord(right) && typeof right.priority === 'number' ? right.priority : Number.MAX_SAFE_INTEGER
+      return leftPriority - rightPriority
+    })
+  } else if (Array.isArray(parsed.selectedAgentIds)) {
+    selections = parsed.selectedAgentIds
+  } else if (Array.isArray(parsed.agentIds)) {
+    selections = parsed.agentIds
+  }
+
+  const idByLowercaseId = new Map(agents.map((agent) => [agent.id.toLocaleLowerCase(), agent.id]))
+  const idByLowercaseName = new Map(agents.map((agent) => [agent.name.trim().toLocaleLowerCase(), agent.id]))
+  const selected: string[] = []
+
+  for (const selection of selections) {
+    const candidate = typeof selection === 'string'
+      ? selection
+      : isRecord(selection)
+        ? (typeof selection.agentId === 'string'
+            ? selection.agentId
+            : typeof selection.name === 'string'
+              ? selection.name
+              : '')
+        : ''
+    const normalized = candidate.trim().toLocaleLowerCase()
+    const agentId = idByLowercaseId.get(normalized) ?? idByLowercaseName.get(normalized)
+    if (agentId && !selected.includes(agentId)) selected.push(agentId)
+  }
+
+  return selected
+}
+
+const ROUTING_STOP_WORDS = new Set([
+  'about', 'after', 'again', 'also', 'and', 'are', 'can', 'could', 'for', 'from', 'have',
+  'how', 'into', 'its', 'just', 'more', 'please', 'should', 'that', 'the', 'their', 'then',
+  'there', 'these', 'they', 'this', 'those', 'what', 'when', 'where', 'which', 'with', 'would',
+  'you', 'your',
+])
+
+function routingTokens(value: string): Set<string> {
+  const tokens = value.toLocaleLowerCase().match(/[a-z0-9][a-z0-9_-]{2,}/g) ?? []
+  return new Set(tokens.filter((token) => !ROUTING_STOP_WORDS.has(token)))
+}
+
+/** Deterministic backup when a provider returns malformed routing JSON. */
+export function rankAgentsByRelevance(userText: string, agents: Agent[]): string[] {
+  const promptTokens = routingTokens(userText)
+  if (promptTokens.size === 0) return []
+
+  const ranked = agents.map((agent, index) => {
+    const identityTokens = routingTokens(`${agent.name} ${agent.description ?? ''}`)
+    const personaTokens = routingTokens(agent.systemPrompt)
+    let score = 0
+    for (const token of promptTokens) {
+      if (identityTokens.has(token)) score += 3
+      if (personaTokens.has(token)) score += 1
+    }
+    return { agentId: agent.id, score, index }
+  }).sort((left, right) => right.score - left.score || left.index - right.index)
+
+  const topScore = ranked[0]?.score ?? 0
+  if (topScore === 0) return []
+  return ranked
+    .filter((item) => item.score > 0 && item.score >= Math.max(1, topScore * 0.45))
+    .slice(0, 3)
+    .map((item) => item.agentId)
+}
+
+function buildSmartRoutingRequest(
+  conversation: Conversation,
+  agents: Agent[],
+  userMessage: ConversationMessage,
+): string {
+  const candidates = agents.map((agent) => ({
+    id: agent.id,
+    name: agent.name,
+    description: agent.description ?? '',
+    expertise: agent.systemPrompt.replace(/\s+/g, ' ').trim().slice(0, 1_200),
+  }))
+  const recentContext = conversation.messages.slice(-6).map((message) => ({
+    author: message.senderName,
+    role: message.role,
+    content: message.content.slice(0, 600),
+  }))
+
+  return [
+    'Choose which advisors should respond to the latest user prompt and rank them by response priority.',
+    'Normally choose one advisor. Choose two or three only when distinct expertise will materially improve the answer. Choose more only when the prompt truly requires the entire room.',
+    'The first route leads; later routes should complement or challenge the earlier response. Do not route based on turn-taking fairness.',
+    'Use exact candidate IDs. Do not include advisors who should not respond.',
+    'Required JSON schema: {"routes":[{"agentId":"exact-id","priority":1}]}',
+    `Latest user prompt: ${JSON.stringify(userMessage.content)}`,
+    `Recent conversation context: ${JSON.stringify(recentContext)}`,
+    `Candidate advisors: ${JSON.stringify(candidates)}`,
+  ].join('\n')
+}
+
+async function createSmartResponderPlan(
+  conversation: Conversation,
+  agents: Agent[],
+  userMessage: ConversationMessage,
+  fallbackPlan: GroupResponderPlan,
+  signal?: AbortSignal,
+): Promise<{ plan: GroupResponderPlan; fallback: boolean } | null> {
+  const streamChat = window.electronAPI?.aiChatStream
+  if (!streamChat || signal?.aborted) return null
+
+  try {
+    const response = await streamChat({
+      messages: [{ role: 'user', content: buildSmartRoutingRequest(conversation, agents, userMessage) }],
+      context: { backgroundTask: 'group-routing' },
+    })
+    if (response.aborted || signal?.aborted) return null
+
+    const routedAgentIds = parseSmartRoutingResponse(response.text, agents)
+    if (routedAgentIds.length > 0) {
+      return {
+        plan: { agentIds: routedAgentIds, directlyAddressed: false, source: 'smart' },
+        fallback: false,
+      }
+    }
+  } catch {
+    if (signal?.aborted) return null
+  }
+
+  const relevantAgentIds = rankAgentsByRelevance(userMessage.content, agents)
+  return {
+    plan: {
+      agentIds: relevantAgentIds.length > 0 ? relevantAgentIds : fallbackPlan.agentIds,
+      directlyAddressed: false,
+      source: 'smart',
+    },
+    fallback: true,
+  }
 }
 
 /**
- * Runs one group turn. Direct @mentions route to the addressed agent(s);
- * otherwise every participant replies in a shuffled order. Each responder sees
- * the transcript so far (including prior agents' replies from this turn).
+ * Runs one group turn. Direct @mentions route to the addressed agent(s). General
+ * turns either use a hidden smart-routing pass or invite everyone in a shuffled
+ * order. Each responder sees the transcript so far, including earlier replies
+ * from the current turn.
  * Since the shared ChatMessage/IPC contract has no
  * per-message sender name, replies from other agents are prefixed with
  * "[AgentName]: " when building the transcript sent to the next agent.
@@ -118,7 +299,24 @@ export async function* runGroupTurn(
 
   const agentById = new Map(agents.map((a) => [a.id, a]))
   const transcript: ConversationMessage[] = [...conversation.messages, userMessage]
-  const responderPlan = planGroupResponders(conversation, agents, userMessage.content)
+  let responderPlan = planGroupResponders(conversation, agents, userMessage.content)
+  if (options.smartRouting && responderPlan.source === 'random') {
+    options.onSmartRoutingUpdate?.({ phase: 'selecting', agentIds: [] })
+    const routed = await createSmartResponderPlan(
+      conversation,
+      agents,
+      userMessage,
+      responderPlan,
+      options.signal,
+    )
+    if (!routed) return
+    responderPlan = routed.plan
+    options.onSmartRoutingUpdate?.({
+      phase: 'selected',
+      agentIds: responderPlan.agentIds,
+      fallback: routed.fallback,
+    })
+  }
   const participantNames = conversation.participantAgentIds
     .map((agentId) => agentById.get(agentId)?.name)
     .filter((name): name is string => !!name)
