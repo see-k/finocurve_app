@@ -42,6 +42,7 @@ export default function AIConfigScreen() {
   const [azureDeployment, setAzureDeployment] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [secretStorageWarning, setSecretStorageWarning] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
@@ -99,6 +100,7 @@ export default function AIConfigScreen() {
         setRouterOllamaBaseUrl(config.routerOllamaBaseUrl || 'http://localhost:11434')
         setRouterShowProvider(config.routerShowProvider ?? false)
         setRouterVerbose(config.routerVerbose ?? false)
+        setSecretStorageWarning(config.secretStorageWarning || null)
       }).catch(() => setError('Failed to load config'))
         .finally(() => setLoading(false))
     } else {
@@ -281,7 +283,7 @@ export default function AIConfigScreen() {
     setError(null)
     setSaving(true)
     try {
-      await window.electronAPI.aiConfigSave({
+      const result = await window.electronAPI.aiConfigSave({
         provider,
         model: model.trim() || 'llama3.2',
         ollamaBaseUrl: provider === 'ollama' ? ollamaBaseUrl.trim() : undefined,
@@ -298,6 +300,11 @@ export default function AIConfigScreen() {
         routerVerbose,
         a2aEnabled: a2aStatus?.running ?? false,
       })
+      if (result.warning) {
+        setSecretStorageWarning(result.warning)
+        return
+      }
+      setSecretStorageWarning(null)
       navigate(-1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
@@ -1209,6 +1216,13 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
+
+            {secretStorageWarning && (
+              <div className="a2a-info-box" style={{ marginTop: 16, borderColor: 'color-mix(in srgb, var(--status-warning) 38%, var(--glass-border))' }}>
+                <Shield size={14} style={{ flexShrink: 0, marginTop: 2, color: 'var(--status-warning)' }} />
+                <p>{secretStorageWarning}</p>
+              </div>
             )}
 
             {error && <p style={{ fontSize: 13, color: 'var(--status-error)', marginTop: 16 }}>{error}</p>}

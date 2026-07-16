@@ -15,7 +15,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
       reportsDirectory: 'coverage',
-      include: ['src/services/riskAnalysis.ts'],
+      include: [
+        'src/services/riskAnalysis.ts',
+        'electron/aiConfigCodec.ts',
+      ],
       thresholds: {
         statements: 90,
         branches: 80,

@@ -25,10 +25,15 @@ interface AIConfigFromMain {
   routerShowProvider?: boolean
   routerVerbose?: boolean
   agentShowProvider?: boolean
+  secretStorageEncryptionAvailable?: boolean
+  secretStorageWarning?: string
   a2aEnabled: boolean
 }
 
-interface AIConfigPayload extends AIConfigFromMain { }
+type AIConfigPayload = Omit<
+  AIConfigFromMain,
+  'secretStorageEncryptionAvailable' | 'secretStorageWarning'
+>
 
 interface ElectronAPI {
   platform: string
@@ -95,7 +100,11 @@ interface ElectronAPI {
   } | null) => Promise<{ ok: boolean }>
   // AI
   aiConfigGet?: () => Promise<AIConfigFromMain>
-  aiConfigSave?: (payload: AIConfigPayload) => Promise<{ ok: boolean }>
+  aiConfigSave?: (payload: AIConfigPayload) => Promise<{
+    ok: boolean
+    secretsPersisted?: boolean
+    warning?: string
+  }>
   aiCheckOllama?: () => Promise<{ ok: boolean; error?: string }>
   aiCheckConnection?: () => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>

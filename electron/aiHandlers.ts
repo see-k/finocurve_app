@@ -4,7 +4,13 @@
 
 import { ipcMain, app, BrowserWindow } from 'electron'
 import { startA2AServer, stopA2AServer, getA2AServerStatus, DEFAULT_PORT } from './a2aServer'
-import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStorage'
+import {
+  getAIConfigStorageStatus,
+  loadAIConfig,
+  saveAIConfig,
+  type StoredAIConfig,
+} from './aiConfigStorage'
+import { mergeAIConfigUpdate } from './aiConfigCodec'
 import path from 'node:path'
 import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
@@ -397,28 +403,22 @@ export function registerAIHandlers(): void {
 
   ipcMain.handle('ai-config-get', async () => {
     const config = loadAIConfig()
+    const storageStatus = getAIConfigStorageStatus()
     return {
       ...config,
       bedrockSecretKey: config.bedrockSecretKey ? '••••••••' : '',
       azureApiKey: config.azureApiKey ? '••••••••' : '',
+      secretStorageEncryptionAvailable: storageStatus.encryptionAvailable,
+      secretStorageWarning: storageStatus.warning,
     }
   })
 
   ipcMain.handle('ai-config-save', async (_event, payload: StoredAIConfig) => {
     const existing = loadAIConfig()
-    const toSave: StoredAIConfig = {
-      ...existing,
-      ...payload,
-      bedrockSecretKey: payload.bedrockSecretKey && payload.bedrockSecretKey !== '••••••••'
-        ? payload.bedrockSecretKey
-        : existing.bedrockSecretKey,
-      azureApiKey: payload.azureApiKey && payload.azureApiKey !== '••••••••'
-        ? payload.azureApiKey
-        : existing.azureApiKey,
-    }
-    saveAIConfig(toSave)
+    const toSave = mergeAIConfigUpdate(existing, payload)
+    const storageResult = saveAIConfig(toSave)
     resetService()
-    return { ok: true }
+    return { ok: true, ...storageResult }
   })
 
   async function testConnection(config: {
