@@ -1,18 +1,19 @@
-name: Release
+name: CI
 
 permissions:
   contents: read
 
 on:
+  pull_request:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
+      - master
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     env:
-      # release-it@20 vs @release-it/conventional-changelog peer (^18||^19); scoped to CI only.
       NPM_CONFIG_LEGACY_PEER_DEPS: true
     steps:
       - uses: actions/checkout@v7
@@ -25,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test
-        run: npm run test
+      - name: Test with coverage gates
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build

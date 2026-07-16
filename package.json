@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "ci": "npm ci --legacy-peer-deps",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
@@ -88,6 +91,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "cross-env": "^10.1.0",
     "electron": "^41.5.0",
     "electron-builder": "^26.9.0",
@@ -97,7 +101,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vite-plugin-electron": "^0.29.1",
-    "vite-plugin-electron-renderer": "^0.14.7"
+    "vite-plugin-electron-renderer": "^0.14.7",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.12",

@@ -3,6 +3,7 @@ node_modules/
 dist/
 dist-electron/
 dist-tsnode/
+coverage/
 release/
 *.local
 .DS_Store
