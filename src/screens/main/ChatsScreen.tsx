@@ -1,163 +1,39 @@
 import {
-  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type DragEvent,
 } from 'react'
-import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  ArrowUp,
-  Bot,
-  Check,
-  ChevronRight,
-  FileText,
-  Menu,
-  MessagesSquare,
-  Paperclip,
-  Plus,
-  Search,
-  Settings2,
-  Sparkles,
-  Square,
-  Trash2,
-  Users,
-  X,
-} from 'lucide-react'
-import UserAvatar, { getInitials } from '../../components/UserAvatar'
-import ChatMessageContent, { renderTextWithMentions } from '../../components/ai/ChatMessageContent'
+import { MessagesSquare, Plus } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
-import { runGroupTurn, type SmartRoutingUpdate } from '../../ai/GroupChatOrchestrator'
+import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
 import type { ChatAttachment } from '../../ai/types'
-import NewConversationModal from './NewConversationModal'
 import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
+import NewConversationModal from './NewConversationModal'
+import ConversationSidebar from './chats/ConversationSidebar'
+import ChatHeader from './chats/ChatHeader'
+import ChatMessages from './chats/ChatMessages'
+import ChatComposer, { type MentionSuggestion } from './chats/ChatComposer'
+import DeleteConversationDialog from './chats/DeleteConversationDialog'
+import { useChatAttachments } from './chats/useChatAttachments'
+import {
+  containsMention,
+  findMentionDraft,
+  getModelProviderLabel,
+  type AgentProviderPresentation,
+  type MentionDraft,
+  type RouterPresentation,
+  type SmartRoutingStatus,
+} from './chats/chatUtils'
 import './ChatsScreen.css'
-
-function formatConversationTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-
-  const today = new Date()
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const daysAgo = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000)
-
-  if (daysAgo === 0) {
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  }
-  if (daysAgo === 1) return 'Yesterday'
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-}
-
-interface MentionDraft {
-  start: number
-  end: number
-  query: string
-}
-
-interface SmartRoutingStatus extends SmartRoutingUpdate {
-  conversationId: string
-}
-
-interface RouterPresentation {
-  showProvider: boolean
-  verbose: boolean
-  providerLabel: string
-  model: string
-}
-
-interface AgentProviderPresentation {
-  showProvider: boolean
-  primaryProvider: 'ollama' | 'bedrock' | 'azure'
-  primaryModel: string
-}
-
-interface PendingAttachment extends ChatAttachment {
-  id: string
-  size: number
-  objectUrl?: string
-}
-
-const MAX_CHAT_ATTACHMENTS = 6
-const MAX_CHAT_ATTACHMENT_BYTES = 4 * 1024 * 1024
-const CHAT_ATTACHMENT_ACCEPT =
-  'image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf,text/plain,text/csv,application/csv,.json,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.txt,.csv,.pdf'
-const CHAT_ATTACHMENT_EXTENSIONS = new Set([
-  'csv', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'json', 'markdown', 'md',
-  'pdf', 'png', 'txt', 'webp', 'xml', 'yaml', 'yml',
-])
-
-function fileToBase64Data(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result as string
-      const comma = result.indexOf(',')
-      resolve(comma >= 0 ? result.slice(comma + 1) : result)
-    }
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
-    reader.readAsDataURL(file)
-  })
-}
-
-function isSupportedAttachment(file: File): boolean {
-  const extension = file.name.split('.').pop()?.toLocaleLowerCase() ?? ''
-  return (
-    ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(file.type) ||
-    file.type === 'application/pdf' ||
-    file.type.startsWith('text/') ||
-    ['application/json', 'application/xml', 'application/x-yaml'].includes(file.type) ||
-    CHAT_ATTACHMENT_EXTENSIONS.has(extension)
-  )
-}
-
-function formatAttachmentSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function findMentionDraft(value: string, caret: number): MentionDraft | null {
-  const beforeCaret = value.slice(0, caret)
-  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret)
-  if (!match) return null
-  return {
-    start: beforeCaret.length - match[2].length - 1,
-    end: caret,
-    query: match[2],
-  }
-}
-
-function escapeMentionPattern(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function containsMention(value: string, name: string): boolean {
-  return new RegExp(
-    `(^|\\s)@${escapeMentionPattern(name)}(?=$|[\\s,.;:!?])`,
-    'i',
-  ).test(value)
-}
-
-function getModelProviderLabel(provider: 'ollama' | 'bedrock' | 'azure', model: string): string {
-  if (provider === 'ollama') return 'Ollama'
-  if (provider === 'azure') return 'Azure OpenAI'
-  if (/anthropic|claude/i.test(model)) return 'Anthropic via Bedrock'
-  if (/meta|llama/i.test(model)) return 'Meta via Bedrock'
-  if (/mistral/i.test(model)) return 'Mistral via Bedrock'
-  if (/cohere|command/i.test(model)) return 'Cohere via Bedrock'
-  if (/amazon|nova|titan/i.test(model)) return 'Amazon Bedrock'
-  return 'AWS Bedrock'
-}
 
 export default function ChatsScreen() {
   const location = useLocation()
@@ -183,10 +59,6 @@ export default function ChatsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
   const [conversationQuery, setConversationQuery] = useState('')
   const [input, setInput] = useState('')
-  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
-  const [attachmentError, setAttachmentError] = useState<string | null>(null)
-  const [isReadingAttachments, setIsReadingAttachments] = useState(false)
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
@@ -210,13 +82,23 @@ export default function ChatsScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const composerHighlightRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const pendingAttachmentsRef = useRef<PendingAttachment[]>([])
-  const attachmentReadInProgressRef = useRef(false)
-  const dragDepthRef = useRef(0)
   const pendingCaretRef = useRef<number | null>(null)
   const chatSettingsRef = useRef<HTMLDivElement>(null)
-  pendingAttachmentsRef.current = pendingAttachments
+
+  const {
+    pendingAttachments,
+    attachmentError,
+    isReadingAttachments,
+    isDraggingFiles,
+    fileInputRef,
+    clearAttachments,
+    addAttachmentFiles,
+    removePendingAttachment,
+    handleComposerDragEnter,
+    handleComposerDragOver,
+    handleComposerDragLeave,
+    handleComposerDrop,
+  } = useChatAttachments(loading)
 
   const selectedId = searchParams.get('conversationId')
   const selected = useMemo(
@@ -231,24 +113,11 @@ export default function ChatsScreen() {
   }, [selected, searchParams, setSearchParams])
 
   useEffect(() => {
-    pendingAttachmentsRef.current.forEach((attachment) => {
-      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
-    })
-    pendingAttachmentsRef.current = []
-    setPendingAttachments([])
-    setAttachmentError(null)
-    dragDepthRef.current = 0
-    setIsDraggingFiles(false)
+    clearAttachments()
     setShowChatSettings(false)
     setDraftParticipantIds(selected?.participantAgentIds ?? [])
     setDraftConversationTitle(selected?.title ?? '')
-  }, [selected?.id])
-
-  useEffect(() => () => {
-    pendingAttachmentsRef.current.forEach((attachment) => {
-      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
-    })
-  }, [])
+  }, [selected?.id, clearAttachments])
 
   useEffect(() => {
     const getConfig = window.electronAPI?.aiConfigGet
@@ -395,7 +264,7 @@ export default function ChatsScreen() {
     'everyone',
     'all',
   ]
-  const mentionSuggestions = mentionDraft
+  const mentionSuggestions: MentionSuggestion[] = mentionDraft
     ? [
         ...selectedParticipants.map((participant) => ({
           id: participant.id,
@@ -441,100 +310,6 @@ export default function ChatsScreen() {
     void window.electronAPI?.aiChatCancel?.()
   }
 
-  const removePendingAttachment = (id: string) => {
-    setPendingAttachments((current) => {
-      const removed = current.find((attachment) => attachment.id === id)
-      if (removed?.objectUrl) URL.revokeObjectURL(removed.objectUrl)
-      const next = current.filter((attachment) => attachment.id !== id)
-      pendingAttachmentsRef.current = next
-      return next
-    })
-    setAttachmentError(null)
-  }
-
-  const addAttachmentFiles = async (files: File[]) => {
-    if (files.length === 0 || attachmentReadInProgressRef.current || loading) return
-
-    attachmentReadInProgressRef.current = true
-    setIsReadingAttachments(true)
-    let availableSlots = MAX_CHAT_ATTACHMENTS - pendingAttachmentsRef.current.length
-    const accepted: PendingAttachment[] = []
-    let nextError: string | null = null
-
-    try {
-      for (const file of files) {
-        if (availableSlots <= 0) {
-          nextError = `You can attach up to ${MAX_CHAT_ATTACHMENTS} files to one message.`
-          break
-        }
-        if (!isSupportedAttachment(file)) {
-          nextError = `“${file.name}” is not a supported image, PDF, or text document.`
-          continue
-        }
-        if (file.size > MAX_CHAT_ATTACHMENT_BYTES) {
-          nextError = `“${file.name}” is larger than the 4 MB file limit.`
-          continue
-        }
-
-        try {
-          const mimeType = file.type || 'application/octet-stream'
-          accepted.push({
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            name: file.name,
-            mimeType,
-            dataBase64: await fileToBase64Data(file),
-            size: file.size,
-            objectUrl: mimeType.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-          })
-          availableSlots -= 1
-        } catch {
-          nextError = `Could not read “${file.name}”.`
-        }
-      }
-
-      if (accepted.length > 0) {
-        const next = [...pendingAttachmentsRef.current, ...accepted]
-        pendingAttachmentsRef.current = next
-        setPendingAttachments(next)
-      }
-      setAttachmentError(nextError)
-    } finally {
-      attachmentReadInProgressRef.current = false
-      setIsReadingAttachments(false)
-    }
-  }
-
-  const hasDraggedFiles = (event: DragEvent<HTMLElement>) =>
-    Array.from(event.dataTransfer.types).includes('Files')
-
-  const handleComposerDragEnter = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event) || loading) return
-    event.preventDefault()
-    dragDepthRef.current += 1
-    setIsDraggingFiles(true)
-  }
-
-  const handleComposerDragOver = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event) || loading) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-  }
-
-  const handleComposerDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return
-    event.preventDefault()
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-    if (dragDepthRef.current === 0) setIsDraggingFiles(false)
-  }
-
-  const handleComposerDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event) || loading) return
-    event.preventDefault()
-    dragDepthRef.current = 0
-    setIsDraggingFiles(false)
-    void addAttachmentFiles(Array.from(event.dataTransfer.files))
-  }
-
   const handleSend = async () => {
     if (
       !selected ||
@@ -551,12 +326,7 @@ export default function ChatsScreen() {
     }))
     const displayContent = text || '(See attached files)'
 
-    pendingAttachments.forEach((attachment) => {
-      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl)
-    })
-    pendingAttachmentsRef.current = []
-    setPendingAttachments([])
-    setAttachmentError(null)
+    clearAttachments()
     setInput('')
     setMentionDraft(null)
     setSmartRoutingStatus(null)
@@ -588,13 +358,13 @@ export default function ChatsScreen() {
 
         try {
           const chatMessages = [...selected.messages, userMessage].map((message) => {
-            const attachments = message.role === 'user'
+            const messageAttachments = message.role === 'user'
               ? message.attachments?.filter((attachment) => attachment.dataBase64.length > 0)
               : undefined
             return {
               role: message.role,
               content: message.content,
-              ...(attachments?.length ? { attachments } : {}),
+              ...(messageAttachments?.length ? { attachments: messageAttachments } : {}),
             }
           })
           const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
@@ -714,6 +484,36 @@ export default function ChatsScreen() {
     setActiveMentionIndex(0)
   }
 
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionDraft && mentionSuggestions.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActiveMentionIndex((current) =>
+          (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        selectMention(mentionSuggestions[activeMentionIndex].name)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setMentionDraft(null)
+        return
+      }
+    }
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      void handleSend()
+    }
+  }
+
   const handleDeleteConversation = () => {
     if (!deleteTarget) return
 
@@ -783,667 +583,99 @@ export default function ChatsScreen() {
 
   return (
     <div className="chats-screen">
-      <aside className="chats-screen__sidebar" aria-label="Conversations">
-        <div className="chats-screen__sidebar-header">
-          <div>
-            <span className="chats-screen__eyebrow">FinoCurve AI</span>
-            <h1 className="chats-screen__sidebar-title">Conversations</h1>
-          </div>
-          <button
-            type="button"
-            className="chats-screen__new-button"
-            onClick={() => setShowNewModal(true)}
-            aria-label="Start a new chat"
-            title="New chat"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-
-        <label className="chats-screen__search">
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="search"
-            value={conversationQuery}
-            onChange={(event) => setConversationQuery(event.target.value)}
-            placeholder="Search conversations"
-          />
-        </label>
-
-        <div className="chats-screen__conversation-list">
-          {conversations.length === 0 ? (
-            <div className="chats-screen__empty-list">
-              <MessagesSquare size={22} />
-              <p>Your conversations will live here.</p>
-              <button type="button" onClick={() => setShowNewModal(true)}>Start a chat</button>
-            </div>
-          ) : visibleConversations.length === 0 ? (
-            <p className="chats-screen__no-results">No conversations match “{conversationQuery}”.</p>
-          ) : (
-            visibleConversations.map((conversation) => {
-              const participant = agentById.get(conversation.participantAgentIds[0])
-              const isGroup = conversation.participantAgentIds.length > 1
-              const lastMessage = conversation.messages[conversation.messages.length - 1]
-
-              return (
-                <div
-                  key={conversation.id}
-                  className={`chats-screen__conversation-row ${selected?.id === conversation.id ? 'chats-screen__conversation-row--active' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className={`chats-screen__conversation ${selected?.id === conversation.id ? 'chats-screen__conversation--active' : ''}`}
-                    onClick={() => selectConversation(conversation.id)}
-                    aria-current={selected?.id === conversation.id ? 'page' : undefined}
-                  >
-                    <span className="chats-screen__conversation-avatar">
-                      {isGroup ? (
-                        <span className="chats-screen__group-avatar"><Users size={17} /></span>
-                      ) : (
-                        <UserAvatar src={participant?.image} initials={getInitials(participant?.name)} size={40} />
-                      )}
-                    </span>
-                    <span className="chats-screen__conversation-copy">
-                      <span className="chats-screen__conversation-heading">
-                        <strong>{conversationTitle(conversation)}</strong>
-                        <time dateTime={conversation.updatedAt}>{formatConversationTime(conversation.updatedAt)}</time>
-                      </span>
-                      <span className="chats-screen__conversation-preview">
-                        {lastMessage ? `${lastMessage.senderName}: ${lastMessage.content}` : 'A new conversation'}
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="chats-screen__conversation-delete"
-                    onClick={() => setDeleteTarget(conversation)}
-                    aria-label={`Delete ${conversationTitle(conversation)}`}
-                    title="Delete conversation"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )
-            })
-          )}
-        </div>
-
-        <div className="chats-screen__sidebar-footer">
-          <span>{conversations.length} {conversations.length === 1 ? 'conversation' : 'conversations'}</span>
-          <span className="chats-screen__private-label">Private workspace</span>
-        </div>
-      </aside>
+      <ConversationSidebar
+        conversations={conversations}
+        visibleConversations={visibleConversations}
+        selectedId={selected?.id}
+        agentById={agentById}
+        conversationQuery={conversationQuery}
+        onQueryChange={setConversationQuery}
+        conversationTitle={conversationTitle}
+        onSelect={selectConversation}
+        onNew={() => setShowNewModal(true)}
+        onRequestDelete={setDeleteTarget}
+      />
 
       {selected ? (
         <section className="chats-screen__conversation-pane" aria-label={conversationTitle(selected)}>
-          <header className="chats-screen__chat-header">
-            <div className="chats-screen__participant-stack" aria-hidden="true">
-              <UserAvatar
-                src={prefs.profilePicturePath}
-                initials={getInitials(userName)}
-                size={38}
-                className="chats-screen__stacked-avatar chats-screen__stacked-avatar--user"
-              />
-              {selectedParticipants.slice(0, 3).map((participant, index) => (
-                <UserAvatar
-                  key={participant!.id}
-                  src={participant!.image}
-                  initials={getInitials(participant!.name)}
-                  size={38}
-                  className={`chats-screen__stacked-avatar chats-screen__stacked-avatar--${index}`}
-                />
-              ))}
-              {selectedParticipants.length === 0 && (
-                <span className="chats-screen__group-avatar"><Sparkles size={17} /></span>
-              )}
-            </div>
-            <div className="chats-screen__chat-heading">
-              <h2>{conversationTitle(selected)}</h2>
-              <p>
-                <span className="chats-screen__status-dot" />
-                {selectedParticipants.length === 0
-                  ? 'No active experts in this conversation'
-                  : selectedParticipants.length > 1
-                  ? `You + ${selectedParticipants.length} private AI advisors`
-                  : `You + ${selectedParticipants[0]?.name || 'private AI advisor'}`}
-              </p>
-            </div>
-            <div className="chats-screen__header-actions">
-              <div className="chats-screen__header-mark" aria-hidden="true">
-                <Sparkles size={15} />
-                <span>Curated intelligence</span>
-              </div>
-              <div className="chats-screen__chat-settings" ref={chatSettingsRef}>
-                <button
-                  type="button"
-                  className={`chats-screen__chat-settings-trigger ${showChatSettings ? 'chats-screen__chat-settings-trigger--active' : ''}`}
-                  onClick={toggleChatSettings}
-                  aria-label="Chat settings"
-                  aria-haspopup="dialog"
-                  aria-expanded={showChatSettings}
-                  aria-controls="chat-settings-popover"
-                  title="Chat settings"
-                >
-                  <Menu size={18} />
-                </button>
+          <ChatHeader
+            title={conversationTitle(selected)}
+            participants={selectedParticipants}
+            userName={userName}
+            profilePicturePath={prefs.profilePicturePath}
+            agents={agents}
+            showChatSettings={showChatSettings}
+            chatSettingsRef={chatSettingsRef}
+            onToggleSettings={toggleChatSettings}
+            draftTitle={draftConversationTitle}
+            onDraftTitleChange={setDraftConversationTitle}
+            availableDraftParticipantIds={availableDraftParticipantIds}
+            onToggleParticipant={toggleDraftParticipant}
+            onSaveSettings={saveChatSettings}
+            participantDraftChanged={participantDraftChanged}
+            titleDraftChanged={titleDraftChanged}
+            loading={loading}
+            smartRoutingEnabled={selected.smartRoutingEnabled === true}
+            onToggleSmartRouting={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
+            onNavigate={navigate}
+            onRequestDeleteSelected={() => {
+              setShowChatSettings(false)
+              setDeleteTarget(selected)
+            }}
+          />
 
-                {showChatSettings && (
-                  <div
-                    id="chat-settings-popover"
-                    className="chats-screen__chat-settings-popover"
-                    role="dialog"
-                    aria-label="Chat settings"
-                  >
-                    <div className="chats-screen__chat-settings-heading">
-                      <span>
-                        <strong>Chat settings</strong>
-                        <small>Manage this conversation</small>
-                      </span>
-                      <span className="chats-screen__chat-settings-count">
-                        <Users size={12} /> {selectedParticipants.length}
-                      </span>
-                    </div>
+          <ChatMessages
+            conversation={selected}
+            streamingAgentId={streamingAgentId}
+            streamingText={streamingText}
+            smartRoutingStatus={smartRoutingStatus}
+            routerPresentation={routerPresentation}
+            agentById={agentById}
+            userName={userName}
+            profilePicturePath={prefs.profilePicturePath}
+            latestUserMessageIndex={latestUserMessageIndex}
+            mentionNames={mentionNames}
+            loading={loading}
+            onFollowUp={handleFollowUp}
+            renderAgentProvider={renderAgentProvider}
+            messagesEndRef={messagesEndRef}
+          />
 
-                    <label className="chats-screen__chat-title-field">
-                      <span>Conversation name</span>
-                      <input
-                        type="text"
-                        value={draftConversationTitle}
-                        onChange={(event) => setDraftConversationTitle(event.target.value)}
-                        disabled={loading}
-                        maxLength={80}
-                      />
-                    </label>
-
-                    <section className="chats-screen__chat-settings-section" aria-labelledby="chat-participants-heading">
-                      <div className="chats-screen__chat-settings-section-heading">
-                        <span>
-                          <strong id="chat-participants-heading">Participants</strong>
-                          <small>Add or remove AI advisors</small>
-                        </span>
-                        <small>{availableDraftParticipantIds.length} selected</small>
-                      </div>
-
-                      {agents.length > 0 ? (
-                        <div className="chats-screen__participant-picker">
-                          {agents.map((agent) => {
-                            const isSelected = availableDraftParticipantIds.includes(agent.id)
-                            const isActive = isAgentActive(agent)
-                            return (
-                              <button
-                                key={agent.id}
-                                type="button"
-                                className={`${isSelected ? 'chats-screen__participant-option--selected' : ''} ${isActive ? '' : 'chats-screen__participant-option--inactive'}`}
-                                onClick={() => toggleDraftParticipant(agent.id)}
-                                disabled={loading || (!isActive && !isSelected)}
-                                aria-pressed={isSelected}
-                              >
-                                <UserAvatar src={agent.image} initials={getInitials(agent.name)} size={30} />
-                                <span>
-                                  <strong>{agent.name}</strong>
-                                  <small>{isActive ? agent.description || 'Private AI advisor' : 'Inactive expert'}</small>
-                                </span>
-                                <i aria-hidden="true">{isSelected && <Check size={12} />}</i>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="chats-screen__no-agents">Create an AI agent before changing participants.</p>
-                      )}
-
-                      {availableDraftParticipantIds.length === 0 && (
-                        <p className="chats-screen__participant-error">A chat needs at least one agent.</p>
-                      )}
-
-                      <button
-                        type="button"
-                        className="chats-screen__save-chat-settings"
-                        onClick={saveChatSettings}
-                        disabled={
-                          loading ||
-                          availableDraftParticipantIds.length === 0 ||
-                          (!participantDraftChanged && !titleDraftChanged)
-                        }
-                      >
-                        Save changes
-                      </button>
-                    </section>
-
-                    {selectedParticipants.length > 1 && (
-                      <section className="chats-screen__chat-settings-section">
-                        <div className="chats-screen__routing-setting">
-                          <span>
-                            <strong><Sparkles size={13} /> Smart routing</strong>
-                            <small>Choose the best advisors for each prompt</small>
-                          </span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-label="Smart routing"
-                            aria-checked={selected.smartRoutingEnabled === true}
-                            className={`chats-screen__settings-switch ${selected.smartRoutingEnabled ? 'chats-screen__settings-switch--active' : ''}`}
-                            onClick={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
-                            disabled={loading}
-                            title="@mentions still take priority over smart routing."
-                          >
-                            <i aria-hidden="true" />
-                          </button>
-                        </div>
-                      </section>
-                    )}
-
-                    <div className="chats-screen__chat-settings-links">
-                      <button type="button" onClick={() => navigate('/main?tab=experts')}>
-                        <Bot size={14} />
-                        <span><strong>Manage AI experts</strong><small>Create or edit expert profiles</small></span>
-                        <ChevronRight size={14} />
-                      </button>
-                      {selectedParticipants.length > 1 && (
-                        <button type="button" onClick={() => navigate('/settings/ai-config/router')}>
-                          <Settings2 size={14} />
-                          <span><strong>Router configuration</strong><small>Model and routing preferences</small></span>
-                          <ChevronRight size={14} />
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="chats-screen__chat-settings-delete"
-                      onClick={() => {
-                        setShowChatSettings(false)
-                        setDeleteTarget(selected)
-                      }}
-                    >
-                      <Trash2 size={14} /> Delete conversation
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </header>
-
-          <div className="chats-screen__messages" role="log" aria-live="polite" aria-busy={loading}>
-            <div className="chats-screen__messages-inner">
-              {selected.messages.length === 0 && !streamingAgentId && !smartRoutingStatus ? (
-                <div className="chats-screen__welcome">
-                  <span className="chats-screen__welcome-icon"><Sparkles size={22} /></span>
-                  <span className="chats-screen__eyebrow">Private advisory</span>
-                  <h2>What would you like to understand?</h2>
-                  <p>
-                    Ask for analysis, a second opinion, or a clear next step. Your advisors can use the financial context already in FinoCurve.
-                  </p>
-                  <div className="chats-screen__starters" aria-label="Conversation starters">
-                    {['Review my portfolio', 'Where is my biggest risk?', 'Summarize my financial position'].map((prompt) => (
-                      <button key={prompt} type="button" onClick={() => handleFollowUp(prompt)}>{prompt}</button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                selected.messages.map((message, index) => (
-                  <Fragment key={`${index}-${message.senderName}`}>
-                    <article className={`chats-screen__message chats-screen__message--${message.role}`}>
-                      {message.role === 'assistant' && (
-                        <UserAvatar
-                          src={message.senderAvatar}
-                          initials={getInitials(message.senderName)}
-                          size={32}
-                          className="chats-screen__message-avatar"
-                        />
-                      )}
-                      <div className="chats-screen__message-column">
-                        <div className="chats-screen__message-meta">
-                          <span>{message.role === 'user' ? userName : message.senderName}</span>
-                          {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
-                          {message.role === 'assistant' && renderAgentProvider(message.senderAgentId)}
-                          {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
-                        </div>
-                        <div className="chats-screen__message-bubble">
-                          <ChatMessageContent
-                            role={message.role}
-                            content={message.content}
-                            attachments={message.attachments}
-                            reasoning={message.reasoning}
-                            followUps={message.followUps}
-                            mentionNames={mentionNames}
-                            disabled={loading}
-                            onFollowUpClick={handleFollowUp}
-                          />
-                        </div>
-                      </div>
-                      {message.role === 'user' && (
-                        <UserAvatar
-                          src={message.senderAvatar || prefs.profilePicturePath}
-                          initials={getInitials(userName)}
-                          size={32}
-                          className="chats-screen__message-avatar chats-screen__message-avatar--user"
-                        />
-                      )}
-                    </article>
-                    {message.role === 'user' &&
-                      index === latestUserMessageIndex &&
-                      smartRoutingStatus?.conversationId === selected.id && (
-                        <div
-                          className={`chats-screen__routing-status ${routerPresentation.verbose && smartRoutingStatus.rationale ? 'chats-screen__routing-status--verbose' : ''}`}
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <span className="chats-screen__routing-status-icon"><Sparkles size={13} /></span>
-                          <span className="chats-screen__routing-status-copy">
-                            <span className="chats-screen__routing-status-heading">
-                              <strong>
-                                {smartRoutingStatus.phase === 'selecting' ? 'Smart routing' : 'Response priority'}
-                              </strong>
-                              {routerPresentation.showProvider && routerPresentation.providerLabel && (
-                                <span
-                                  className="chats-screen__routing-provider"
-                                  title={`${routerPresentation.providerLabel} · ${routerPresentation.model}`}
-                                >
-                                  <b>{routerPresentation.providerLabel}</b>
-                                  <em>{routerPresentation.model}</em>
-                                </span>
-                              )}
-                            </span>
-                            <small>
-                              {smartRoutingStatus.phase === 'selecting'
-                                ? 'Matching this prompt to the right advisors'
-                                : smartRoutingStatus.agentIds
-                                    .map((agentId) => agentById.get(agentId)?.name)
-                                    .filter(Boolean)
-                                    .join(' → ')}
-                            </small>
-                            {routerPresentation.verbose &&
-                              smartRoutingStatus.phase === 'selected' &&
-                              smartRoutingStatus.rationale && (
-                                <span className="chats-screen__routing-verbose">
-                                  {smartRoutingStatus.rationale}
-                                </span>
-                              )}
-                          </span>
-                          {smartRoutingStatus.phase === 'selecting' && (
-                            <span className="chats-screen__routing-pulse" aria-hidden="true"><i /><i /><i /></span>
-                          )}
-                        </div>
-                      )}
-                  </Fragment>
-                ))
-              )}
-
-              {streamingAgentId && (
-                <article className="chats-screen__message chats-screen__message--assistant chats-screen__message--streaming">
-                  <UserAvatar
-                    src={agentById.get(streamingAgentId)?.image}
-                    initials={getInitials(agentById.get(streamingAgentId)?.name)}
-                    size={32}
-                    className="chats-screen__message-avatar"
-                  />
-                  <div className="chats-screen__message-column">
-                    <div className="chats-screen__message-meta">
-                      <span>{agentById.get(streamingAgentId)?.name}</span>
-                      <span className="chats-screen__thinking-label">Thinking</span>
-                      {renderAgentProvider(streamingAgentId)}
-                    </div>
-                    <div className="chats-screen__message-bubble">
-                      {streamingText ? (
-                        <ChatMessageContent role="assistant" content={streamingText} />
-                      ) : (
-                        <span className="chats-screen__typing" aria-label="Advisor is thinking">
-                          <i /><i /><i />
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          <footer className="chats-screen__composer-shell">
-            {mentionDraft && mentionSuggestions.length > 0 && (
-              <div
-                className="chats-screen__mention-popover"
-                role="listbox"
-                id="chat-mention-suggestions"
-                aria-label="Mention suggestions"
-              >
-                <div className="chats-screen__mention-popover-header">
-                  <span>Address someone</span>
-                  <small>↑↓ navigate · Enter select</small>
-                </div>
-                {mentionSuggestions.map((option, index) => (
-                  <button
-                    key={option.id}
-                    id={`chat-mention-option-${option.id}`}
-                    type="button"
-                    role="option"
-                    aria-selected={index === activeMentionIndex}
-                    className={index === activeMentionIndex ? 'chats-screen__mention-option--active' : ''}
-                    onMouseEnter={() => setActiveMentionIndex(index)}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      selectMention(option.name)
-                    }}
-                  >
-                    {option.everyone ? (
-                      <span className="chats-screen__mention-everyone"><Users size={15} /></span>
-                    ) : (
-                      <UserAvatar src={option.image} initials={getInitials(option.name)} size={30} />
-                    )}
-                    <span className="chats-screen__mention-option-copy">
-                      <strong>@{option.name}</strong>
-                      <small>{option.description}</small>
-                    </span>
-                    <span className="chats-screen__mention-route">
-                      {option.everyone ? 'Group' : 'Direct'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedParticipants.length > 1 && (
-              <div className="chats-screen__mentions" aria-label="Address an advisor">
-                <span>To</span>
-                {selectedParticipants.map((participant) => (
-                  <button
-                    key={participant.id}
-                    type="button"
-                    className={
-                      containsMention(input, participant.name) ||
-                      (firstNameCounts.get(participant.name.trim().split(/\s+/)[0].toLocaleLowerCase()) === 1 &&
-                        containsMention(input, participant.name.trim().split(/\s+/)[0]))
-                        ? 'chats-screen__mention-chip--active'
-                        : ''
-                    }
-                    onClick={() => selectMention(participant.name)}
-                    disabled={loading}
-                    title={`Only ${participant.name} will respond`}
-                  >
-                    @{participant.name}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={containsMention(input, 'everyone') || containsMention(input, 'all')
-                    ? 'chats-screen__mention-chip--active'
-                    : ''}
-                  onClick={() => selectMention('everyone')}
-                  disabled={loading}
-                  title="Invite every advisor in a fresh order"
-                >
-                  @everyone
-                </button>
-              </div>
-            )}
-            <div
-              className={`chats-screen__composer ${isDraggingFiles ? 'chats-screen__composer--dragging' : ''}`}
-              onDragEnter={handleComposerDragEnter}
-              onDragOver={handleComposerDragOver}
-              onDragLeave={handleComposerDragLeave}
-              onDrop={handleComposerDrop}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="chats-screen__file-input"
-                accept={CHAT_ATTACHMENT_ACCEPT}
-                multiple
-                tabIndex={-1}
-                aria-hidden="true"
-                onChange={(event) => {
-                  const files = event.currentTarget.files
-                    ? Array.from(event.currentTarget.files)
-                    : []
-                  event.currentTarget.value = ''
-                  void addAttachmentFiles(files)
-                }}
-              />
-              {pendingAttachments.length > 0 && (
-                <div className="chats-screen__pending-files" aria-label="Files ready to send">
-                  {pendingAttachments.map((attachment) => (
-                    <div key={attachment.id} className="chats-screen__pending-file">
-                      {attachment.objectUrl ? (
-                        <img src={attachment.objectUrl} alt="" />
-                      ) : (
-                        <span className="chats-screen__pending-file-icon" aria-hidden="true">
-                          <FileText size={16} />
-                        </span>
-                      )}
-                      <span className="chats-screen__pending-file-copy">
-                        <strong>{attachment.name}</strong>
-                        <small>{attachment.objectUrl ? 'Image' : 'Document'} · {formatAttachmentSize(attachment.size)}</small>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removePendingAttachment(attachment.id)}
-                        disabled={loading}
-                        aria-label={`Remove ${attachment.name}`}
-                        title="Remove attachment"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="chats-screen__composer-row">
-                <button
-                  type="button"
-                  className="chats-screen__attach"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={
-                    loading ||
-                    isReadingAttachments ||
-                    pendingAttachments.length >= MAX_CHAT_ATTACHMENTS ||
-                    selectedParticipants.length === 0
-                  }
-                  aria-label="Attach files or images"
-                  title="Attach files or images"
-                >
-                  <Paperclip size={18} />
-                </button>
-                <div className={`chats-screen__composer-input ${input ? 'chats-screen__composer-input--has-value' : ''}`}>
-                  <div
-                    ref={composerHighlightRef}
-                    className="chats-screen__composer-highlight"
-                    aria-hidden="true"
-                  >
-                    {input ? renderTextWithMentions(input, mentionNames) : '\u200b'}
-                  </div>
-                  <textarea
-                    ref={composerRef}
-                    value={input}
-                    onChange={(event) => {
-                      const nextValue = event.target.value
-                      setInput(nextValue)
-                      updateMentionDraft(nextValue, event.target.selectionStart ?? nextValue.length)
-                    }}
-                    onSelect={(event) => {
-                      updateMentionDraft(
-                        event.currentTarget.value,
-                        event.currentTarget.selectionStart ?? event.currentTarget.value.length,
-                      )
-                    }}
-                    onScroll={(event) => {
-                      if (composerHighlightRef.current) {
-                        composerHighlightRef.current.scrollTop = event.currentTarget.scrollTop
-                      }
-                    }}
-                    onPaste={(event) => {
-                      const files = Array.from(event.clipboardData.files)
-                      if (files.length === 0) return
-                      event.preventDefault()
-                      void addAttachmentFiles(files)
-                    }}
-                    placeholder={selectedParticipants.length === 0
-                      ? 'Reactivate or add an expert to continue…'
-                      : selectedParticipants.length > 1
-                      ? 'Message everyone, or @ an advisor directly…'
-                      : `Message ${conversationTitle(selected)}…`}
-                    rows={1}
-                    disabled={loading || selectedParticipants.length === 0}
-                    aria-label={`Message ${conversationTitle(selected)}`}
-                    aria-autocomplete="list"
-                    aria-expanded={!!mentionDraft && mentionSuggestions.length > 0}
-                    aria-controls={mentionDraft ? 'chat-mention-suggestions' : undefined}
-                    aria-activedescendant={mentionDraft && mentionSuggestions[activeMentionIndex]
-                      ? `chat-mention-option-${mentionSuggestions[activeMentionIndex].id}`
-                      : undefined}
-                    onKeyDown={(event) => {
-                      if (mentionDraft && mentionSuggestions.length > 0) {
-                        if (event.key === 'ArrowDown') {
-                          event.preventDefault()
-                          setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
-                          return
-                        }
-                        if (event.key === 'ArrowUp') {
-                          event.preventDefault()
-                          setActiveMentionIndex((current) =>
-                            (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
-                          return
-                        }
-                        if (event.key === 'Enter' || event.key === 'Tab') {
-                          event.preventDefault()
-                          selectMention(mentionSuggestions[activeMentionIndex].name)
-                          return
-                        }
-                        if (event.key === 'Escape') {
-                          event.preventDefault()
-                          setMentionDraft(null)
-                          return
-                        }
-                      }
-                      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                        event.preventDefault()
-                        void handleSend()
-                      }
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className={`chats-screen__send ${loading ? 'chats-screen__send--stop' : ''}`}
-                  onClick={loading ? handleStop : () => void handleSend()}
-                  disabled={!loading && (
-                    (!input.trim() && pendingAttachments.length === 0) ||
-                    selectedParticipants.length === 0 ||
-                    isReadingAttachments
-                  )}
-                  aria-label={loading ? 'Stop response' : 'Send message'}
-                  title={loading ? 'Stop response' : 'Send message'}
-                >
-                  {loading ? <Square size={15} fill="currentColor" /> : <ArrowUp size={19} />}
-                </button>
-              </div>
-            </div>
-            {attachmentError && <div className="chats-screen__attachment-error" role="alert">{attachmentError}</div>}
-            <p>
-              {selectedParticipants.length > 1 && <><b>@mention for a direct reply</b><span>·</span></>}
-              <b>Attach, paste, or drop files</b><span>·</span>
-              Enter to send <span>·</span> Shift + Enter for a new line
-            </p>
-          </footer>
+          <ChatComposer
+            conversationTitle={conversationTitle(selected)}
+            participants={selectedParticipants}
+            input={input}
+            mentionNames={mentionNames}
+            mentionDraft={mentionDraft}
+            mentionSuggestions={mentionSuggestions}
+            activeMentionIndex={activeMentionIndex}
+            onMentionHover={setActiveMentionIndex}
+            onMentionSelect={selectMention}
+            composerRef={composerRef}
+            composerHighlightRef={composerHighlightRef}
+            fileInputRef={fileInputRef}
+            onFileInputChange={(files) => void addAttachmentFiles(files)}
+            onInputChange={(value, caret) => {
+              setInput(value)
+              updateMentionDraft(value, caret)
+            }}
+            onSelectCaret={updateMentionDraft}
+            onPasteFiles={(files) => void addAttachmentFiles(files)}
+            onKeyDown={handleComposerKeyDown}
+            pendingAttachments={pendingAttachments}
+            onRemoveAttachment={removePendingAttachment}
+            attachmentError={attachmentError}
+            isReadingAttachments={isReadingAttachments}
+            isDraggingFiles={isDraggingFiles}
+            loading={loading}
+            onDragEnter={handleComposerDragEnter}
+            onDragOver={handleComposerDragOver}
+            onDragLeave={handleComposerDragLeave}
+            onDrop={handleComposerDrop}
+            onAttachClick={() => fileInputRef.current?.click()}
+            onSend={() => void handleSend()}
+            onStop={handleStop}
+          />
         </section>
       ) : (
         <section className="chats-screen__placeholder">
@@ -1467,36 +699,13 @@ export default function ChatsScreen() {
         />
       )}
 
-      {deleteTarget && createPortal(
-        <div
-          className="chats-screen__delete-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setDeleteTarget(null)
-          }}
-        >
-          <div
-            className="chats-screen__delete-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-conversation-title"
-            aria-describedby="delete-conversation-description"
-          >
-            <span className="chats-screen__delete-dialog-icon"><Trash2 size={20} /></span>
-            <span className="chats-screen__eyebrow">Permanent action</span>
-            <h2 id="delete-conversation-title">Delete this conversation?</h2>
-            <p id="delete-conversation-description">
-              “{conversationTitle(deleteTarget)}” and {deleteTarget.messages.length}{' '}
-              {deleteTarget.messages.length === 1 ? 'message' : 'messages'} will be permanently removed.
-            </p>
-            <div className="chats-screen__delete-dialog-actions">
-              <button type="button" onClick={() => setDeleteTarget(null)}>Keep conversation</button>
-              <button type="button" className="chats-screen__delete-confirm" onClick={handleDeleteConversation}>
-                <Trash2 size={14} /> Delete permanently
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
+      {deleteTarget && (
+        <DeleteConversationDialog
+          target={deleteTarget}
+          title={conversationTitle(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteConversation}
+        />
       )}
     </div>
   )
