@@ -4,6 +4,7 @@ dist/
 dist-electron/
 dist-tsnode/
 coverage/
+coverage-electron/
 release/
 *.local
 .DS_Store

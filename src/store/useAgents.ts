@@ -1,25 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Agent, AgentInput } from '../types/Agent'
-
-const STORAGE_KEY = 'finocurve-agents'
+import { AGENTS_STORAGE_KEY, getCoreDataItem, setCoreDataItem } from '../lib/coreDataStorage'
 
 function load(): Agent[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = getCoreDataItem(AGENTS_STORAGE_KEY)
     if (stored) return JSON.parse(stored)
   } catch { /* ignore */ }
   return []
 }
 
 function save(agents: Agent[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(agents)) } catch { /* ignore */ }
+  try { setCoreDataItem(AGENTS_STORAGE_KEY, JSON.stringify(agents)) } catch { /* ignore */ }
 }
 
 function makeId(): string {
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-/** localStorage-backed CRUD store for user-defined AI agents. */
+/** SQLite-backed CRUD store with a synchronous local compatibility cache. */
 export function useAgents() {
   const [agents, setAgents] = useState<Agent[]>(load)
 

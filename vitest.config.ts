@@ -18,6 +18,9 @@ export default defineConfig({
       include: [
         'src/services/riskAnalysis.ts',
         'electron/aiConfigCodec.ts',
+        'electron/coreDataModel.ts',
+        'src/lib/coreDataStorage.ts',
+        'src/lib/financialProvenance.ts',
       ],
       thresholds: {
         statements: 90,

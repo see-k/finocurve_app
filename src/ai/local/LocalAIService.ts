@@ -623,6 +623,11 @@ export class LocalAIService implements AIService {
       )
     }
     if (!isGroupRouting && context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
+    if (!isGroupRouting) {
+      systemParts.push(
+        'When quoting a financial value from FinoCurve tools, retain its available source, as-of time, valuation method, and freshness. Clearly identify estimated, illustrative, stale, or legacy values.'
+      )
+    }
     if (!isGroupRouting && context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
     const hasAttachments = messages.some((m) => m.role === 'user' && (m.attachments?.length ?? 0) > 0)
     if (!isGroupRouting && hasAttachments) {

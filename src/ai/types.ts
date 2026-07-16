@@ -9,11 +9,21 @@ export interface DocumentRef {
   source: 'cloud' | 'local'
 }
 
+/** Serializable financial audit detail passed to AI tools and A2A clients. */
+export interface FinancialAuditContext {
+  source: string
+  asOf: string
+  valuationMethod: string
+  freshness: string
+  estimated?: boolean
+}
+
 export interface PortfolioHolding {
   symbol?: string
   name: string
   value: number
   percent?: number
+  valueAudit?: FinancialAuditContext
 }
 
 /** Non-loan assets synced for AI tools (full list, excluding loans). */
@@ -27,6 +37,8 @@ export interface PortfolioAssetRecord {
   quantity: number
   costBasis: number
   currency: string
+  valueAudit?: FinancialAuditContext
+  costBasisAudit?: FinancialAuditContext
 }
 
 /** Loans synced from the portfolio for AI tools (category === loan). */
@@ -42,6 +54,9 @@ export interface LoanContextRecord {
   termMonths?: number
   startDate?: string
   extraMonthlyPayment?: number
+  balanceAudit?: FinancialAuditContext
+  principalAudit?: FinancialAuditContext
+  termsAudit?: FinancialAuditContext
 }
 
 export interface PortfolioContext {
@@ -51,6 +66,9 @@ export interface PortfolioContext {
   assetCount: number
   riskScore?: number
   riskLevel?: string
+  /** Audit trail for totalValue and values derived from the current holdings. */
+  valuationAudit?: FinancialAuditContext
+  riskAudit?: FinancialAuditContext
   /** Top holdings for news matching and context (legacy; prefer holdings) */
   topHoldings?: PortfolioHolding[]
   /** All non-loan holdings, sorted by value descending */

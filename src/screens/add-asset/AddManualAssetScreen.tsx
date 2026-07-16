@@ -10,6 +10,8 @@ import type { Asset, AssetType, AssetSector } from '../../types'
 import {
   ASSET_TYPE_LABELS, SECTOR_LABELS, BROKERAGES, CURRENCIES,
 } from '../../types'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
+import { normalizePortfolioFinancialProvenance, userEnteredAssetProvenance } from '../../lib/financialProvenance'
 import './AddAsset.css'
 
 export default function AddManualAssetScreen() {
@@ -45,10 +47,12 @@ export default function AddManualAssetScreen() {
       notes: notes || undefined,
       tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
     }
-    const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const now = new Date().toISOString()
+    asset.financialProvenance = userEnteredAssetProvenance(asset, now)
+    const portfolio = normalizePortfolioFinancialProvenance(JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}'))
     portfolio.assets = [...(portfolio.assets || []), asset]
-    portfolio.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(portfolio))
+    portfolio.updatedAt = now
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(portfolio))
     navigate('/main', { replace: true })
   }
 

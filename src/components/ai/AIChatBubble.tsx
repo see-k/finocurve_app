@@ -9,6 +9,8 @@ import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
 import ChatMessageContent, { FollowUpsRow } from './ChatMessageContent'
+import { getCoreDataItem, removeCoreDataItem, setCoreDataItem } from '../../lib/coreDataStorage'
+import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
 import './AIChatBubble.css'
 
 import aiAvatar from '/images/finocurve-icon.png'
@@ -120,7 +122,7 @@ function readPrefsIdentity(): { userEmail?: string; isGuest?: boolean } {
 
 function loadChatMessages(storageKey: string): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(storageKey)
+    const raw = getCoreDataItem(storageKey)
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -201,7 +203,7 @@ function stripChatAttachmentPayloads(messages: ChatMessage[]): ChatMessage[] {
 function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
   const trimmed = messages.length > MAX_PERSISTED_MESSAGES ? messages.slice(-MAX_PERSISTED_MESSAGES) : messages
   const save = (payload: ChatMessage[]) => {
-    localStorage.setItem(storageKey, JSON.stringify(payload))
+    setCoreDataItem(storageKey, JSON.stringify(payload))
   }
   try {
     save(trimmed)
@@ -365,8 +367,11 @@ export default function AIChatBubble() {
     window.addEventListener('pointercancel', onUp)
   }, [panelWidth, panelHeight])
 
+  const portfolioAudit = portfolio
+    ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
+    : undefined
   const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
+    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
     : undefined
 
   const handleNewChat = () => {
@@ -379,7 +384,7 @@ export default function AIChatBubble() {
     setInput('')
     setError(null)
     try {
-      localStorage.removeItem(chatStorageKey)
+      removeCoreDataItem(chatStorageKey)
     } catch {
       /* ignore */
     }
@@ -491,6 +496,7 @@ export default function AIChatBubble() {
             totalValue,
             totalGainLossPercent: totalGainLossPercent ?? 0,
             assetCount: portfolio.assets?.length ?? 0,
+            valuationAudit: portfolioAudit,
           }
         : undefined
 

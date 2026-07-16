@@ -54,8 +54,8 @@ This repository is intended as a **source-available trust surface** for the Fino
 ## Tech stack
 
 - **Frontend:** React 19
-- **Desktop runtime:** Electron 40
-- **Build tool:** Vite 6
+- **Desktop runtime:** Electron 41
+- **Build tool:** Vite 8
 - **Language:** TypeScript
 - **Charts / visualization:** Recharts
 - **Icons:** Lucide React
@@ -101,6 +101,17 @@ Release artifacts are written to:
 release/
 ```
 
+### Tests and release verification
+
+```bash
+npm test                 # unit and regression tests
+npm run test:coverage    # coverage-gated calculations, codecs, and migrations
+npm run test:electron    # SQLite tests against Electron's native ABI
+npm run verify:release   # all gates plus a packaged-app directory build
+```
+
+The packaged-app check never launches FinoCurve and therefore does not open or migrate a developer's live Electron profile.
+
 ## Optional AI features
 
 FinoCurve App supports optional AI workflows for document analysis and portfolio-oriented chat.
@@ -134,6 +145,18 @@ This is intended for **local / operator-controlled workflows**.
 - A2A is optional and intended for local use
 - MCP integrations depend on user-configured local MCP servers
 - Cloud / managed service behavior is not fully represented by this repo alone
+- AI provider secrets are encrypted with Electron `safeStorage`. If OS-backed encryption is unavailable, secrets remain session-only and the settings UI shows a warning.
+- Legacy plaintext AI settings are rewritten in encrypted form after a successful unlock; the app does not claim to securely erase bytes retained by filesystem snapshots or backups.
+
+### Core data durability
+
+Portfolio, custom-agent, group-conversation, and per-user assistant-chat records are durably mirrored to the versioned `finocurve-core-data.db` SQLite database in Electron's app data directory. Browser `localStorage` remains a synchronous compatibility cache and rollback source during the staged migration.
+
+Before startup reconciliation can replace a differing record, FinoCurve writes a timestamped raw JSON snapshot under `core-data-backups/`. Writes use monotonic revisions, deletion tombstones, SHA-256 verification, and a renderer write-ahead journal. Legacy cache data is not automatically deleted after migration.
+
+Financial assets also carry additive audit metadata for their current value and cost basis: source, as-of time, valuation method, and freshness. Older portfolios are enriched on load without changing balances, IDs, or business timestamps; unknown legacy values are labeled as legacy instead of being presented as live quotes.
+
+See [Data safety and recovery](docs/data-safety-and-recovery.md) for backup locations, migration behavior, and recovery precautions.
 
 ## Configuration
 

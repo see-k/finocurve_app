@@ -23,6 +23,7 @@ import { runGroupTurn, type SmartRoutingUpdate } from '../../ai/GroupChatOrchest
 import type { Agent } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
 import NewConversationModal from './NewConversationModal'
+import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
 import './ChatsScreen.css'
 
 function formatConversationTime(value: string): string {
@@ -302,8 +303,11 @@ export default function ChatsScreen() {
       })
     : []
 
+  const portfolioAudit = portfolio
+    ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
+    : undefined
   const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
+    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
     : undefined
   const portfolioContext = portfolio && totalValue >= 0
     ? {
@@ -311,6 +315,7 @@ export default function ChatsScreen() {
         totalValue,
         totalGainLossPercent: totalGainLossPercent ?? 0,
         assetCount: portfolio.assets?.length ?? 0,
+        valuationAudit: portfolioAudit,
       }
     : undefined
   const baseContext = { currentRoute: location.pathname, portfolioSummary, portfolioContext }

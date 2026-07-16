@@ -1,25 +1,28 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Conversation, ConversationInput, ConversationMessage } from '../types/Conversation'
-
-const STORAGE_KEY = 'finocurve-conversations'
+import {
+  CONVERSATIONS_STORAGE_KEY,
+  getCoreDataItem,
+  setCoreDataItem,
+} from '../lib/coreDataStorage'
 
 function load(): Conversation[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = getCoreDataItem(CONVERSATIONS_STORAGE_KEY)
     if (stored) return JSON.parse(stored)
   } catch { /* ignore */ }
   return []
 }
 
 function save(conversations: Conversation[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)) } catch { /* ignore */ }
+  try { setCoreDataItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations)) } catch { /* ignore */ }
 }
 
 function makeId(): string {
   return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-/** localStorage-backed CRUD store for agent conversations (1:1 and group chats). */
+/** SQLite-backed CRUD store with a synchronous local compatibility cache. */
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>(load)
 

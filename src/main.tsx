@@ -5,14 +5,20 @@ import App from './App'
 import { ThemeProvider } from './theme/ThemeContext'
 import './theme/theme.css'
 import './index.css'
+import { initializeCoreDataStorage } from './lib/coreDataStorage'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <HashRouter>
-      <ThemeProvider>
-        <div className="global-titlebar-drag" />
-        <App />
-      </ThemeProvider>
-    </HashRouter>
-  </React.StrictMode>,
-)
+async function start() {
+  await initializeCoreDataStorage()
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <HashRouter>
+        <ThemeProvider>
+          <div className="global-titlebar-drag" />
+          <App />
+        </ThemeProvider>
+      </HashRouter>
+    </React.StrictMode>,
+  )
+}
+
+void start()

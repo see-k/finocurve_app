@@ -29,5 +29,8 @@ jobs:
       - name: Test with coverage gates
         run: npm run test:coverage
 
+      - name: Test SQLite with Electron ABI
+        run: npm run test:electron
+
       - name: Build
         run: npm run build

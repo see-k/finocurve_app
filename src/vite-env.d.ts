@@ -30,6 +30,18 @@ interface AIConfigFromMain {
   a2aEnabled: boolean
 }
 
+interface CoreDataRecordFromMain {
+  storageKey: string
+  value: string | null
+  revision: number
+  kind: 'portfolio' | 'agents' | 'conversations' | 'assistant_chat'
+  checksum: string | null
+  deleted: boolean
+  validationStatus: 'valid' | 'invalid' | 'deleted'
+  validationError?: string
+  updatedAt: string
+}
+
 type AIConfigPayload = Omit<
   AIConfigFromMain,
   'secretStorageEncryptionAvailable' | 'secretStorageWarning'
@@ -66,38 +78,21 @@ interface ElectronAPI {
   localStorageOpenDocumentsFolder?: () => Promise<
     { ok: true } | { ok: false; error?: 'not_configured'; message?: string }
   >
+  coreDataBootstrap?: (payload: {
+    records: Array<{ storageKey: string; value: string | null; revision: number }>
+  }) => Promise<{
+    records: CoreDataRecordFromMain[]
+    importedCount: number
+    verifiedCount: number
+    backupPath?: string
+  }>
+  coreDataWrite?: (payload: {
+    storageKey: string
+    value: string | null
+    revision: number
+  }) => Promise<CoreDataRecordFromMain>
   // Portfolio sync (for A2A / main process)
-  portfolioSync?: (payload: {
-    portfolioName: string
-    totalValue: number
-    totalGainLossPercent: number
-    assetCount: number
-    riskScore?: number
-    riskLevel?: string
-    topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
-    holdings?: Array<{
-      name: string
-      symbol?: string
-      type: string
-      category: string
-      value: number
-      percent?: number
-      quantity: number
-      costBasis: number
-      currency: string
-    }>
-    loans?: Array<{
-      name: string
-      loanType?: string
-      balance: number
-      principal?: number
-      interestRate?: number
-      monthlyPayment?: number
-      termMonths?: number
-      startDate?: string
-      extraMonthlyPayment?: number
-    }>
-  } | null) => Promise<{ ok: boolean }>
+  portfolioSync?: (payload: import('./ai/types').PortfolioContext | null) => Promise<{ ok: boolean }>
   // AI
   aiConfigGet?: () => Promise<AIConfigFromMain>
   aiConfigSave?: (payload: AIConfigPayload) => Promise<{
@@ -153,9 +148,16 @@ interface ElectronAPI {
     assets: { symbol: string; quantity: number; type: string; currentValue: number }[]
     period: '1D' | '1W' | '1M' | '1Y'
     otherAssetsValue: number
-  }) => Promise<{ data: { date: string; value: number }[]; error: string | null }>
+  }) => Promise<{
+    data: { date: string; value: number }[]
+    provenance: import('./types').FinancialValueProvenance | null
+    error: string | null
+  }>
   priceSearch?: (payload: { query: string }) => Promise<{
-    results: Array<{ symbol: string; name: string; type: string; price: number; sector: string }>
+    results: Array<{
+      symbol: string; name: string; type: string; price: number; sector: string
+      priceSource: string; priceAsOf: string; isLive: true
+    }>
     error: string | null
   }>
   congressSenate?: (payload?: { page?: number; limit?: number }) => Promise<{ data: Record<string, unknown>[]; error: string | null }>

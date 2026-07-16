@@ -2,6 +2,7 @@
  * Per-email snapshots of session-scoped localStorage so sign-out can clear the active
  * keys while preserving data for the next sign-in on this device.
  */
+import { getCoreDataItem, removeCoreDataItem, setCoreDataItem } from './coreDataStorage'
 
 /** Active-session keys (not per-user archives `*:user:*`). */
 export const ACTIVE_SESSION_DATA_KEYS = [
@@ -26,14 +27,14 @@ export function archiveActiveSessionForEmail(email: string): void {
   const em = email.trim()
   if (!em) return
   for (const active of ACTIVE_KEYS) {
-    const v = localStorage.getItem(active)
+    const v = getCoreDataItem(active)
     if (v != null && v !== '') {
       try {
-        localStorage.setItem(archivedKey(active, em), v)
+        setCoreDataItem(archivedKey(active, em), v)
       } catch { /* ignore quota */ }
     }
     try {
-      localStorage.removeItem(active)
+      removeCoreDataItem(active)
     } catch { /* ignore */ }
   }
 }
@@ -43,7 +44,7 @@ export function hasArchivedSessionForEmail(email: string): boolean {
   const em = email.trim()
   if (!em) return false
   for (const active of ACTIVE_KEYS) {
-    const v = localStorage.getItem(archivedKey(active, em))
+    const v = getCoreDataItem(archivedKey(active, em))
     if (v != null && v !== '') return true
   }
   return false
@@ -54,10 +55,10 @@ export function restoreActiveSessionForEmail(email: string): void {
   const em = email.trim()
   if (!em) return
   for (const active of ACTIVE_KEYS) {
-    const arch = localStorage.getItem(archivedKey(active, em))
+    const arch = getCoreDataItem(archivedKey(active, em))
     if (arch != null && arch !== '') {
       try {
-        localStorage.setItem(active, arch)
+        setCoreDataItem(active, arch)
       } catch { /* ignore */ }
     }
   }
@@ -69,7 +70,7 @@ export function removeArchivedSessionForEmail(email: string): void {
   if (!em) return
   for (const active of ACTIVE_KEYS) {
     try {
-      localStorage.removeItem(archivedKey(active, em))
+      removeCoreDataItem(archivedKey(active, em))
     } catch { /* ignore */ }
   }
 }
@@ -78,7 +79,7 @@ export function removeArchivedSessionForEmail(email: string): void {
 export function clearActiveUserDataStorage(): void {
   for (const active of ACTIVE_KEYS) {
     try {
-      localStorage.removeItem(active)
+      removeCoreDataItem(active)
     } catch { /* ignore */ }
   }
 }

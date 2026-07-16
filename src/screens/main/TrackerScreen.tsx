@@ -8,6 +8,7 @@ import { Target, Plus, Trash2, TrendingUp, Wallet, Pencil, X, ChevronDown } from
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import { useTracker } from '../../hooks/useTracker'
 import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { usePreferences } from '../../store/usePreferences'
@@ -24,6 +25,7 @@ import {
   portfolioHoldingsValue,
 } from '../../lib/trackerGoalMetrics'
 import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import { createFinancialProvenance } from '../../lib/financialProvenance'
 import './TrackerScreen.css'
 
 /** Same hero image treatment as Dashboard */
@@ -101,6 +103,16 @@ function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function netWorthEntryProvenance(entry: NetWorthEntry) {
+  return createFinancialProvenance({
+    sourceKind: entry.source === 'ai' ? 'ai' : 'manual',
+    sourceName: entry.source === 'ai' ? 'AI-assisted tracker entry' : 'User-entered net worth',
+    valuationMethod: 'user_reported',
+    asOf: entry.recordedAt,
+    recordedAt: entry.recordedAt,
+  }, entry.recordedAt)
+}
+
 export default function TrackerScreen() {
   const { prefs, updatePreferences } = usePreferences()
   const cur = prefs.defaultCurrency || 'USD'
@@ -122,6 +134,10 @@ export default function TrackerScreen() {
     hasPortfolioAssets
   )
   const { snapshots: riskSnapshots } = useRiskSnapshots()
+  const latestNetWorthEntry = useMemo(
+    () => [...netWorthEntries].sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt))[0] ?? null,
+    [netWorthEntries]
+  )
 
   const portfolioPerfApiEnabled =
     hasPortfolioAssets && typeof window !== 'undefined' && !!window.electronAPI?.priceHistorical
@@ -514,6 +530,9 @@ export default function TrackerScreen() {
             </div>
             <TrendingUp size={40} className="tracker-hero__icon" aria-hidden />
           </div>
+          {latestNetWorthEntry && (
+            <ValuationDisclosure provenance={netWorthEntryProvenance(latestNetWorthEntry)} label="Latest net worth" compact />
+          )}
 
           {chartData.length >= 2 ? (
             <div className="tracker-chart tracker-nw-chart">
@@ -668,6 +687,7 @@ export default function TrackerScreen() {
                       {new Date(e.recordedAt).toLocaleString()} · {e.source}
                       {e.note ? ` · ${e.note}` : ''}
                     </span>
+                    <ValuationDisclosure provenance={netWorthEntryProvenance(e)} label="Net worth entry" compact />
                   </div>
                   <div className="tracker-entry-actions">
                     <button
@@ -1031,4 +1051,3 @@ export default function TrackerScreen() {
     </div>
   )
 }
-

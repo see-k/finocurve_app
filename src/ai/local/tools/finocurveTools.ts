@@ -66,6 +66,10 @@ export interface FinocurveToolContext {
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
+  const auditLine = (audit: import('../../types').FinancialAuditContext | undefined, label = 'Valuation audit') => {
+    if (!audit) return `${label}: unavailable (legacy or unsynced record)`
+    return `${label}: Source ${audit.source} · As of ${audit.asOf} · Method ${audit.valuationMethod} · Freshness ${audit.freshness}${audit.estimated ? ' · Estimated' : ''}`
+  }
   const getPortfolioSummary = tool(
     async () => {
       const portfolio = await ctx.getPortfolioContext()
@@ -78,7 +82,7 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
           ? topList
               .map(
                 (h) =>
-                  `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
+                  `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}\n  ${auditLine(h.valueAudit, 'Value audit')}`
               )
               .join('\n')
           : 'Top holdings not available in current context.'
@@ -90,9 +94,11 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
 Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
 Total gain/loss: ${portfolio.totalGainLossPercent.toFixed(1)}%
+${auditLine(portfolio.valuationAudit, 'Total value audit')}
 Asset count: ${portfolio.assetCount}
 Risk score: ${portfolio.riskScore ?? 'N/A'}
 Risk level: ${portfolio.riskLevel ?? 'N/A'}
+${auditLine(portfolio.riskAudit, 'Risk audit')}
 
 Top holdings (non-loan assets by value):
 ${topHoldingsBlock}${more}`
@@ -133,7 +139,9 @@ ${topHoldingsBlock}${more}`
         return (
           `${i + 1}. ${label}${pct}\n` +
           `   Type: ${h.type} · Category: ${h.category} · Value: $${h.value.toLocaleString()}\n` +
-          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}`
+          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}\n` +
+          `   ${auditLine(h.valueAudit, 'Value audit')}\n` +
+          `   ${auditLine(h.costBasisAudit, 'Cost basis audit')}`
         )
       })
       return `[Source: FinoCurve — all recorded holdings (non-loan assets)]\nPortfolio: ${portfolio.portfolioName}\nCount: ${list.length}\n\n${lines.join('\n\n')}`
@@ -160,9 +168,11 @@ ${topHoldingsBlock}${more}`
           `${i + 1}. ${l.name}`,
           l.loanType ? `   Type: ${l.loanType.replace(/_/g, ' ')}` : '',
           `   Outstanding balance: $${l.balance.toLocaleString()}`,
+          `   ${auditLine(l.balanceAudit, 'Balance audit')}`,
         ]
         if (l.principal != null && l.principal > 0) {
           bits.push(`   Original principal: $${l.principal.toLocaleString()}`)
+          bits.push(`   ${auditLine(l.principalAudit, 'Principal audit')}`)
         }
         if (l.interestRate != null) bits.push(`   Interest rate: ${l.interestRate}% APR`)
         if (l.monthlyPayment != null) bits.push(`   Monthly payment: $${l.monthlyPayment.toLocaleString()}`)
@@ -171,6 +181,7 @@ ${topHoldingsBlock}${more}`
         }
         if (l.termMonths != null) bits.push(`   Term: ${l.termMonths} months`)
         if (l.startDate) bits.push(`   Start date: ${l.startDate}`)
+        if (l.termsAudit) bits.push(`   ${auditLine(l.termsAudit, 'Loan terms audit')}`)
         return bits.filter(Boolean).join('\n')
       })
       return `[Source: FinoCurve — loans recorded in app]\nPortfolio: ${portfolio.portfolioName}\n\n${lines.join('\n\n')}`

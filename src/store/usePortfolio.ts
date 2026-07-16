@@ -9,13 +9,27 @@ import {
   loanPrincipal,
 } from '../types'
 import { currentRiskSnapshot } from '../lib/trackerGoalMetrics'
-
-const STORAGE_KEY = 'finocurve-portfolio'
+import {
+  getCoreDataItem,
+  PORTFOLIO_STORAGE_KEY,
+  removeCoreDataItem,
+  setCoreDataItem,
+} from '../lib/coreDataStorage'
+import {
+  aggregateAssetValueProvenance,
+  demoAssetProvenance,
+  deriveAssetValueProvenance,
+  deriveCalculatedProvenance,
+  getAssetCostBasisProvenance,
+  normalizePortfolioFinancialProvenance,
+  toFinancialAuditContext,
+  userEnteredAssetProvenance,
+} from '../lib/financialProvenance'
 
 function loadPortfolio(): Portfolio | null {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) return JSON.parse(stored)
+    const stored = getCoreDataItem(PORTFOLIO_STORAGE_KEY)
+    if (stored) return normalizePortfolioFinancialProvenance(JSON.parse(stored) as Portfolio)
   } catch { /* ignore */ }
   return null
 }
@@ -23,16 +37,16 @@ function loadPortfolio(): Portfolio | null {
 function savePortfolio(portfolio: Portfolio | null) {
   try {
     if (portfolio) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(portfolio))
+      setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(portfolio))
     } else {
-      localStorage.removeItem(STORAGE_KEY)
+      removeCoreDataItem(PORTFOLIO_STORAGE_KEY)
     }
   } catch { /* ignore */ }
 }
 
 function createDemoPortfolio(): Portfolio {
   const now = new Date().toISOString()
-  return {
+  const portfolio: Portfolio = {
     id: 'demo',
     name: 'Demo Portfolio',
     currency: 'USD',
@@ -87,6 +101,14 @@ function createDemoPortfolio(): Portfolio {
       },
     ],
   }
+  return {
+    ...portfolio,
+    financialProvenanceVersion: 1,
+    assets: portfolio.assets.map((asset) => ({
+      ...asset,
+      financialProvenance: demoAssetProvenance(asset, now),
+    })),
+  }
 }
 
 export function usePortfolio() {
@@ -106,6 +128,7 @@ export function usePortfolio() {
     const totalVal = portfolioTotalValue(portfolio)
     const totalCostVal = portfolioTotalCost(portfolio)
     const gainLossPct = totalCostVal > 0 ? ((totalVal - totalCostVal) / totalCostVal) * 100 : 0
+    const portfolioValuation = aggregateAssetValueProvenance(portfolio.assets)
     const nonLoanAssets = portfolio.assets?.filter((a) => a.category !== 'loan') ?? []
     const holdings = nonLoanAssets
       .map((a) => ({
@@ -118,6 +141,8 @@ export function usePortfolio() {
         quantity: a.quantity,
         costBasis: a.costBasis,
         currency: a.currency,
+        valueAudit: toFinancialAuditContext(deriveAssetValueProvenance(a)),
+        costBasisAudit: toFinancialAuditContext(getAssetCostBasisProvenance(a, portfolio.updatedAt)),
       }))
       .sort((a, b) => b.value - a.value)
     const topHoldings = holdings.slice(0, 10).map((h) => ({
@@ -125,6 +150,7 @@ export function usePortfolio() {
       name: h.name,
       value: h.value,
       percent: h.percent,
+      valueAudit: h.valueAudit,
     }))
     const loanAssets = portfolio.assets?.filter(isLoan) ?? []
     const loans = loanAssets.map((a) => ({
@@ -137,6 +163,11 @@ export function usePortfolio() {
       termMonths: a.loanTermMonths,
       startDate: a.loanStartDate,
       extraMonthlyPayment: a.extraMonthlyPayment,
+      balanceAudit: toFinancialAuditContext(deriveAssetValueProvenance(a)),
+      principalAudit: toFinancialAuditContext(getAssetCostBasisProvenance(a, portfolio.updatedAt)),
+      termsAudit: a.financialProvenance?.loanTerms
+        ? toFinancialAuditContext(a.financialProvenance.loanTerms)
+        : undefined,
     }))
     const { riskScore, riskLevel } = currentRiskSnapshot(portfolio)
     window.electronAPI.portfolioSync({
@@ -146,6 +177,10 @@ export function usePortfolio() {
       assetCount: portfolio.assets?.length ?? 0,
       riskScore,
       riskLevel,
+      valuationAudit: toFinancialAuditContext(portfolioValuation),
+      riskAudit: toFinancialAuditContext(
+        deriveCalculatedProvenance(portfolioValuation, 'FinoCurve risk engine', 'risk_model')
+      ),
       topHoldings,
       holdings,
       loans,
@@ -169,7 +204,16 @@ export function usePortfolio() {
   const addAsset = useCallback((asset: Asset) => {
     setPortfolioState(prev => {
       if (!prev) return prev
-      return { ...prev, assets: [...prev.assets, asset], updatedAt: new Date().toISOString() }
+      const now = new Date().toISOString()
+      const auditableAsset = asset.financialProvenance
+        ? asset
+        : { ...asset, financialProvenance: userEnteredAssetProvenance(asset, now) }
+      return {
+        ...prev,
+        assets: [...prev.assets, auditableAsset],
+        updatedAt: now,
+        financialProvenanceVersion: 1,
+      }
     })
   }, [])
 
@@ -197,7 +241,7 @@ export function usePortfolio() {
 
   const clearPortfolio = useCallback(() => {
     setPortfolioState(null)
-    localStorage.removeItem(STORAGE_KEY)
+    removeCoreDataItem(PORTFOLIO_STORAGE_KEY)
   }, [])
 
   const totalValue = useMemo(() => portfolio ? portfolioTotalValue(portfolio) : 0, [portfolio])

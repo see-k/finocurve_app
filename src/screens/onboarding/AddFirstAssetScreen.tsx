@@ -4,6 +4,9 @@ import { ArrowLeft, Search, PenLine, Landmark, Sparkles } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import GlassButton from '../../components/glass/GlassButton'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
+import type { Asset, Portfolio } from '../../types'
+import { demoAssetProvenance, normalizePortfolioFinancialProvenance } from '../../lib/financialProvenance'
 import './OnboardingScreen.css'
 
 const OPTIONS = [
@@ -38,7 +41,7 @@ export default function AddFirstAssetScreen() {
   const handleOption = (route: string) => {
     if (route === 'demo') {
       // Load demo portfolio via localStorage
-      const demoAssets = [
+      const demoAssets: Asset[] = [
         {
           id: '1', name: 'Apple Inc.', symbol: 'AAPL', type: 'stock', category: 'public',
           quantity: 50, costBasis: 7500, currentPrice: 227.63, currency: 'USD',
@@ -60,10 +63,16 @@ export default function AddFirstAssetScreen() {
           tags: [], sector: 'consumer_discretionary', country: 'US',
         },
       ]
-      const existing = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
-      existing.assets = demoAssets
-      existing.updatedAt = new Date().toISOString()
-      localStorage.setItem('finocurve-portfolio', JSON.stringify(existing))
+      const now = new Date().toISOString()
+      const existing = normalizePortfolioFinancialProvenance(
+        JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}') as Portfolio
+      )
+      existing.assets = demoAssets.map((asset) => ({
+        ...asset,
+        financialProvenance: demoAssetProvenance(asset, now),
+      }))
+      existing.updatedAt = now
+      setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(existing))
 
       const prefs = JSON.parse(localStorage.getItem('finocurve-preferences') || '{}')
       prefs.hasCompletedOnboarding = true

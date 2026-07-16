@@ -15,18 +15,25 @@ import {
 } from 'recharts'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import { usePortfolio } from '../../store/usePortfolio'
 import { getSharedDocumentInsights } from '../../store/useDocumentInsights'
 import { useRiskSnapshots, computeChangeSummary, snapshotToMinimalRisk } from '../../store/useRiskSnapshots'
 import { analyzePortfolio } from '../../services/riskAnalysis'
 import { generateRiskReportPdf } from '../../services/riskReportPdf'
 import WorldMap from '../../components/WorldMap'
-import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority, RiskSnapshot } from '../../types'
+import type { RiskAnalysisResult, Asset, ScenarioSeverity, SuggestionPriority, RiskSnapshot, FinancialValueProvenance } from '../../types'
 import {
   assetCurrentValue, SECTOR_LABELS, ASSET_TYPE_LABELS, isLoan,
 } from '../../types'
 import { RISK_LEVEL_META } from '../../constants/riskMeta'
 import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import {
+  aggregateAssetValueProvenance,
+  createFinancialProvenance,
+  deriveCalculatedProvenance,
+  toFinancialAuditContext,
+} from '../../lib/financialProvenance'
 import './DetailScreen.css'
 import './RiskAnalysisScreen.css'
 
@@ -45,6 +52,7 @@ interface LoadedAnalysis {
   countryAlloc: Record<string, number>
   typeAlloc: Record<string, number>
   advancedAnalysis?: { sections: { title: string; content: string }[] }
+  valuationProvenance?: FinancialValueProvenance
 }
 const RISK_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#64748b', '#84cc16']
@@ -348,6 +356,23 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
   const effectiveSectorAlloc = loadedAnalysis ? loadedAnalysis.sectorAlloc : sectorAlloc
   const effectiveCountryAlloc = loadedAnalysis ? loadedAnalysis.countryAlloc : countryAlloc
   const effectiveTypeAlloc = loadedAnalysis ? loadedAnalysis.typeAlloc : typeAlloc
+  const riskValuation = useMemo(() => {
+    if (loadedAnalysis?.valuationProvenance) return loadedAnalysis.valuationProvenance
+    if (loadedAnalysis) {
+      return createFinancialProvenance({
+        sourceKind: 'historical',
+        sourceName: loadedAnalysis.source === 'snapshot' ? 'FinoCurve risk snapshot' : 'Saved FinoCurve risk report',
+        valuationMethod: 'risk_model',
+        asOf: loadedAnalysis.generatedAt,
+        recordedAt: loadedAnalysis.generatedAt,
+      }, loadedAnalysis.generatedAt)
+    }
+    return deriveCalculatedProvenance(
+      aggregateAssetValueProvenance(effectiveInvestableAssets),
+      'FinoCurve risk engine',
+      'risk_model'
+    )
+  }, [effectiveInvestableAssets, loadedAnalysis])
   const effectiveCountryPct = useMemo(() => {
     const result: Record<string, number> = {}
     if (effectiveTotalValue > 0) {
@@ -371,6 +396,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         sectorAlloc: effectiveSectorAlloc, countryAlloc: effectiveCountryAlloc, typeAlloc: effectiveTypeAlloc,
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
+        valuationProvenance: riskValuation,
       })
     } finally {
       setGeneratingPdf(false)
@@ -389,6 +415,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         sectorAlloc: effectiveSectorAlloc, countryAlloc: effectiveCountryAlloc, typeAlloc: effectiveTypeAlloc,
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
+        valuationProvenance: riskValuation,
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
@@ -411,6 +438,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         countryAlloc: effectiveCountryAlloc,
         typeAlloc: effectiveTypeAlloc,
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
+        valuationProvenance: riskValuation,
       }
       const jsonKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.json`
       await window.electronAPI.s3Upload({
@@ -439,6 +467,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         sectorAlloc: effectiveSectorAlloc, countryAlloc: effectiveCountryAlloc, typeAlloc: effectiveTypeAlloc,
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
+        valuationProvenance: riskValuation,
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
@@ -460,6 +489,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         countryAlloc: effectiveCountryAlloc,
         typeAlloc: effectiveTypeAlloc,
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
+        valuationProvenance: riskValuation,
       }
       const jsonKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.json`
       await window.electronAPI.localStorageSaveFile({
@@ -507,7 +537,8 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
       ? advancedAnalysisDocs.find((d) => d.key === advancedAnalysisSelectedDoc)
       : undefined
     const riskSummary = `Risk Score: ${effectiveRisk.riskScore} (${effectiveRisk.riskLevel}). Sharpe: ${effectiveRisk.sharpeRatio}. Volatility: ${effectiveRisk.annualizedVolatility}%. Max Drawdown: ${effectiveRisk.maxDrawdownPercent}%. Diversification: ${effectiveRisk.diversificationScore}. Liquidity: ${effectiveRisk.liquidityScore}. Top contributors: ${effectiveRisk.topRiskContributors.slice(0, 3).map((c) => `${c.assetName} ${c.riskContribution}%`).join(', ')}. Rebalancing: ${effectiveRisk.rebalancingSuggestions.slice(0, 2).map((s) => `${s.action} ${s.assetType}`).join('; ')}.`
-    const portfolioSummary = `Portfolio: ${loadedAnalysis?.portfolioName ?? portfolio?.name ?? 'Portfolio'}, $${effectiveTotalValue.toLocaleString()}, ${effectiveInvestableAssets.length} holdings. Gain/Loss: ${effectiveGainLossPercent.toFixed(1)}%. Assets: ${effectiveInvestableAssets.slice(0, 5).map((a) => `${a.name} (${a.type})`).join(', ')}.`
+    const valuationAudit = toFinancialAuditContext(riskValuation)
+    const portfolioSummary = `Portfolio: ${loadedAnalysis?.portfolioName ?? portfolio?.name ?? 'Portfolio'}, $${effectiveTotalValue.toLocaleString()}, ${effectiveInvestableAssets.length} holdings. Gain/Loss: ${effectiveGainLossPercent.toFixed(1)}%. Assets: ${effectiveInvestableAssets.slice(0, 5).map((a) => `${a.name} (${a.type})`).join(', ')}. Valuation source: ${valuationAudit.source}; as of ${valuationAudit.asOf}; method: ${valuationAudit.valuationMethod}; freshness: ${valuationAudit.freshness}${valuationAudit.estimated ? '; estimated' : ''}.`
     try {
       const result = await window.electronAPI.aiGenerateAdvancedAnalysis({
         riskSummary,
@@ -530,7 +561,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
       setAdvancedAnalysisProgress(100)
       setAdvancedAnalysisRunning(false)
     }
-  }, [effectiveRisk, loadedAnalysis, portfolio, effectiveTotalValue, effectiveGainLossPercent, effectiveInvestableAssets, advancedAnalysisSelectedDoc, advancedAnalysisDocs])
+  }, [effectiveRisk, loadedAnalysis, portfolio, effectiveTotalValue, effectiveGainLossPercent, effectiveInvestableAssets, advancedAnalysisSelectedDoc, advancedAnalysisDocs, riskValuation])
 
   if (!effectiveRisk) {
     return (
@@ -767,6 +798,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
             </div>
           </div>
         </GlassContainer>
+        <ValuationDisclosure provenance={riskValuation} label="Risk analysis inputs" />
 
         {/* Tabs */}
         <div className="risk-tabs">

@@ -22,9 +22,20 @@ import {
 } from '../../components/TradingViewWidgets'
 import { useWatchlist } from '../../store/useWatchlist'
 import MarketsDashboard from './MarketsDashboard'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
+import type { FinancialValueProvenance } from '../../types'
 import './MarketsScreen.css'
 
 const MARKETS_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
+
+const SAMPLE_MARKET_PROVENANCE: FinancialValueProvenance = {
+  sourceKind: 'demo',
+  sourceName: 'FinoCurve sample market data',
+  asOf: 'unknown',
+  recordedAt: 'unknown',
+  valuationMethod: 'illustrative_simulation',
+  isEstimated: true,
+}
 
 interface MarketItem {
   symbol: string; name: string; price: number; change: number; changePct: number; type: string
@@ -203,6 +214,10 @@ export default function MarketsScreen() {
           </button>
         ))}
       </div>
+
+      {(tab === 'dashboard' || tab === 'watchlist' || tab === 'crypto') && (
+        <ValuationDisclosure provenance={SAMPLE_MARKET_PROVENANCE} label="Displayed market list" compact />
+      )}
 
       {tab === 'dashboard' && (
         <MarketsDashboard

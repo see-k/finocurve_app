@@ -3,7 +3,7 @@
  * Only available in Electron; falls back to null in browser.
  */
 import { useState, useEffect, useCallback } from 'react'
-import type { Asset } from '../types'
+import type { Asset, FinancialValueProvenance } from '../types'
 import { assetCurrentValue, isLoan } from '../types'
 import type { PerformancePeriod } from '../types'
 
@@ -14,15 +14,22 @@ export function useHistoricalPrices(
   period: PerformancePeriod,
   totalValue: number,
   enabled: boolean
-): { data: { date: string; value: number }[]; loading: boolean; error: string | null } {
+): {
+  data: { date: string; value: number }[]
+  provenance: FinancialValueProvenance | null
+  loading: boolean
+  error: string | null
+} {
   const [data, setData] = useState<{ date: string; value: number }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [provenance, setProvenance] = useState<FinancialValueProvenance | null>(null)
 
   const fetchData = useCallback(async () => {
     const api = typeof window !== 'undefined' ? window.electronAPI?.priceHistorical : undefined
     if (!api || !enabled || assets.length === 0) {
       setData([])
+      setProvenance(null)
       return
     }
 
@@ -40,6 +47,7 @@ export function useHistoricalPrices(
 
     if (tickerAssets.length === 0) {
       setData([])
+      setProvenance(null)
       return
     }
 
@@ -60,12 +68,15 @@ export function useHistoricalPrices(
       if (result.error) {
         setError(result.error)
         setData([])
+        setProvenance(null)
       } else {
         setData(result.data || [])
+        setProvenance(result.provenance ?? null)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setData([])
+      setProvenance(null)
     } finally {
       setLoading(false)
     }
@@ -75,5 +86,5 @@ export function useHistoricalPrices(
     fetchData()
   }, [fetchData])
 
-  return { data, loading, error }
+  return { data, provenance, loading, error }
 }

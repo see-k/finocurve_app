@@ -1,9 +1,10 @@
 import type { UserPreferences } from '../types'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY } from './coreDataStorage'
 
 /** Portfolio JSON saved under finocurve-portfolio — used to infer returning users. */
 export function hasPersistedPortfolio(): boolean {
   try {
-    const raw = localStorage.getItem('finocurve-portfolio')
+    const raw = getCoreDataItem(PORTFOLIO_STORAGE_KEY)
     if (!raw) return false
     const p = JSON.parse(raw) as { id?: unknown; name?: unknown; assets?: unknown }
     return (
