@@ -67,7 +67,7 @@
     "@langchain/openai": "^1.4.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@vnedyalk0v/react19-simple-maps": "^2.0.7",
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "^12.11.1",
     "country-list": "^2.4.1",
     "html-to-text": "^10.0.0",
     "html2canvas": "^1.4.1",
@@ -96,8 +96,8 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.10",
     "cross-env": "^10.1.0",
-    "electron": "^41.5.0",
-    "electron-builder": "^26.9.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.0",
     "png-to-ico": "^3.0.1",
     "release-it": "^20.0.1",
@@ -111,6 +111,7 @@
     "@xmldom/xmldom": "0.8.12",
     "lodash": "4.18.1",
     "path-to-regexp": "8.4.2",
+    "node-abi": "^4.33.0",
     "cosmiconfig": {
       "yaml": "1.10.3"
     }
