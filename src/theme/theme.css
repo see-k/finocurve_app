@@ -49,6 +49,9 @@
 
   /* Typography */
   --font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  /* Overridden per-theme (e.g. Neqtex) to swap headings to a serif face */
+  --font-heading: var(--font-family);
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.875rem;
@@ -59,6 +62,11 @@
   --leading-tight: 1.2;
   --leading-snug: 1.35;
   --leading-normal: 1.5;
+}
+
+/* Headings pick up --font-heading, which only Neqtex themes override */
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
 }
 
 /* ============================================
@@ -325,6 +333,62 @@
 }
 
 /* ============================================
+   DARK: Neqtex Noir (client theme — restrained luxury / private bank)
+   Ported from neqtex.com; serif headings via --font-heading
+   ============================================ */
+[data-theme="dark-neqtex"] {
+  --brand-primary: #c8a96a;
+  --brand-secondary: #8a6a3f;
+  --primary: #c8a96a;
+  --primary-hover: #a9822f;
+  --primary-alpha-20: rgba(200, 169, 106, 0.2);
+  --primary-alpha-40: rgba(200, 169, 106, 0.4);
+  --primary-alpha-90: rgba(200, 169, 106, 0.9);
+  --primary-hover-alpha-85: rgba(169, 130, 47, 0.85);
+  --brand-primary-r: 200;
+  --brand-primary-g: 169;
+  --brand-primary-b: 106;
+  --brand-secondary-r: 138;
+  --brand-secondary-g: 106;
+  --brand-secondary-b: 63;
+
+  --font-heading: var(--font-serif);
+
+  --bg: #070807;
+  --bg-primary: #070807;
+  --surface: #0f1110;
+  --surface-light: #151816;
+
+  --text-primary: #f4f0e8;
+  --text-secondary: #b9b2a7;
+  --text-tertiary: rgba(244, 240, 232, 0.42);
+
+  --glass-bg: rgba(244, 240, 232, 0.05);
+  --glass-bg-hover: rgba(244, 240, 232, 0.09);
+  --glass-bg-strong: rgba(244, 240, 232, 0.08);
+  --glass-border: rgba(200, 169, 106, 0.16);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.6);
+  --divider: rgba(244, 240, 232, 0.1);
+
+  --nav-bg: rgba(7, 8, 7, 0.94);
+  --nav-border: rgba(200, 169, 106, 0.14);
+
+  --input-bg: rgba(244, 240, 232, 0.04);
+  --input-border: rgba(200, 169, 106, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(244, 240, 232, 0.06);
+  --chart-tooltip-bg: #151816;
+
+  --screen-overlay-soft: rgba(7, 8, 7, 0.4);
+  --screen-overlay-md: rgba(7, 8, 7, 0.52);
+  --screen-overlay-strong: rgba(7, 8, 7, 0.7);
+  --screen-overlay-deep: rgba(7, 8, 7, 0.9);
+}
+
+/* ============================================
    LIGHT
    ============================================ */
 [data-theme="light"] {
@@ -398,6 +462,62 @@
   --screen-overlay-md: rgba(255, 252, 247, 0.62);
   --screen-overlay-strong: rgba(245, 241, 235, 0.82);
   --screen-overlay-deep: rgba(245, 241, 235, 0.94);
+}
+
+/* ============================================
+   LIGHT: Neqtex Ivory (client theme — light counterpart to Neqtex Noir)
+   Gold deepened for contrast on a light surface; serif headings via --font-heading
+   ============================================ */
+[data-theme="light-neqtex"] {
+  --brand-primary: #9c7a3d;
+  --brand-secondary: #75592c;
+  --primary: #9c7a3d;
+  --primary-hover: #7d612f;
+  --primary-alpha-20: rgba(156, 122, 61, 0.2);
+  --primary-alpha-40: rgba(156, 122, 61, 0.4);
+  --primary-alpha-90: rgba(156, 122, 61, 0.9);
+  --primary-hover-alpha-85: rgba(125, 97, 47, 0.85);
+  --brand-primary-r: 156;
+  --brand-primary-g: 122;
+  --brand-primary-b: 61;
+  --brand-secondary-r: 117;
+  --brand-secondary-g: 89;
+  --brand-secondary-b: 44;
+
+  --font-heading: var(--font-serif);
+
+  --bg: #f8f5ee;
+  --bg-primary: #f8f5ee;
+  --surface: #ffffff;
+  --surface-light: #fbf8f2;
+
+  --text-primary: #201c14;
+  --text-secondary: #6b6153;
+  --text-tertiary: rgba(32, 28, 20, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(156, 122, 61, 0.18);
+  --glass-shadow: rgba(32, 28, 20, 0.1);
+
+  --overlay: rgba(32, 28, 20, 0.28);
+  --divider: rgba(156, 122, 61, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(156, 122, 61, 0.14);
+
+  --input-bg: rgba(156, 122, 61, 0.06);
+  --input-border: rgba(156, 122, 61, 0.22);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(156, 122, 61, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(248, 245, 238, 0.45);
+  --screen-overlay-md: rgba(248, 245, 238, 0.58);
+  --screen-overlay-strong: rgba(248, 245, 238, 0.8);
+  --screen-overlay-deep: rgba(248, 245, 238, 0.94);
 }
 
 /* ============================================
