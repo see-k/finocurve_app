@@ -50,6 +50,13 @@ interface SmartRoutingStatus extends SmartRoutingUpdate {
   conversationId: string
 }
 
+interface RouterPresentation {
+  showProvider: boolean
+  verbose: boolean
+  providerLabel: string
+  model: string
+}
+
 function findMentionDraft(value: string, caret: number): MentionDraft | null {
   const beforeCaret = value.slice(0, caret)
   const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret)
@@ -70,6 +77,17 @@ function containsMention(value: string, name: string): boolean {
     `(^|\\s)@${escapeMentionPattern(name)}(?=$|[\\s,.;:!?])`,
     'i',
   ).test(value)
+}
+
+function getRouterProviderLabel(provider: 'ollama' | 'bedrock' | 'azure', model: string): string {
+  if (provider === 'ollama') return 'Ollama'
+  if (provider === 'azure') return 'Azure OpenAI'
+  if (/anthropic|claude/i.test(model)) return 'Anthropic via Bedrock'
+  if (/meta|llama/i.test(model)) return 'Meta via Bedrock'
+  if (/mistral/i.test(model)) return 'Mistral via Bedrock'
+  if (/cohere|command/i.test(model)) return 'Cohere via Bedrock'
+  if (/amazon|nova|titan/i.test(model)) return 'Amazon Bedrock'
+  return 'AWS Bedrock'
 }
 
 export default function ChatsScreen() {
@@ -95,6 +113,12 @@ export default function ChatsScreen() {
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
   const [smartRoutingStatus, setSmartRoutingStatus] = useState<SmartRoutingStatus | null>(null)
+  const [routerPresentation, setRouterPresentation] = useState<RouterPresentation>({
+    showProvider: false,
+    verbose: false,
+    providerLabel: '',
+    model: '',
+  })
   const [mentionDraft, setMentionDraft] = useState<MentionDraft | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const streamingAgentIdRef = useRef<string | null>(null)
@@ -116,6 +140,28 @@ export default function ChatsScreen() {
       setSearchParams({ tab: 'chats', conversationId: selected.id }, { replace: true })
     }
   }, [selected, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const getConfig = window.electronAPI?.aiConfigGet
+    if (!getConfig) return
+    let current = true
+    void getConfig().then((config) => {
+      if (!current) return
+      const provider = config.routerProvider === 'ollama' ? 'ollama' : config.provider
+      const model = config.routerProvider === 'ollama'
+        ? (config.routerModel || 'llama3.2')
+        : config.model
+      setRouterPresentation({
+        showProvider: config.routerShowProvider ?? false,
+        verbose: config.routerVerbose ?? false,
+        providerLabel: getRouterProviderLabel(provider, model),
+        model,
+      })
+    }).catch(() => {
+      // Display preferences are optional; routing itself remains available.
+    })
+    return () => { current = false }
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' })
@@ -303,6 +349,7 @@ export default function ChatsScreen() {
           signal: controller.signal,
           baseContext,
           smartRouting: selected.smartRoutingEnabled === true,
+          includeRoutingRationale: routerPresentation.verbose,
           onSmartRoutingUpdate: (update) => {
             setSmartRoutingStatus({ ...update, conversationId: selected.id })
           },
@@ -628,12 +675,27 @@ export default function ChatsScreen() {
                     {message.role === 'user' &&
                       index === latestUserMessageIndex &&
                       smartRoutingStatus?.conversationId === selected.id && (
-                        <div className="chats-screen__routing-status" role="status" aria-live="polite">
+                        <div
+                          className={`chats-screen__routing-status ${routerPresentation.verbose && smartRoutingStatus.rationale ? 'chats-screen__routing-status--verbose' : ''}`}
+                          role="status"
+                          aria-live="polite"
+                        >
                           <span className="chats-screen__routing-status-icon"><Sparkles size={13} /></span>
                           <span className="chats-screen__routing-status-copy">
-                            <strong>
-                              {smartRoutingStatus.phase === 'selecting' ? 'Smart routing' : 'Response priority'}
-                            </strong>
+                            <span className="chats-screen__routing-status-heading">
+                              <strong>
+                                {smartRoutingStatus.phase === 'selecting' ? 'Smart routing' : 'Response priority'}
+                              </strong>
+                              {routerPresentation.showProvider && routerPresentation.providerLabel && (
+                                <span
+                                  className="chats-screen__routing-provider"
+                                  title={`${routerPresentation.providerLabel} · ${routerPresentation.model}`}
+                                >
+                                  <b>{routerPresentation.providerLabel}</b>
+                                  <em>{routerPresentation.model}</em>
+                                </span>
+                              )}
+                            </span>
                             <small>
                               {smartRoutingStatus.phase === 'selecting'
                                 ? 'Matching this prompt to the right advisors'
@@ -642,6 +704,13 @@ export default function ChatsScreen() {
                                     .filter(Boolean)
                                     .join(' → ')}
                             </small>
+                            {routerPresentation.verbose &&
+                              smartRoutingStatus.phase === 'selected' &&
+                              smartRoutingStatus.rationale && (
+                                <span className="chats-screen__routing-verbose">
+                                  {smartRoutingStatus.rationale}
+                                </span>
+                              )}
                           </span>
                           {smartRoutingStatus.phase === 'selecting' && (
                             <span className="chats-screen__routing-pulse" aria-hidden="true"><i /><i /><i /></span>

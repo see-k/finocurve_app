@@ -22,6 +22,8 @@ export interface StoredAIConfig {
   routerProvider?: 'default' | 'ollama'
   routerModel?: string
   routerOllamaBaseUrl?: string
+  routerShowProvider?: boolean
+  routerVerbose?: boolean
   a2aEnabled: boolean
   a2aPort?: number
   a2aAutoStart?: boolean
@@ -36,6 +38,8 @@ const DEFAULT_CONFIG: StoredAIConfig = {
   routerProvider: 'default',
   routerModel: 'llama3.2',
   routerOllamaBaseUrl: 'http://localhost:11434',
+  routerShowProvider: false,
+  routerVerbose: false,
   a2aEnabled: false,
   a2aPort: 3847,
   a2aAutoStart: false,

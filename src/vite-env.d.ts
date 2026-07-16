@@ -22,6 +22,8 @@ interface AIConfigFromMain {
   routerProvider?: 'default' | 'ollama'
   routerModel?: string
   routerOllamaBaseUrl?: string
+  routerShowProvider?: boolean
+  routerVerbose?: boolean
   a2aEnabled: boolean
 }
 

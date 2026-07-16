@@ -55,6 +55,8 @@ export default function AIConfigScreen() {
   const [routerModelsLoading, setRouterModelsLoading] = useState(false)
   const [routerConnectionStatus, setRouterConnectionStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [routerConnectionTesting, setRouterConnectionTesting] = useState(false)
+  const [routerShowProvider, setRouterShowProvider] = useState(false)
+  const [routerVerbose, setRouterVerbose] = useState(false)
 
   // A2A state
   const [a2aStatus, setA2aStatus] = useState<A2AServerStatus | null>(null)
@@ -95,6 +97,8 @@ export default function AIConfigScreen() {
         setRouterProvider(config.routerProvider || 'default')
         setRouterModel(config.routerModel || 'llama3.2')
         setRouterOllamaBaseUrl(config.routerOllamaBaseUrl || 'http://localhost:11434')
+        setRouterShowProvider(config.routerShowProvider ?? false)
+        setRouterVerbose(config.routerVerbose ?? false)
       }).catch(() => setError('Failed to load config'))
         .finally(() => setLoading(false))
     } else {
@@ -290,6 +294,8 @@ export default function AIConfigScreen() {
         routerProvider,
         routerModel: routerModel.trim() || 'llama3.2',
         routerOllamaBaseUrl: routerOllamaBaseUrl.trim() || 'http://localhost:11434',
+        routerShowProvider,
+        routerVerbose,
         a2aEnabled: a2aStatus?.running ?? false,
       })
       navigate(-1)
@@ -457,7 +463,7 @@ export default function AIConfigScreen() {
       <div className="settings-sub">
         <div className="settings-sub-bg settings-sub-bg--1" />
         <div className="settings-sub-bg settings-sub-bg--2" />
-        <div className={`settings-sub-content ${visible ? 'settings-sub-content--visible' : ''}`}>
+        <div className={`settings-sub-content settings-sub-content--ai ${visible ? 'settings-sub-content--visible' : ''}`}>
           <div className="settings-sub-header">
             <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
             <h1 className="settings-sub-title">AI Model Configuration</h1>
@@ -476,7 +482,7 @@ export default function AIConfigScreen() {
     <div className="settings-sub">
       <div className="settings-sub-bg settings-sub-bg--1" />
       <div className="settings-sub-bg settings-sub-bg--2" />
-      <div className={`settings-sub-content ${visible ? 'settings-sub-content--visible' : ''}`}>
+      <div className={`settings-sub-content settings-sub-content--ai ${visible ? 'settings-sub-content--visible' : ''}`}>
         <div className="settings-sub-header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <h1 className="settings-sub-title">AI Model Configuration</h1>
@@ -798,6 +804,45 @@ export default function AIConfigScreen() {
                   </div>
                 </div>
               )}
+
+              <div className="router-display-options">
+                <div className="router-display-options__heading">
+                  <strong>Routing display</strong>
+                  <small>Optional details shown only while a prompt is being routed</small>
+                </div>
+                <div className="router-display-options__row">
+                  <span>
+                    <strong>Show model provider</strong>
+                    <small>Display Ollama, Anthropic via Bedrock, or Azure alongside the routing status.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`settings-toggle ${routerShowProvider ? 'settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={routerShowProvider}
+                    aria-label="Show router model provider"
+                    onClick={() => setRouterShowProvider((current) => !current)}
+                  >
+                    <span className="settings-toggle__thumb" />
+                  </button>
+                </div>
+                <div className="router-display-options__row">
+                  <span>
+                    <strong>Verbose routing notes</strong>
+                    <small>Quietly show the router’s concise rationale for its advisor selection.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`settings-toggle ${routerVerbose ? 'settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={routerVerbose}
+                    aria-label="Show verbose router notes"
+                    onClick={() => setRouterVerbose((current) => !current)}
+                  >
+                    <span className="settings-toggle__thumb" />
+                  </button>
+                </div>
+              </div>
 
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 18, lineHeight: 1.55 }}>
                 One routing inference is added for each general group prompt while Smart routing is enabled. Direct @mentions and @everyone bypass the router.

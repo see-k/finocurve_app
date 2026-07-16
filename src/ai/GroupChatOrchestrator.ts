@@ -24,6 +24,8 @@ export interface RunGroupTurnOptions {
   baseContext?: Record<string, unknown>
   /** Uses a hidden model pass to choose responders and their order for non-mentioned turns. */
   smartRouting?: boolean
+  /** Requests a short, user-displayable selection rationale from the router. */
+  includeRoutingRationale?: boolean
   /** Reports the hidden routing pass without exposing its model output in the transcript. */
   onSmartRoutingUpdate?: (update: SmartRoutingUpdate) => void
 }
@@ -38,6 +40,8 @@ export interface SmartRoutingUpdate {
   phase: 'selecting' | 'selected'
   agentIds: string[]
   fallback?: boolean
+  /** Concise model-authored selection rationale; never hidden chain-of-thought. */
+  rationale?: string
 }
 
 function escapeRegExp(value: string): string {
@@ -124,19 +128,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+export interface SmartRoutingDecision {
+  agentIds: string[]
+  rationale?: string
+}
+
 /** Parses and validates the router's JSON against the agents actually in the room. */
-export function parseSmartRoutingResponse(raw: string, agents: Agent[]): string[] {
+export function parseSmartRoutingDecision(raw: string, agents: Agent[]): SmartRoutingDecision {
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
-  if (start < 0 || end <= start) return []
+  if (start < 0 || end <= start) return { agentIds: [] }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(raw.slice(start, end + 1))
   } catch {
-    return []
+    return { agentIds: [] }
   }
-  if (!isRecord(parsed)) return []
+  if (!isRecord(parsed)) return { agentIds: [] }
 
   let selections: unknown[] = []
   if (Array.isArray(parsed.routes)) {
@@ -153,7 +162,9 @@ export function parseSmartRoutingResponse(raw: string, agents: Agent[]): string[
 
   const idByLowercaseId = new Map(agents.map((agent) => [agent.id.toLocaleLowerCase(), agent.id]))
   const idByLowercaseName = new Map(agents.map((agent) => [agent.name.trim().toLocaleLowerCase(), agent.id]))
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]))
   const selected: string[] = []
+  const routeReasons: string[] = []
 
   for (const selection of selections) {
     const candidate = typeof selection === 'string'
@@ -167,10 +178,22 @@ export function parseSmartRoutingResponse(raw: string, agents: Agent[]): string[
         : ''
     const normalized = candidate.trim().toLocaleLowerCase()
     const agentId = idByLowercaseId.get(normalized) ?? idByLowercaseName.get(normalized)
-    if (agentId && !selected.includes(agentId)) selected.push(agentId)
+    if (agentId && !selected.includes(agentId)) {
+      selected.push(agentId)
+      if (isRecord(selection) && typeof selection.reason === 'string' && selection.reason.trim()) {
+        routeReasons.push(`${agentById.get(agentId)?.name ?? agentId}: ${selection.reason.trim()}`)
+      }
+    }
   }
 
-  return selected
+  const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : ''
+  const rationale = (summary || routeReasons.join(' ')).replace(/\s+/g, ' ').slice(0, 600)
+  return { agentIds: selected, ...(rationale ? { rationale } : {}) }
+}
+
+/** Backward-compatible ID-only parser used by routing tests and callers. */
+export function parseSmartRoutingResponse(raw: string, agents: Agent[]): string[] {
+  return parseSmartRoutingDecision(raw, agents).agentIds
 }
 
 const ROUTING_STOP_WORDS = new Set([
@@ -213,6 +236,7 @@ function buildSmartRoutingRequest(
   conversation: Conversation,
   agents: Agent[],
   userMessage: ConversationMessage,
+  includeRationale: boolean,
 ): string {
   const candidates = agents.map((agent) => ({
     id: agent.id,
@@ -231,7 +255,12 @@ function buildSmartRoutingRequest(
     'Normally choose one advisor. Choose two or three only when distinct expertise will materially improve the answer. Choose more only when the prompt truly requires the entire room.',
     'The first route leads; later routes should complement or challenge the earlier response. Do not route based on turn-taking fairness.',
     'Use exact candidate IDs. Do not include advisors who should not respond.',
-    'Required JSON schema: {"routes":[{"agentId":"exact-id","priority":1}]}',
+    ...(includeRationale
+      ? [
+          'Give a concise selection summary, not hidden reasoning or a step-by-step analysis.',
+          'Required JSON schema: {"summary":"brief selection rationale","routes":[{"agentId":"exact-id","priority":1,"reason":"brief expertise match"}]}',
+        ]
+      : ['Required JSON schema: {"routes":[{"agentId":"exact-id","priority":1}]}']),
     `Latest user prompt: ${JSON.stringify(userMessage.content)}`,
     `Recent conversation context: ${JSON.stringify(recentContext)}`,
     `Candidate advisors: ${JSON.stringify(candidates)}`,
@@ -244,22 +273,27 @@ async function createSmartResponderPlan(
   userMessage: ConversationMessage,
   fallbackPlan: GroupResponderPlan,
   signal?: AbortSignal,
-): Promise<{ plan: GroupResponderPlan; fallback: boolean } | null> {
+  includeRationale = false,
+): Promise<{ plan: GroupResponderPlan; fallback: boolean; rationale?: string } | null> {
   const streamChat = window.electronAPI?.aiChatStream
   if (!streamChat || signal?.aborted) return null
 
   try {
     const response = await streamChat({
-      messages: [{ role: 'user', content: buildSmartRoutingRequest(conversation, agents, userMessage) }],
+      messages: [{
+        role: 'user',
+        content: buildSmartRoutingRequest(conversation, agents, userMessage, includeRationale),
+      }],
       context: { backgroundTask: 'group-routing' },
     })
     if (response.aborted || signal?.aborted) return null
 
-    const routedAgentIds = parseSmartRoutingResponse(response.text, agents)
-    if (routedAgentIds.length > 0) {
+    const decision = parseSmartRoutingDecision(response.text, agents)
+    if (decision.agentIds.length > 0) {
       return {
-        plan: { agentIds: routedAgentIds, directlyAddressed: false, source: 'smart' },
+        plan: { agentIds: decision.agentIds, directlyAddressed: false, source: 'smart' },
         fallback: false,
+        rationale: includeRationale ? decision.rationale : undefined,
       }
     }
   } catch {
@@ -274,6 +308,11 @@ async function createSmartResponderPlan(
       source: 'smart',
     },
     fallback: true,
+    rationale: includeRationale
+      ? relevantAgentIds.length > 0
+        ? 'Selected the strongest expertise matches for this prompt.'
+        : 'No single specialty dominated, so the room will contribute in a fresh order.'
+      : undefined,
   }
 }
 
@@ -308,6 +347,7 @@ export async function* runGroupTurn(
       userMessage,
       responderPlan,
       options.signal,
+      options.includeRoutingRationale,
     )
     if (!routed) return
     responderPlan = routed.plan
@@ -315,6 +355,7 @@ export async function* runGroupTurn(
       phase: 'selected',
       agentIds: responderPlan.agentIds,
       fallback: routed.fallback,
+      rationale: routed.rationale,
     })
   }
   const participantNames = conversation.participantAgentIds
