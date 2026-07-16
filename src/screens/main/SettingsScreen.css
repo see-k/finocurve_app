@@ -125,11 +125,17 @@
 .settings-theme-card__swatch--dark-cyan {
   background: linear-gradient(135deg, #030708 42%, #22d3ee 42%, #22d3ee 58%, #0a1012 58%);
 }
+.settings-theme-card__swatch--dark-neqtex {
+  background: linear-gradient(135deg, #070807 42%, #c8a96a 42%, #c8a96a 58%, #151816 58%);
+}
 .settings-theme-card__swatch--light {
   background: linear-gradient(135deg, #e8e8ee 48%, #ffffff 48%);
 }
 .settings-theme-card__swatch--light-warm {
   background: linear-gradient(135deg, #ebe4db 48%, #fffdf9 48%);
+}
+.settings-theme-card__swatch--light-neqtex {
+  background: linear-gradient(135deg, #f8f5ee 40%, #9c7a3d 40%, #9c7a3d 55%, #ffffff 55%);
 }
 .settings-theme-card__label {
   font-size: 14px;

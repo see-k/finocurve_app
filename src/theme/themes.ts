@@ -9,8 +9,10 @@ export type AppThemeId =
   | 'dark-royal'
   | 'dark-executive'
   | 'dark-cyan'
+  | 'dark-neqtex'
   | 'light'
   | 'light-warm'
+  | 'light-neqtex'
 
 export const THEME_IDS: AppThemeId[] = [
   'dark-graphite',
@@ -19,8 +21,10 @@ export const THEME_IDS: AppThemeId[] = [
   'dark-royal',
   'dark-executive',
   'dark-cyan',
+  'dark-neqtex',
   'light',
   'light-warm',
+  'light-neqtex',
 ]
 
 export function isAppThemeId(value: string): value is AppThemeId {
@@ -55,10 +59,14 @@ export function tradingViewBackgroundColor(id: AppThemeId): string {
       return '#050505'
     case 'dark-cyan':
       return '#030708'
+    case 'dark-neqtex':
+      return '#070807'
     case 'light':
       return '#f4f4f8'
     case 'light-warm':
       return '#f5f1eb'
+    case 'light-neqtex':
+      return '#f8f5ee'
     default:
       return '#0a0a0c'
   }
@@ -71,6 +79,8 @@ export const THEME_OPTIONS: { id: AppThemeId; label: string; subtitle: string }[
   { id: 'dark-royal', label: 'Royal', subtitle: 'Classic purple night' },
   { id: 'dark-executive', label: 'Executive', subtitle: 'Black & gold' },
   { id: 'dark-cyan', label: 'Developer', subtitle: 'Black & cyan' },
+  { id: 'dark-neqtex', label: 'Neqtex', subtitle: 'Noir & gold (client)' },
   { id: 'light', label: 'Light', subtitle: 'Clean & bright' },
   { id: 'light-warm', label: 'Parchment', subtitle: 'Warm paper' },
+  { id: 'light-neqtex', label: 'Neqtex', subtitle: 'Ivory & gold (client)' },
 ]
