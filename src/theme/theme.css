@@ -452,6 +452,118 @@ h1, h2, h3, h4 {
 }
 
 /* ============================================
+   DARK: Sapphire (corporate blue — enterprise)
+   ============================================ */
+[data-theme="dark-sapphire"] {
+  --brand-primary: #3b82f6;
+  --brand-secondary: #2563eb;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-alpha-20: rgba(59, 130, 246, 0.22);
+  --primary-alpha-40: rgba(59, 130, 246, 0.48);
+  --primary-alpha-90: rgba(59, 130, 246, 0.92);
+  --primary-hover-alpha-85: rgba(37, 99, 235, 0.88);
+  --brand-primary-r: 59;
+  --brand-primary-g: 130;
+  --brand-primary-b: 246;
+  --brand-secondary-r: 37;
+  --brand-secondary-g: 99;
+  --brand-secondary-b: 235;
+
+  --bg: #070c16;
+  --bg-primary: #070c16;
+  --surface: #0e1626;
+  --surface-light: #172236;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(241, 245, 249, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(59, 130, 246, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(96, 165, 250, 0.15);
+  --glass-shadow: rgba(0, 0, 0, 0.42);
+
+  --overlay: rgba(0, 0, 0, 0.56);
+  --divider: rgba(148, 163, 184, 0.1);
+
+  --nav-bg: rgba(7, 12, 22, 0.94);
+  --nav-border: rgba(96, 165, 250, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(96, 165, 250, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(96, 165, 250, 0.07);
+  --chart-tooltip-bg: #0e1626;
+
+  --screen-overlay-soft: rgba(5, 9, 18, 0.4);
+  --screen-overlay-md: rgba(5, 10, 20, 0.52);
+  --screen-overlay-strong: rgba(4, 9, 18, 0.68);
+  --screen-overlay-deep: rgba(3, 6, 14, 0.9);
+
+  --ent-rim: rgba(96, 165, 250, 0.1);
+  --ent-glow: rgba(59, 130, 246, 0.09);
+}
+
+/* ============================================
+   DARK: Evergreen (deep emerald — enterprise / wealth)
+   ============================================ */
+[data-theme="dark-evergreen"] {
+  --brand-primary: #10b981;
+  --brand-secondary: #059669;
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-alpha-20: rgba(16, 185, 129, 0.22);
+  --primary-alpha-40: rgba(16, 185, 129, 0.48);
+  --primary-alpha-90: rgba(16, 185, 129, 0.92);
+  --primary-hover-alpha-85: rgba(5, 150, 105, 0.88);
+  --brand-primary-r: 16;
+  --brand-primary-g: 185;
+  --brand-primary-b: 129;
+  --brand-secondary-r: 5;
+  --brand-secondary-g: 150;
+  --brand-secondary-b: 105;
+
+  --bg: #06100c;
+  --bg-primary: #06100c;
+  --surface: #0c1a14;
+  --surface-light: #14261d;
+
+  --text-primary: #ecfdf3;
+  --text-secondary: #94b3a4;
+  --text-tertiary: rgba(236, 253, 243, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(16, 185, 129, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(16, 185, 129, 0.15);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.58);
+  --divider: rgba(16, 185, 129, 0.1);
+
+  --nav-bg: rgba(6, 16, 12, 0.94);
+  --nav-border: rgba(16, 185, 129, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(16, 185, 129, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(16, 185, 129, 0.07);
+  --chart-tooltip-bg: #0c1a14;
+
+  --screen-overlay-soft: rgba(4, 12, 9, 0.4);
+  --screen-overlay-md: rgba(4, 13, 10, 0.52);
+  --screen-overlay-strong: rgba(3, 12, 9, 0.68);
+  --screen-overlay-deep: rgba(2, 9, 7, 0.9);
+
+  --ent-rim: rgba(16, 185, 129, 0.1);
+  --ent-glow: rgba(16, 185, 129, 0.08);
+}
+
+/* ============================================
    LIGHT
    ============================================ */
 [data-theme="light"] {
@@ -642,6 +754,152 @@ h1, h2, h3, h4 {
   --aurora-gradient: linear-gradient(120deg, #0d9488 0%, #0284c7 46%, #7c3aed 100%);
   --aurora-glow-1: rgba(13, 148, 136, 0.35);
   --aurora-glow-2: rgba(124, 58, 237, 0.35);
+}
+
+/* ============================================
+   LIGHT: Sapphire (professional blue on white — enterprise)
+   ============================================ */
+[data-theme="light-sapphire"] {
+  --brand-primary: #2563eb;
+  --brand-secondary: #1d4ed8;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-alpha-20: rgba(37, 99, 235, 0.2);
+  --primary-alpha-40: rgba(37, 99, 235, 0.4);
+  --primary-alpha-90: rgba(37, 99, 235, 0.9);
+  --primary-hover-alpha-85: rgba(29, 78, 216, 0.85);
+  --brand-primary-r: 37;
+  --brand-primary-g: 99;
+  --brand-primary-b: 235;
+  --brand-secondary-r: 29;
+  --brand-secondary-g: 78;
+  --brand-secondary-b: 216;
+
+  --bg: #eef2f9;
+  --bg-primary: #eef2f9;
+  --surface: #ffffff;
+  --surface-light: #f5f8fd;
+
+  --text-primary: #0f1b30;
+  --text-secondary: #55647c;
+  --text-tertiary: rgba(15, 27, 48, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(37, 99, 235, 0.16);
+  --glass-shadow: rgba(15, 27, 48, 0.1);
+
+  --overlay: rgba(15, 27, 48, 0.26);
+  --divider: rgba(37, 99, 235, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(37, 99, 235, 0.14);
+
+  --input-bg: rgba(37, 99, 235, 0.05);
+  --input-border: rgba(37, 99, 235, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(37, 99, 235, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(238, 242, 249, 0.45);
+  --screen-overlay-md: rgba(238, 242, 249, 0.58);
+  --screen-overlay-strong: rgba(238, 242, 249, 0.8);
+  --screen-overlay-deep: rgba(238, 242, 249, 0.94);
+
+  --ent-rim: rgba(37, 99, 235, 0.14);
+  --ent-glow: rgba(37, 99, 235, 0.08);
+}
+
+/* ============================================
+   LIGHT: Evergreen (refined emerald on white — enterprise / wealth)
+   ============================================ */
+[data-theme="light-evergreen"] {
+  --brand-primary: #047857;
+  --brand-secondary: #065f46;
+  --primary: #047857;
+  --primary-hover: #065f46;
+  --primary-alpha-20: rgba(4, 120, 87, 0.2);
+  --primary-alpha-40: rgba(4, 120, 87, 0.4);
+  --primary-alpha-90: rgba(4, 120, 87, 0.9);
+  --primary-hover-alpha-85: rgba(6, 95, 70, 0.85);
+  --brand-primary-r: 4;
+  --brand-primary-g: 120;
+  --brand-primary-b: 87;
+  --brand-secondary-r: 6;
+  --brand-secondary-g: 95;
+  --brand-secondary-b: 70;
+
+  --bg: #eef5f1;
+  --bg-primary: #eef5f1;
+  --surface: #ffffff;
+  --surface-light: #f3faf6;
+
+  --text-primary: #0b2419;
+  --text-secondary: #4b6b5d;
+  --text-tertiary: rgba(11, 36, 25, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(4, 120, 87, 0.16);
+  --glass-shadow: rgba(11, 36, 25, 0.1);
+
+  --overlay: rgba(11, 36, 25, 0.26);
+  --divider: rgba(4, 120, 87, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(4, 120, 87, 0.14);
+
+  --input-bg: rgba(4, 120, 87, 0.05);
+  --input-border: rgba(4, 120, 87, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(4, 120, 87, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(238, 245, 241, 0.45);
+  --screen-overlay-md: rgba(238, 245, 241, 0.58);
+  --screen-overlay-strong: rgba(238, 245, 241, 0.8);
+  --screen-overlay-deep: rgba(238, 245, 241, 0.94);
+
+  --ent-rim: rgba(4, 120, 87, 0.14);
+  --ent-glow: rgba(4, 120, 87, 0.07);
+}
+
+/* ============================================
+   ENTERPRISE (Sapphire + Evergreen): restrained, professional polish.
+   A crisp brand-tinted rim + soft ambient depth on glass surfaces and nav.
+   No animation — deliberately calm for enterprise use.
+   ============================================ */
+[data-theme="dark-sapphire"] .glass-container,
+[data-theme="dark-evergreen"] .glass-container,
+[data-theme="light-sapphire"] .glass-container,
+[data-theme="light-evergreen"] .glass-container {
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    0 0 0 1px var(--ent-rim),
+    0 0 42px -18px var(--ent-glow);
+}
+
+[data-theme="dark-sapphire"] .nav-pill,
+[data-theme="dark-evergreen"] .nav-pill,
+[data-theme="light-sapphire"] .nav-pill,
+[data-theme="light-evergreen"] .nav-pill {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--ent-rim);
+}
+
+[data-theme="dark-sapphire"] .glass-button--primary,
+[data-theme="dark-evergreen"] .glass-button--primary,
+[data-theme="light-sapphire"] .glass-button--primary,
+[data-theme="light-evergreen"] .glass-button--primary {
+  box-shadow:
+    0 4px 15px var(--primary-alpha-40),
+    0 0 0 1px var(--ent-rim);
 }
 
 /* ============================================

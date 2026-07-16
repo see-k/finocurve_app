@@ -24,6 +24,7 @@ import TrackerStorageScreen from '../settings/TrackerStorageScreen'
 import AIConfigScreen from '../settings/AIConfigScreen'
 import HelpFaqScreen from '../settings/HelpFaqScreen'
 import AboutScreen from '../settings/AboutScreen'
+import ThemeScreen from '../settings/ThemeScreen'
 import PluginsListPage from '../settings/plugins/PluginsListPage'
 import FmpPluginPage from '../settings/plugins/FmpPluginPage'
 import AgentsListScreen from '../settings/agents/AgentsListScreen'
@@ -172,6 +173,7 @@ export default function MainShell() {
   const renderSettingsRoutes = () => (
     <Routes>
       <Route path="account" element={<AccountScreen />} />
+      <Route path="theme" element={<ThemeScreen />} />
       <Route path="currency" element={<CurrencyPickerScreen />} />
       <Route path="cloud-storage" element={<Navigate to="s3" replace />} />
       <Route path="cloud-storage/:section" element={<CloudStorageScreen />} />
