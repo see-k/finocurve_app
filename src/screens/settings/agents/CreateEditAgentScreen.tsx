@@ -318,12 +318,12 @@ export default function CreateEditAgentScreen() {
     } else {
       createAgent(input)
     }
-    navigate('/settings/agents')
+    navigate('/main?tab=experts')
   }
 
   const handleDelete = () => {
     if (existing) deleteAgent(existing.id)
-    navigate('/settings/agents')
+    navigate('/main?tab=experts')
   }
 
   const normalizedToolQuery = toolQuery.trim().toLocaleLowerCase()
@@ -367,7 +367,7 @@ export default function CreateEditAgentScreen() {
       <div className="settings-sub-bg settings-sub-bg--2" />
       <div className={`settings-sub-content settings-sub-content--agent-editor ${visible ? 'settings-sub-content--visible' : ''}`}>
         <div className="settings-sub-header agent-editor-header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate('/settings/agents')} size={44} />
+          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate('/main?tab=experts')} size={44} />
           <div>
             <span>Expert workspace</span>
             <h1 className="settings-sub-title">{isEditing ? 'Edit Expert' : 'Create Expert'}</h1>

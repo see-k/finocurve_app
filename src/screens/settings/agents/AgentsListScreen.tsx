@@ -1,7 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
   BadgeCheck,
   Bot,
   BriefcaseBusiness,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react'
 import GlassContainer from '../../../components/glass/GlassContainer'
 import GlassButton from '../../../components/glass/GlassButton'
-import GlassIconButton from '../../../components/glass/GlassIconButton'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import { useAgents } from '../../../store/useAgents'
 import { useConversations } from '../../../store/useConversations'
@@ -108,8 +106,7 @@ export default function AgentsListScreen() {
       <div className="settings-sub-bg settings-sub-bg--2" />
       <div className={`settings-sub-content settings-sub-content--experts ${visible ? 'settings-sub-content--visible' : ''}`}>
         <div className="settings-sub-header expert-directory-header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
-          <div>
+          <div className="expert-directory-header__copy">
             <span>Private expert network</span>
             <h1 className="settings-sub-title">AI Experts</h1>
           </div>

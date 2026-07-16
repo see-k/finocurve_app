@@ -381,11 +381,11 @@
   max-width: 1040px;
 }
 
-.expert-directory-header > div:nth-child(2) {
+.expert-directory-header__copy {
   flex: 1;
 }
 
-.expert-directory-header > div:nth-child(2) > span {
+.expert-directory-header__copy > span {
   display: block;
   margin-bottom: 3px;
   color: var(--brand-primary);
@@ -1964,7 +1964,6 @@
 
   .expert-directory-header .glass-button {
     width: 100% !important;
-    margin-left: 60px;
   }
 
   .expert-directory-intro__copy,

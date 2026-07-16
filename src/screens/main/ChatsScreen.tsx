@@ -834,7 +834,7 @@ export default function ChatsScreen() {
                     )}
 
                     <div className="chats-screen__chat-settings-links">
-                      <button type="button" onClick={() => navigate('/settings/agents')}>
+                      <button type="button" onClick={() => navigate('/main?tab=experts')}>
                         <Bot size={14} />
                         <span><strong>Manage AI experts</strong><small>Create or edit expert profiles</small></span>
                         <ChevronRight size={14} />

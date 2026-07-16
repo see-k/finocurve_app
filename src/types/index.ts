@@ -445,6 +445,7 @@ export type MainTab =
   | 'insights'
   | 'reports'
   | 'tracker'
+  | 'experts'
   | 'chats'
   | 'settings'
 

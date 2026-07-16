@@ -52,7 +52,7 @@ export default function NewConversationModal({ onClose, onCreate, onCreated }: N
 
           {activeAgents.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-              No active experts yet — create or reactivate one in Settings → AI Experts first.
+              No active experts yet — create or reactivate one from AI Experts in the main navigation first.
             </p>
           ) : (
             <div className="new-convo-modal__agents">

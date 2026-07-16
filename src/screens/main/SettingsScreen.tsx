@@ -176,7 +176,7 @@ export default function SettingsScreen() {
           {typeof window !== 'undefined' && window.electronAPI?.aiConfigGet && (
             <SettingsRow icon={<Cpu size={18} />} label="AI Models" value="Configure" onClick={() => navigate('/settings/ai-config')} />
           )}
-          <SettingsRow icon={<Bot size={18} />} label="AI Experts" value="Build your expert network" onClick={() => navigate('/settings/agents')} />
+          <SettingsRow icon={<Bot size={18} />} label="AI Experts" value="Build your expert network" onClick={() => navigate('/main?tab=experts')} />
           {typeof window !== 'undefined' && window.electronAPI?.pluginsSettingsGet && (
             <SettingsRow icon={<Plug size={18} />} label="Plugins" value="API keys" onClick={() => navigate('/settings/plugins')} />
           )}

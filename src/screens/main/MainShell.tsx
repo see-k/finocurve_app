@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams, useMatch, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
-  Plus, Search, PenLine, Target, MessagesSquare,
+  Plus, Search, PenLine, Target, MessagesSquare, UsersRound,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -32,7 +32,7 @@ import type { MainTab } from '../../types'
 import './MainShell.css'
 
 const TAB_IDS: MainTab[] = [
-  'dashboard', 'portfolio', 'markets', 'news', 'risk', 'insights', 'reports', 'tracker', 'chats', 'settings',
+  'dashboard', 'portfolio', 'markets', 'news', 'risk', 'insights', 'reports', 'tracker', 'experts', 'chats', 'settings',
 ]
 
 const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
@@ -44,6 +44,7 @@ const tabs: { id: MainTab; label: string; icon: React.ReactNode }[] = [
   { id: 'insights', label: 'Insights', icon: <Landmark size={20} /> },
   { id: 'reports', label: 'Reports', icon: <FileText size={20} /> },
   { id: 'tracker', label: 'Tracker', icon: <Target size={20} /> },
+  { id: 'experts', label: 'AI Experts', icon: <UsersRound size={20} /> },
   { id: 'chats', label: 'Chats', icon: <MessagesSquare size={20} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
 ]
@@ -70,6 +71,7 @@ export default function MainShell() {
   const loanDetailMatch = useMatch({ path: '/main/loan/:assetId', end: true })
   const showLoanDetail = !!loanDetailMatch
   const isSettingsArea = location.pathname.startsWith('/settings')
+  const isExpertsArea = location.pathname.startsWith('/settings/agents')
 
   const goToShellTab = useCallback(
     (tab: MainTab) => {
@@ -83,7 +85,13 @@ export default function MainShell() {
     [navigate, setActiveTab, showLoanDetail, isSettingsArea],
   )
 
-  const navActiveTab: MainTab = showLoanDetail ? 'portfolio' : isSettingsArea ? 'settings' : activeTab
+  const navActiveTab: MainTab = showLoanDetail
+    ? 'portfolio'
+    : isExpertsArea
+      ? 'experts'
+      : isSettingsArea
+        ? 'settings'
+        : activeTab
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -95,6 +103,7 @@ export default function MainShell() {
       case 'insights': return <InsightsScreen />
       case 'reports': return <ReportsScreen />
       case 'tracker': return <TrackerScreen />
+      case 'experts': return <AgentsListScreen />
       case 'chats': return <ChatsScreen />
       case 'settings': return <SettingsScreen />
     }
