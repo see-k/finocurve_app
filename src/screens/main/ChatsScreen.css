@@ -1,0 +1,118 @@
+.chats-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+}
+
+.chats-screen__main {
+  flex: 1;
+  min-height: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.chats-screen__sidebar {
+  background: rgba(20, 22, 30, 0.55) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.chats-screen__sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chats-screen__sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.chats-screen__empty {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.chats-screen__group-icon {
+  color: var(--accent-primary, #6c8cff);
+}
+
+.chats-screen__message-list {
+  background: transparent !important;
+}
+
+.chats-screen__placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-tertiary);
+  padding: 40px;
+}
+
+.chats-screen__composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Leave room so the composer's send button never sits under the fixed
+     floating AIChatBubble fab (56px, 24px inset) in the bottom-right corner. */
+  margin-right: 96px;
+}
+
+.chats-screen__composer .glass-text-field {
+  flex: 1;
+}
+
+/* Restyle chatscope's default light theme to match the app's Glass dark aesthetic */
+.cs-main-container,
+.cs-chat-container,
+.cs-message-list,
+.cs-conversation-list,
+.cs-sidebar {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.cs-conversation {
+  background-color: transparent !important;
+}
+
+.cs-conversation:hover,
+.cs-conversation.cs-conversation--active {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.cs-conversation__name,
+.cs-conversation__info,
+.cs-conversation__last-sender {
+  color: var(--text-primary) !important;
+}
+
+.cs-conversation__info {
+  color: var(--text-secondary) !important;
+}
+
+.cs-message__content-wrapper,
+.cs-message-input,
+.cs-message-input__content-editor-wrapper,
+.cs-message-input__content-editor {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.cs-message-list__scroll-wrapper > .cs-message,
+.cs-message {
+  background: transparent !important;
+}

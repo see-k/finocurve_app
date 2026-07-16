@@ -20,16 +20,6 @@ import AssetDetailScreen from './screens/detail/AssetDetailScreen'
 import RiskAnalysisScreen from './screens/detail/RiskAnalysisScreen'
 // Standalone screens
 import NotificationsScreen from './screens/main/NotificationsScreen'
-// Settings sub-screens
-import AccountScreen from './screens/settings/AccountScreen'
-import CurrencyPickerScreen from './screens/settings/CurrencyPickerScreen'
-import CloudStorageScreen from './screens/settings/CloudStorageScreen'
-import TrackerStorageScreen from './screens/settings/TrackerStorageScreen'
-import AIConfigScreen from './screens/settings/AIConfigScreen'
-import HelpFaqScreen from './screens/settings/HelpFaqScreen'
-import AboutScreen from './screens/settings/AboutScreen'
-import PluginsListPage from './screens/settings/plugins/PluginsListPage'
-import FmpPluginPage from './screens/settings/plugins/FmpPluginPage'
 import { usePreferences } from './store/usePreferences'
 
 function TrackerS3PrefsSync() {
@@ -77,8 +67,10 @@ export default function App() {
       <Route path="/add-asset/search" element={<SearchPublicAssetScreen />} />
       <Route path="/add-asset/manual" element={<AddManualAssetScreen />} />
       <Route path="/add-asset/loan" element={<AddLoanScreen />} />
-      {/* Main shell (includes /main/loan/:assetId for loan detail with global nav) */}
+      {/* Main shell (includes /main/loan/:assetId for loan detail, and /settings/* for
+          settings sub-screens — both keep the global pill nav visible) */}
       <Route path="/main/*" element={<MainShell />} />
+      <Route path="/settings/*" element={<MainShell />} />
       {/* Detail screens */}
       <Route path="/asset/:assetId" element={<AssetDetailScreen />} />
       <Route path="/loan/:assetId" element={<LegacyLoanRedirect />} />
@@ -86,16 +78,6 @@ export default function App() {
       {/* News lives inside MainShell; keep /news for bookmarks */}
       <Route path="/news" element={<Navigate to="/main?tab=news" replace />} />
       <Route path="/notifications" element={<NotificationsPage />} />
-      {/* Settings sub-screens */}
-      <Route path="/settings/account" element={<AccountScreen />} />
-      <Route path="/settings/currency" element={<CurrencyPickerScreen />} />
-      <Route path="/settings/cloud-storage" element={<CloudStorageScreen />} />
-      <Route path="/settings/tracker-storage" element={<TrackerStorageScreen />} />
-      <Route path="/settings/ai-config" element={<AIConfigScreen />} />
-      <Route path="/settings/plugins" element={<PluginsListPage />} />
-      <Route path="/settings/plugins/fmp" element={<FmpPluginPage />} />
-      <Route path="/settings/help" element={<HelpFaqScreen />} />
-      <Route path="/settings/about" element={<AboutScreen />} />
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

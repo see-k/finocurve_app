@@ -5,9 +5,10 @@ import remarkGfm from 'remark-gfm'
 import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
-import type { ChatAttachment } from '../../ai/types'
+import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
+import ChatMessageContent, { FollowUpsRow } from './ChatMessageContent'
 import './AIChatBubble.css'
 
 import aiAvatar from '/images/finocurve-icon.png'
@@ -18,11 +19,6 @@ function isAuthenticatedPath(path: string): boolean {
   return AUTHENTICATED_PATHS.some((p) => path.startsWith(p))
 }
 
-interface ChatFollowUpChip {
-  label: string
-  prompt: string
-}
-
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -31,7 +27,7 @@ interface ChatMessage {
   /** Reasoning/thinking from models that support it (o1, o3, llama thinking, etc.) */
   reasoning?: string
   /** Clickable follow-ups from suggest_conversation_follow_ups */
-  followUps?: ChatFollowUpChip[]
+  followUps?: ChatFollowUp[]
 }
 
 const MAX_CHAT_ATTACHMENTS = 6
@@ -39,17 +35,6 @@ const MAX_CHAT_ATTACHMENT_BYTES = 4 * 1024 * 1024
 
 const CHAT_ATTACHMENT_ACCEPT =
   'image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf,text/plain,text/csv,application/csv,.json,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.txt,.csv,.pdf'
-
-function isImageAttachmentMime(mime: string): boolean {
-  const m = mime.toLowerCase().split(';')[0].trim()
-  return (
-    m === 'image/png' ||
-    m === 'image/jpeg' ||
-    m === 'image/jpg' ||
-    m === 'image/gif' ||
-    m === 'image/webp'
-  )
-}
 
 function fileToBase64Data(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -161,7 +146,7 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
         const followUps =
           Array.isArray(rawFu) && rawFu.length > 0
             ? rawFu.filter(
-                (f): f is ChatFollowUpChip =>
+                (f): f is ChatFollowUp =>
                   !!f &&
                   typeof f === 'object' &&
                   typeof f.label === 'string' &&
@@ -201,33 +186,6 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
   } catch {
     return []
   }
-}
-
-function AiChatFollowUpsRow({
-  items,
-  disabled,
-  onPick,
-}: {
-  items: ChatFollowUpChip[]
-  disabled?: boolean
-  onPick: (prompt: string) => void
-}) {
-  if (items.length === 0) return null
-  return (
-    <div className="ai-chat-follow-ups" role="list" aria-label="Suggested follow-ups">
-      {items.map((item, idx) => (
-        <button
-          key={`${idx}-${item.label.slice(0, 32)}`}
-          type="button"
-          className="ai-chat-follow-up-chip"
-          disabled={disabled}
-          onClick={() => onPick(item.prompt)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function stripChatAttachmentPayloads(messages: ChatMessage[]): ChatMessage[] {
@@ -292,7 +250,7 @@ export default function AIChatBubble() {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
-  const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUpChip[]>([])
+  const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUp[]>([])
   const [error, setError] = useState<string | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -679,56 +637,15 @@ export default function AIChatBubble() {
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
-                  {msg.role === 'assistant' ? (
-                    <>
-                      {msg.reasoning && (
-                        <div className="ai-chat-reasoning">
-                          {msg.reasoning}
-                        </div>
-                      )}
-                      <div className="ai-chat-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                      <AiChatFollowUpsRow
-                        items={msg.followUps ?? []}
-                        disabled={loading}
-                        onPick={(prompt) => submitUserText(prompt.trim(), 'followup')}
-                      />
-                    </>
-                  ) : (
-                    <div className="ai-chat-user-turn">
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="ai-chat-msg-attachments">
-                          {msg.attachments.map((a, idx) =>
-                            isImageAttachmentMime(a.mimeType) && a.dataBase64 ? (
-                              <img
-                                key={`${idx}-${a.name}`}
-                                className="ai-chat-msg-thumb"
-                                src={`data:${a.mimeType};base64,${a.dataBase64}`}
-                                alt=""
-                              />
-                            ) : (
-                              <span key={`${idx}-${a.name}`} className="ai-chat-file-chip" title={a.name}>
-                                {a.name}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      )}
-                      {msg.content === '(See attached files)' &&
-                      msg.attachments?.length &&
-                      !msg.attachments.some((a) => (a.dataBase64?.length ?? 0) > 0) ? (
-                        <span className="ai-chat-att-hint">
-                          Attached files (payload not restored after reload — re-attach to use in new
-                          messages)
-                        </span>
-                      ) : msg.content !== '(See attached files)' ? (
-                        <span className="ai-chat-user-text">{msg.content}</span>
-                      ) : null}
-                    </div>
-                  )}
+                  <ChatMessageContent
+                    role={msg.role}
+                    content={msg.content}
+                    attachments={msg.attachments}
+                    reasoning={msg.reasoning}
+                    followUps={msg.followUps}
+                    disabled={loading}
+                    onFollowUpClick={(prompt) => submitUserText(prompt.trim(), 'followup')}
+                  />
                 </div>
               </div>
             ))}
@@ -776,7 +693,7 @@ export default function AIChatBubble() {
                         'Thinking...'
                       )}
                     </div>
-                    <AiChatFollowUpsRow
+                    <FollowUpsRow
                       items={streamingFollowUps}
                       disabled={loading}
                       onPick={(prompt) => submitUserText(prompt.trim(), 'followup')}

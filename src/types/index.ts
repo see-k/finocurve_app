@@ -399,6 +399,7 @@ export type MainTab =
   | 'insights'
   | 'reports'
   | 'tracker'
+  | 'chats'
   | 'settings'
 
 // ============================================

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Check, Target,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Check, Target, Bot,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
@@ -175,6 +175,7 @@ export default function SettingsScreen() {
           {typeof window !== 'undefined' && window.electronAPI?.aiConfigGet && (
             <SettingsRow icon={<Cpu size={18} />} label="AI Models" value="Configure" onClick={() => navigate('/settings/ai-config')} />
           )}
+          <SettingsRow icon={<Bot size={18} />} label="AI Agents" value="Create & manage" onClick={() => navigate('/settings/agents')} />
           {typeof window !== 'undefined' && window.electronAPI?.pluginsSettingsGet && (
             <SettingsRow icon={<Plug size={18} />} label="Plugins" value="API keys" onClick={() => navigate('/settings/plugins')} />
           )}

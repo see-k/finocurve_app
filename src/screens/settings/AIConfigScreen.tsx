@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import SettingsSubNav from '../../components/settings/SettingsSubNav'
 import {
   hasA2AAPI,
   startA2AServer,
@@ -18,9 +19,16 @@ import AgentTerminal from '../../components/ai/AgentTerminal'
 import './SettingsSubScreen.css'
 
 type AIProvider = 'ollama' | 'bedrock' | 'azure'
+type AIConfigSection = 'provider' | 'model' | 'a2a' | 'mcp'
+const AI_CONFIG_SECTIONS: AIConfigSection[] = ['provider', 'model', 'a2a', 'mcp']
 
 export default function AIConfigScreen() {
   const navigate = useNavigate()
+  const { section } = useParams<{ section: string }>()
+  const activeSection: AIConfigSection = AI_CONFIG_SECTIONS.includes(section as AIConfigSection)
+    ? (section as AIConfigSection)
+    : 'provider'
+  const goToSection = (s: string) => navigate(`/settings/ai-config/${s}`, { replace: true })
   const [visible, setVisible] = useState(false)
   const [provider, setProvider] = useState<AIProvider>('ollama')
   const [model, setModel] = useState('llama3.2')
@@ -421,12 +429,24 @@ export default function AIConfigScreen() {
           <h1 className="settings-sub-title">AI Model Configuration</h1>
         </div>
 
+        <SettingsSubNav
+          activeId={activeSection}
+          onSelect={goToSection}
+          items={[
+            { id: 'provider', label: 'Provider', icon: <Cpu size={15} /> },
+            { id: 'model', label: 'Model', icon: <Cloud size={15} /> },
+            { id: 'a2a', label: 'A2A Protocol', icon: <Shield size={15} /> },
+            { id: 'mcp', label: 'MCP Servers', icon: <Server size={15} /> },
+          ]}
+        />
+
         {loading ? (
           <GlassContainer>
             <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
           </GlassContainer>
         ) : (
           <>
+            {activeSection === 'provider' && (
             <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Cpu size={18} /> Provider
@@ -454,8 +474,10 @@ export default function AIConfigScreen() {
                 ))}
               </div>
             </GlassContainer>
+            )}
 
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'model' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16 }}>Model</h3>
 
               {provider === 'ollama' ? (
@@ -584,9 +606,11 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
 
             {/* A2A Protocol Control Panel */}
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'a2a' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Shield size={18} /> A2A Protocol
               </h3>
@@ -760,9 +784,11 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
 
             {/* MCP Servers */}
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'mcp' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Server size={18} /> MCP Servers
               </h3>
@@ -941,11 +967,13 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
 
             {error && <p style={{ fontSize: 13, color: 'var(--status-error)', marginTop: 16 }}>{error}</p>}
 
             <AgentTerminal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
 
+            {(activeSection === 'provider' || activeSection === 'model') && (
             <div style={{ marginTop: 24 }}>
               <GlassButton
                 text={saving ? 'Saving...' : 'Save Configuration'}
@@ -954,6 +982,7 @@ export default function AIConfigScreen() {
                 disabled={saving}
               />
             </div>
+            )}
           </>
         )}
       </div>

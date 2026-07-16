@@ -96,6 +96,8 @@ export interface ChatContext {
   portfolioContext?: PortfolioContext | null
   /** Risk metrics summary for tool use (passed from renderer) */
   riskMetrics?: string
+  /** When set, layers a custom Agent's persona on top of the base FinoCurve system prompt. */
+  agentPersona?: { name: string; systemPrompt: string }
 }
 
 /** Chunk from chat stream - reasoning (thinking) vs answer content vs suggested follow-ups. */

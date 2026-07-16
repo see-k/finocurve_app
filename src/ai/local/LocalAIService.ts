@@ -510,6 +510,11 @@ export class LocalAIService implements AIService {
       'IMPORTANT: Always cite your sources to build trust. When you use tool data (portfolio, documents, reports, risk metrics, congressional trades, SEC filings), explicitly reference where the information came from. For example: "According to your portfolio data...", "Based on Senate disclosure data...", "From SEC EDGAR filings for AAPL...". Be specific about document or data source names when citing.',
       'After a helpful, substantive reply (especially when tools were used), call suggest_conversation_follow_ups with 2–4 items: short labels for buttons and full prompts the app will send when tapped. Skip for trivial one-line answers. Do not duplicate the chip text as a bullet list in the prose.',
     ]
+    if (context.agentPersona) {
+      systemParts.push(
+        `You are currently acting as "${context.agentPersona.name}", a custom agent persona. Persona instructions: ${context.agentPersona.systemPrompt}`
+      )
+    }
     if (this.options.saveCustomBrandedReport) {
       systemParts.push(
         'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. The PDF uses FinoCurve branding and saves to documents when storage is configured.'
