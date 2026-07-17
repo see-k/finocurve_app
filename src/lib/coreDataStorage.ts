@@ -15,7 +15,8 @@ const STATIC_CORE_KEYS = [
 ] as const
 
 const META_STORAGE_KEY = 'finocurve-core-data-sync-v1'
-const JOURNAL_PREFIX = 'finocurve-core-data-journal-v1:'
+const JOURNAL_PREFIX = 'finocurve-core-data-journal-v2:'
+const LEGACY_JOURNAL_PREFIX = 'finocurve-core-data-journal-v1:'
 
 interface SyncMetadataEntry {
   revision: number
@@ -28,6 +29,12 @@ interface JournalEntry {
   storageKey: string
   value: string | null
   revision: number
+}
+
+interface PersistedJournalEntry {
+  storageKey: string
+  revision: number
+  deleted: boolean
 }
 
 export function isCoreDataStorageKey(storageKey: string): boolean {
@@ -75,12 +82,16 @@ function readJournal(storageKey: string): JournalEntry | null {
   try {
     const raw = localStorage.getItem(journalKey(storageKey))
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<JournalEntry>
+    const parsed = JSON.parse(raw) as Partial<PersistedJournalEntry>
     if (parsed.storageKey !== storageKey || !Number.isSafeInteger(parsed.revision) || (parsed.revision ?? -1) < 1) {
       return null
     }
-    if (parsed.value !== null && typeof parsed.value !== 'string') return null
-    return parsed as JournalEntry
+    if (typeof parsed.deleted !== 'boolean') return null
+    return {
+      storageKey,
+      revision: parsed.revision as number,
+      value: parsed.deleted ? null : currentLocalValue(storageKey),
+    }
   } catch {
     return null
   }
@@ -88,7 +99,12 @@ function readJournal(storageKey: string): JournalEntry | null {
 
 function writeJournal(entry: JournalEntry): boolean {
   try {
-    localStorage.setItem(journalKey(entry.storageKey), JSON.stringify(entry))
+    const persisted: PersistedJournalEntry = {
+      storageKey: entry.storageKey,
+      revision: entry.revision,
+      deleted: entry.value === null,
+    }
+    localStorage.setItem(journalKey(entry.storageKey), JSON.stringify(persisted))
     return true
   } catch {
     return false
@@ -192,19 +208,30 @@ function recoverJournals(): void {
   const keys: string[] = []
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index)
-    if (key?.startsWith(JOURNAL_PREFIX)) keys.push(key)
+    if (key?.startsWith(JOURNAL_PREFIX) || key?.startsWith(LEGACY_JOURNAL_PREFIX)) keys.push(key)
   }
 
   for (const key of keys) {
     try {
       const raw = localStorage.getItem(key)
       if (!raw) continue
-      const entry = JSON.parse(raw) as JournalEntry
+      const parsed = JSON.parse(raw) as Partial<JournalEntry & PersistedJournalEntry>
+      const isLegacy = key.startsWith(LEGACY_JOURNAL_PREFIX)
+      const entry: JournalEntry = {
+        storageKey: parsed.storageKey ?? '',
+        revision: parsed.revision ?? -1,
+        value: isLegacy
+          ? (parsed.value ?? null)
+          : parsed.deleted
+            ? null
+            : currentLocalValue(parsed.storageKey ?? ''),
+      }
       if (!isCoreDataStorageKey(entry.storageKey) || !Number.isSafeInteger(entry.revision) || entry.revision < 1) continue
       if (entry.value === null) localStorage.removeItem(entry.storageKey)
-      else if (typeof entry.value === 'string') localStorage.setItem(entry.storageKey, entry.value)
-      else continue
+      else if (typeof entry.value !== 'string') continue
+      else if (isLegacy) localStorage.setItem(entry.storageKey, entry.value)
       updateMetadata(entry.storageKey, entry.revision, entry.value === null)
+      if (isLegacy) localStorage.removeItem(key)
     } catch {
       // Leave an unreadable journal untouched for manual recovery.
     }

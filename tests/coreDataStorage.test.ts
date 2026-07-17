@@ -195,7 +195,30 @@ describe('core data renderer compatibility cache', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     const keys = [...Array(storage.length)].map((_, index) => storage.key(index) ?? '')
-    expect(keys.some((key) => key.startsWith('finocurve-core-data-journal-v1:'))).toBe(true)
+    expect(keys.some((key) => key.startsWith('finocurve-core-data-journal-v2:'))).toBe(true)
     expect(storage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('safe')
+  })
+
+  it('stores journal metadata without duplicating the core-data payload', async () => {
+    const coreDataWrite = vi.fn().mockRejectedValue(new Error('disk unavailable'))
+    Object.defineProperty(globalThis, 'window', {
+      value: { electronAPI: { coreDataWrite } }, configurable: true,
+    })
+    const { AGENTS_STORAGE_KEY, setCoreDataItem } = await import('../src/lib/coreDataStorage')
+    const sensitiveMarker = 'credential-material-must-not-enter-journal'
+
+    setCoreDataItem(AGENTS_STORAGE_KEY, JSON.stringify([{ id: 'a1', secret: sensitiveMarker }]))
+    await vi.waitFor(() => expect(coreDataWrite).toHaveBeenCalledOnce())
+
+    const journalKey = [...Array(storage.length)]
+      .map((_, index) => storage.key(index) ?? '')
+      .find((key) => key.startsWith('finocurve-core-data-journal-v2:'))
+    expect(journalKey).toBeTruthy()
+    expect(storage.getItem(journalKey!)).toBe(JSON.stringify({
+      storageKey: AGENTS_STORAGE_KEY,
+      revision: 1,
+      deleted: false,
+    }))
+    expect(storage.getItem(journalKey!)).not.toContain(sensitiveMarker)
   })
 })
