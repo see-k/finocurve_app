@@ -27,6 +27,10 @@ function isAuthenticatedPath(path: string): boolean {
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Expert that authored this response, retained when the selected expert changes. */
+  senderAgentId?: string
+  senderName?: string
+  senderAvatar?: string
   /** User turns only: sent to the model (vision + extracted text). */
   attachments?: ChatAttachment[]
   /** Reasoning/thinking from models that support it (o1, o3, llama thinking, etc.) */
@@ -200,6 +204,9 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
         return {
           role: msg.role,
           content: msg.content,
+          ...(msg.role === 'assistant' && typeof msg.senderAgentId === 'string' && msg.senderAgentId ? { senderAgentId: msg.senderAgentId } : {}),
+          ...(msg.role === 'assistant' && typeof msg.senderName === 'string' && msg.senderName ? { senderName: msg.senderName } : {}),
+          ...(msg.role === 'assistant' && typeof msg.senderAvatar === 'string' && msg.senderAvatar ? { senderAvatar: msg.senderAvatar } : {}),
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
           ...(typeof msg.reasoning === 'string' && msg.reasoning ? { reasoning: msg.reasoning } : {}),
           ...(followUps && followUps.length > 0 ? { followUps } : {}),
@@ -300,6 +307,7 @@ export default function AIChatBubble() {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
+  const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUp[]>([])
   const [error, setError] = useState<string | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
@@ -574,6 +582,7 @@ export default function AIChatBubble() {
       })
 
       const agent = activeAgentRef.current
+      setStreamingAgentId(agent?.id ?? null)
       const { text: response, reasoning, followUps, aborted } = await streamChat({
         messages: chatMessages,
         context: {
@@ -627,6 +636,9 @@ export default function AIChatBubble() {
         {
           role: 'assistant',
           content: finalContent || '_Stopped by user._',
+          ...(agent?.id ? { senderAgentId: agent.id } : {}),
+          ...(agent?.name ? { senderName: agent.name } : {}),
+          ...(agent?.image ? { senderAvatar: agent.image } : {}),
           reasoning,
           ...(!wasStopped && followUps && followUps.length > 0 ? { followUps } : {}),
         },
@@ -638,10 +650,17 @@ export default function AIChatBubble() {
       setError(e instanceof Error ? e.message : 'Failed to get response')
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}` },
+        {
+          role: 'assistant',
+          content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}`,
+          ...(activeAgentRef.current?.id ? { senderAgentId: activeAgentRef.current.id } : {}),
+          ...(activeAgentRef.current?.name ? { senderName: activeAgentRef.current.name } : {}),
+          ...(activeAgentRef.current?.image ? { senderAvatar: activeAgentRef.current.image } : {}),
+        },
       ])
     } finally {
       setLoading(false)
+      setStreamingAgentId(null)
     }
   }
 
@@ -777,16 +796,40 @@ export default function AIChatBubble() {
                 Ask about your portfolio, risk metrics, or documents. Attach images, PDFs, or text files with the paperclip. Requires an AI provider (Ollama, Bedrock, or Azure) configured in Settings.
               </p>
             )}
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              const messageAgent = msg.senderAgentId ? agents.find((agent) => agent.id === msg.senderAgentId) : undefined
+              const messageAgentName = msg.senderName || messageAgent?.name || activeAgent?.name || 'AI Assistant'
+              const messageAgentAvatar = msg.senderAvatar || messageAgent?.image || assistantAvatarSrc
+              return (
               <div key={i} className={`ai-chat-msg-wrap ai-chat-msg-wrap--${msg.role}`}>
                 <div className="ai-chat-msg-avatar">
                   {msg.role === 'assistant' ? (
-                    <img src={assistantAvatarSrc} alt="AI" className="ai-chat-avatar-img" />
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--avatar"
+                      onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
+                      disabled={!msg.senderAgentId}
+                      aria-label={`Edit ${messageAgentName}`}
+                      title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                    >
+                      <img src={messageAgentAvatar} alt="" className="ai-chat-avatar-img" />
+                    </button>
                   ) : (
                     <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
+                  {msg.role === 'assistant' && (
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--name"
+                      onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
+                      disabled={!msg.senderAgentId}
+                      title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                    >
+                      {messageAgentName}
+                    </button>
+                  )}
                   <ChatMessageContent
                     role={msg.role}
                     content={msg.content}
@@ -798,7 +841,8 @@ export default function AIChatBubble() {
                   />
                 </div>
               </div>
-            ))}
+              )
+            })}
             {loading && (
               <div className="ai-chat-streaming-turn">
                 <div className="ai-chat-stream-status-row">
@@ -826,9 +870,25 @@ export default function AIChatBubble() {
                 </div>
                 <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
                   <div className="ai-chat-msg-avatar">
-                    <img src={assistantAvatarSrc} alt="AI" className="ai-chat-avatar-img" />
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--avatar"
+                      onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
+                      disabled={!streamingAgentId}
+                      aria-label={`Edit ${agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'expert'}`}
+                    >
+                      <img src={agents.find((agent) => agent.id === streamingAgentId)?.image || assistantAvatarSrc} alt="" className="ai-chat-avatar-img" />
+                    </button>
                   </div>
                   <div className="ai-chat-msg ai-chat-msg--assistant">
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--name"
+                      onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
+                      disabled={!streamingAgentId}
+                    >
+                      {agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'AI Assistant'}
+                    </button>
                     {streaming.reasoning && (
                       <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
                         {streaming.reasoning}

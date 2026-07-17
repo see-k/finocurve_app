@@ -460,6 +460,47 @@
   object-fit: cover;
 }
 
+.ai-chat-expert-link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ai-chat-expert-link--avatar {
+  display: flex;
+  border-radius: 50%;
+}
+
+.ai-chat-expert-link--avatar:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 72%, var(--glass-border));
+}
+
+.ai-chat-expert-link--name {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.ai-chat-expert-link--name:hover:not(:disabled) {
+  color: var(--brand-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ai-chat-expert-link:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.ai-chat-expert-link:disabled { cursor: default; }
+
 .ai-chat-msg {
   font-size: 13px;
   line-height: 1.5;
