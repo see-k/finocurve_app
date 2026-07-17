@@ -32,17 +32,17 @@ export default function ValuationDisclosure({
       title={description}
     >
       {!compact && <span className="valuation-disclosure__label">{label}</span>}
-      <span className="valuation-disclosure__item">
+      <span className="valuation-disclosure__item" title={`Source: ${provenance.sourceName}`}>
         <Database size={compact ? 11 : 13} aria-hidden />
         <span className="valuation-disclosure__key">Source</span>
         <strong>{provenance.sourceName}</strong>
       </span>
-      <span className="valuation-disclosure__item">
+      <span className="valuation-disclosure__item" title={`As of: ${asOf}`}>
         <Clock3 size={compact ? 11 : 13} aria-hidden />
         <span className="valuation-disclosure__key">As of</span>
         <strong>{asOf}</strong>
       </span>
-      <span className="valuation-disclosure__item">
+      <span className="valuation-disclosure__item" title={`Valuation method: ${method}`}>
         <Calculator size={compact ? 11 : 13} aria-hidden />
         <span className="valuation-disclosure__key">Method</span>
         <strong>{method}</strong>

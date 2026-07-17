@@ -2,9 +2,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
+  gap: 8px 12px;
   width: fit-content;
   max-width: 100%;
+  margin: 12px 0 2px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--glass-border) 78%, var(--brand-primary) 22%);
   border-radius: 12px;
@@ -15,8 +16,8 @@
 }
 
 .valuation-disclosure--compact {
-  gap: 7px 14px;
-  padding: 8px 11px;
+  gap: 6px 12px;
+  padding: 7px 10px;
   border-radius: 9px;
   font-size: 10px;
 }
@@ -39,8 +40,27 @@
 }
 
 .valuation-disclosure__item svg { color: var(--brand-primary); flex: 0 0 auto; }
-.valuation-disclosure__item strong { color: var(--text-secondary); font-weight: 600; }
-.valuation-disclosure__key { opacity: 0.72; }
+.valuation-disclosure__item strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+  overflow: hidden;
+  max-width: 200px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Icons replace the field labels; keep the label text for screen readers only. */
+.valuation-disclosure__key {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .valuation-disclosure__freshness {
   padding: 2px 7px;
