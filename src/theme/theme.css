@@ -395,7 +395,7 @@ h1, h2, h3, h4 {
    ============================================ */
 [data-theme="dark-aurora"] {
   --brand-primary: #2dd4bf;
-  --brand-secondary: #a855f7;
+  --brand-secondary: #22c55e;
   --primary: #2dd4bf;
   --primary-hover: #14b8a6;
   --primary-alpha-20: rgba(45, 212, 191, 0.22);
@@ -405,9 +405,9 @@ h1, h2, h3, h4 {
   --brand-primary-r: 45;
   --brand-primary-g: 212;
   --brand-primary-b: 191;
-  --brand-secondary-r: 168;
-  --brand-secondary-g: 85;
-  --brand-secondary-b: 247;
+  --brand-secondary-r: 34;
+  --brand-secondary-g: 197;
+  --brand-secondary-b: 94;
 
   --bg: #060b0d;
   --bg-primary: #060b0d;
@@ -445,10 +445,10 @@ h1, h2, h3, h4 {
   /* Aurora accent gradient — drives shimmering headings, buttons, and glows */
   --aurora-1: #2dd4bf;
   --aurora-2: #38bdf8;
-  --aurora-3: #a855f7;
-  --aurora-gradient: linear-gradient(120deg, #2dd4bf 0%, #38bdf8 46%, #a855f7 100%);
+  --aurora-3: #22c55e;
+  --aurora-gradient: linear-gradient(120deg, #2dd4bf 0%, #38bdf8 46%, #22c55e 100%);
   --aurora-glow-1: rgba(45, 212, 191, 0.5);
-  --aurora-glow-2: rgba(168, 85, 247, 0.5);
+  --aurora-glow-2: rgba(34, 197, 94, 0.5);
 }
 
 /* ============================================
@@ -701,7 +701,7 @@ h1, h2, h3, h4 {
    ============================================ */
 [data-theme="light-aurora"] {
   --brand-primary: #0d9488;
-  --brand-secondary: #7c3aed;
+  --brand-secondary: #16a34a;
   --primary: #0d9488;
   --primary-hover: #0f766e;
   --primary-alpha-20: rgba(13, 148, 136, 0.2);
@@ -711,9 +711,9 @@ h1, h2, h3, h4 {
   --brand-primary-r: 13;
   --brand-primary-g: 148;
   --brand-primary-b: 136;
-  --brand-secondary-r: 124;
-  --brand-secondary-g: 58;
-  --brand-secondary-b: 237;
+  --brand-secondary-r: 22;
+  --brand-secondary-g: 163;
+  --brand-secondary-b: 74;
 
   --bg: #eef7f4;
   --bg-primary: #eef7f4;
@@ -750,10 +750,10 @@ h1, h2, h3, h4 {
 
   --aurora-1: #0d9488;
   --aurora-2: #0284c7;
-  --aurora-3: #7c3aed;
-  --aurora-gradient: linear-gradient(120deg, #0d9488 0%, #0284c7 46%, #7c3aed 100%);
+  --aurora-3: #16a34a;
+  --aurora-gradient: linear-gradient(120deg, #0d9488 0%, #0284c7 46%, #16a34a 100%);
   --aurora-glow-1: rgba(13, 148, 136, 0.35);
-  --aurora-glow-2: rgba(124, 58, 237, 0.35);
+  --aurora-glow-2: rgba(22, 163, 74, 0.35);
 }
 
 /* ============================================
@@ -977,7 +977,7 @@ h1, h2, h3, h4 {
 /* Aurora-tinted active nav item */
 [data-theme="dark-aurora"] .nav-item--active,
 [data-theme="light-aurora"] .nav-item--active {
-  background: linear-gradient(135deg, var(--primary-alpha-20), rgba(168, 85, 247, 0.14));
+  background: linear-gradient(135deg, var(--primary-alpha-20), color-mix(in srgb, var(--brand-secondary) 14%, transparent));
 }
 
 @media (prefers-reduced-motion: reduce) {

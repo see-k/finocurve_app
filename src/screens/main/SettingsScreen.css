@@ -129,7 +129,7 @@
   background: linear-gradient(135deg, #070807 42%, #c8a96a 42%, #c8a96a 58%, #151816 58%);
 }
 .settings-theme-card__swatch--dark-aurora {
-  background: linear-gradient(135deg, #060b0d 34%, #2dd4bf 34%, #38bdf8 50%, #a855f7 66%, #0c1418 66%);
+  background: linear-gradient(135deg, #060b0d 34%, #2dd4bf 34%, #38bdf8 50%, #22c55e 66%, #0c1418 66%);
 }
 .settings-theme-card__swatch--dark-sapphire {
   background: linear-gradient(135deg, #070c16 42%, #3b82f6 42%, #3b82f6 58%, #0e1626 58%);
@@ -147,7 +147,7 @@
   background: linear-gradient(135deg, #f8f5ee 40%, #9c7a3d 40%, #9c7a3d 55%, #ffffff 55%);
 }
 .settings-theme-card__swatch--light-aurora {
-  background: linear-gradient(135deg, #eef7f4 34%, #0d9488 34%, #0284c7 50%, #7c3aed 66%, #ffffff 66%);
+  background: linear-gradient(135deg, #eef7f4 34%, #0d9488 34%, #0284c7 50%, #16a34a 66%, #ffffff 66%);
 }
 .settings-theme-card__swatch--light-sapphire {
   background: linear-gradient(135deg, #eef2f9 42%, #2563eb 42%, #2563eb 58%, #ffffff 58%);

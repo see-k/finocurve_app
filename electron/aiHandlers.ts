@@ -168,6 +168,45 @@ function listReportsFromLocal(): DocumentRef[] {
   return items
 }
 
+function getAgentWorkspacePrefix(agentId: string): string | null {
+  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) return null
+  return `finocurve/agents/${agentId}/files/`
+}
+
+function listAgentWorkspaceFiles(agentId: string): DocumentRef[] {
+  const config = getLocalStorageConfig()
+  const prefix = getAgentWorkspacePrefix(agentId)
+  if (!config || !prefix) return []
+  const baseDir = path.join(config.directoryPath, prefix)
+  if (!fs.existsSync(baseDir)) return []
+  const items: DocumentRef[] = []
+
+  const walk = (directory: string, relative = '') => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const relativePath = relative ? `${relative}/${entry.name}` : entry.name
+      const fullPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) walk(fullPath, relativePath)
+      else if (entry.isFile()) {
+        items.push({ key: prefix + relativePath, fileName: relativePath, source: 'local' })
+      }
+    }
+  }
+  walk(baseDir)
+  return items
+}
+
+async function getAgentWorkspaceFileContent(
+  agentId: string,
+  key: string,
+): Promise<{ buffer: Uint8Array; mimeType?: string } | null> {
+  const prefix = getAgentWorkspacePrefix(agentId)
+  if (!prefix || !key.startsWith(prefix)) return null
+  // Only exact keys discovered inside this expert's directory are readable.
+  const allowed = listAgentWorkspaceFiles(agentId).some((file) => file.key === key)
+  if (!allowed) return null
+  return getDocumentContentFromLocal(key)
+}
+
 function getFinocurveLogoDataUrlForMain(): string | null {
   const candidates = [
     path.join(app.getAppPath(), 'dist', 'images', 'finocurve-logo-transparent.png'),
@@ -315,6 +354,8 @@ export function registerAIHandlers(): void {
       getPortfolioContext: async () => loadPortfolioCache(),
       getDocumentList: async () => listDocumentsFromLocal(),
       getReportList: async () => listReportsFromLocal(),
+      getAgentWorkspaceFiles: async (agentId: string) => listAgentWorkspaceFiles(agentId),
+      getAgentWorkspaceFileContent,
       getRiskMetrics: async () => 'Not available',
       getCongressCache: async () => getCongressCacheData(),
       getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
@@ -376,7 +417,17 @@ export function registerAIHandlers(): void {
     }
     const model = persona.model?.trim() ||
       (stored.provider === persona.provider ? stored.model : providerDefaults[persona.provider])
-    const cacheKey = `${persona.provider}:${model}`
+    const inheritedSecret = (value: string | undefined) =>
+      value && value !== '••••••••' ? value : undefined
+    const overrides = {
+      ollamaBaseUrl: persona.ollamaBaseUrl?.trim() || stored.ollamaBaseUrl,
+      bedrockRegion: persona.bedrockRegion?.trim() || stored.bedrockRegion,
+      bedrockAccessKeyId: persona.bedrockAccessKeyId?.trim() || stored.bedrockAccessKeyId,
+      bedrockSecretKey: inheritedSecret(persona.bedrockSecretKey) || stored.bedrockSecretKey,
+      azureEndpoint: persona.azureEndpoint?.trim() || stored.azureEndpoint,
+      azureApiKey: inheritedSecret(persona.azureApiKey) || stored.azureApiKey,
+    }
+    const cacheKey = JSON.stringify([persona.provider, model, overrides])
     const cached = agentServices.get(cacheKey)
     if (cached) return cached
 
@@ -384,6 +435,7 @@ export function registerAIHandlers(): void {
       ...stored,
       provider: persona.provider,
       model,
+      ...overrides,
       ...(persona.provider === 'azure' ? { azureDeployment: model } : {}),
     }
     const service = createService(agentConfig)

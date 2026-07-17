@@ -52,6 +52,18 @@ export const BUILT_IN_EXPERT_TOOLS: ExpertToolDefinition[] = [
     category: 'Documents',
   },
   {
+    name: 'get_agent_workspace_files',
+    label: 'Private workspace files',
+    description: 'See files stored in this expert’s private local workspace.',
+    category: 'Documents',
+  },
+  {
+    name: 'get_agent_workspace_file_content',
+    label: 'Read private workspace files',
+    description: 'Retrieve and analyze a file from this expert’s private workspace.',
+    category: 'Documents',
+  },
+  {
     name: 'get_document_content',
     label: 'Read documents',
     description: 'Open and analyze content from a selected document.',

@@ -38,6 +38,7 @@ import {
   type ExpertToolCategory,
 } from '../../../ai/toolCatalog'
 import { compressImageForProfile } from '../../../utils/profilePicture'
+import AgentPrivateFiles from './AgentPrivateFiles'
 import '../SettingsSubScreen.css'
 import './AgentsScreen.css'
 
@@ -70,6 +71,12 @@ export default function CreateEditAgentScreen() {
   const [image, setImage] = useState<string | undefined>(existing?.image)
   const [provider, setProvider] = useState<AgentProviderChoice>(existing?.provider || 'default')
   const [model, setModel] = useState(existing?.model || '')
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(existing?.ollamaBaseUrl || '')
+  const [bedrockRegion, setBedrockRegion] = useState(existing?.bedrockRegion || '')
+  const [bedrockAccessKeyId, setBedrockAccessKeyId] = useState(existing?.bedrockAccessKeyId || '')
+  const [bedrockSecretKey, setBedrockSecretKey] = useState(existing?.bedrockSecretKey || '')
+  const [azureEndpoint, setAzureEndpoint] = useState(existing?.azureEndpoint || '')
+  const [azureApiKey, setAzureApiKey] = useState(existing?.azureApiKey || '')
   const [toolAccess, setToolAccess] = useState<NonNullable<Agent['toolAccess']>>(existing?.toolAccess || 'all')
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(existing?.enabledToolNames || [])
   const [availableTools, setAvailableTools] = useState(() => mergeExpertToolDefinitions([]))
@@ -95,7 +102,14 @@ export default function CreateEditAgentScreen() {
   useEffect(() => {
     let active = true
     void window.electronAPI?.aiConfigGet?.().then((config) => {
-      if (active) setPrimaryConfig(config)
+      if (!active) return
+      setPrimaryConfig(config)
+      setOllamaBaseUrl((value) => value || config.ollamaBaseUrl || 'http://localhost:11434')
+      setBedrockRegion((value) => value || config.bedrockRegion || '')
+      setBedrockAccessKeyId((value) => value || config.bedrockAccessKeyId || '')
+      setBedrockSecretKey((value) => value || config.bedrockSecretKey || '')
+      setAzureEndpoint((value) => value || config.azureEndpoint || '')
+      setAzureApiKey((value) => value || config.azureApiKey || '')
     })
     return () => { active = false }
   }, [])
@@ -122,6 +136,12 @@ export default function CreateEditAgentScreen() {
       setImage(existing.image)
       setProvider(existing.provider || 'default')
       setModel(existing.model || '')
+      setOllamaBaseUrl(existing.ollamaBaseUrl || primaryConfig?.ollamaBaseUrl || 'http://localhost:11434')
+      setBedrockRegion(existing.bedrockRegion || primaryConfig?.bedrockRegion || '')
+      setBedrockAccessKeyId(existing.bedrockAccessKeyId || primaryConfig?.bedrockAccessKeyId || '')
+      setBedrockSecretKey(existing.bedrockSecretKey || primaryConfig?.bedrockSecretKey || '')
+      setAzureEndpoint(existing.azureEndpoint || primaryConfig?.azureEndpoint || '')
+      setAzureApiKey(existing.azureApiKey || primaryConfig?.azureApiKey || '')
       setToolAccess(existing.toolAccess || 'all')
       setEnabledToolNames(existing.enabledToolNames || [])
       setToolQuery('')
@@ -138,7 +158,7 @@ export default function CreateEditAgentScreen() {
     setModelsError(null)
     try {
       const result = await window.electronAPI.aiOllamaListModels(
-        primaryConfig?.ollamaBaseUrl || 'http://localhost:11434',
+        ollamaBaseUrl || 'http://localhost:11434',
       )
       setOllamaModels(result.models)
       setModelsError(result.error || null)
@@ -148,7 +168,7 @@ export default function CreateEditAgentScreen() {
     } finally {
       setModelsLoading(false)
     }
-  }, [primaryConfig?.ollamaBaseUrl])
+  }, [ollamaBaseUrl])
 
   useEffect(() => {
     if (provider === 'ollama') void loadOllamaModels()
@@ -190,12 +210,12 @@ export default function CreateEditAgentScreen() {
       const result = await window.electronAPI.aiTestConnection({
         provider,
         model: model.trim(),
-        ollamaBaseUrl: primaryConfig?.ollamaBaseUrl,
-        bedrockRegion: primaryConfig?.bedrockRegion,
-        bedrockAccessKeyId: primaryConfig?.bedrockAccessKeyId,
-        bedrockSecretKey: primaryConfig?.bedrockSecretKey,
-        azureEndpoint: primaryConfig?.azureEndpoint,
-        azureApiKey: primaryConfig?.azureApiKey,
+        ollamaBaseUrl,
+        bedrockRegion,
+        bedrockAccessKeyId,
+        bedrockSecretKey,
+        azureEndpoint,
+        azureApiKey,
         azureDeployment: provider === 'azure' ? model.trim() : primaryConfig?.azureDeployment,
       })
       setConnectionStatus({
@@ -311,6 +331,12 @@ export default function CreateEditAgentScreen() {
       image,
       provider: providerOverride,
       model: providerOverride ? model.trim() : undefined,
+      ollamaBaseUrl: providerOverride === 'ollama' ? ollamaBaseUrl.trim() || undefined : undefined,
+      bedrockRegion: providerOverride === 'bedrock' ? bedrockRegion.trim() || undefined : undefined,
+      bedrockAccessKeyId: providerOverride === 'bedrock' ? bedrockAccessKeyId.trim() || undefined : undefined,
+      bedrockSecretKey: providerOverride === 'bedrock' ? bedrockSecretKey || undefined : undefined,
+      azureEndpoint: providerOverride === 'azure' ? azureEndpoint.trim() || undefined : undefined,
+      azureApiKey: providerOverride === 'azure' ? azureApiKey || undefined : undefined,
       toolAccess,
       enabledToolNames: toolAccess === 'selected' ? enabledToolNames : undefined,
     }
@@ -658,6 +684,47 @@ export default function CreateEditAgentScreen() {
                     )}
                   </div>
 
+                  <div className="agent-model-credentials">
+                    {provider === 'ollama' && (
+                      <div>
+                        <label>Ollama base URL</label>
+                        <GlassTextField
+                          value={ollamaBaseUrl}
+                          onChange={(value) => { setOllamaBaseUrl(value); setConnectionStatus(null) }}
+                          placeholder="http://localhost:11434"
+                        />
+                      </div>
+                    )}
+                    {provider === 'bedrock' && (
+                      <>
+                        <div>
+                          <label>Region</label>
+                          <GlassTextField value={bedrockRegion} onChange={setBedrockRegion} placeholder="us-east-1" />
+                        </div>
+                        <div>
+                          <label>Access Key ID</label>
+                          <GlassTextField value={bedrockAccessKeyId} onChange={setBedrockAccessKeyId} placeholder="AKIA..." />
+                        </div>
+                        <div>
+                          <label>Secret Access Key</label>
+                          <GlassTextField value={bedrockSecretKey} onChange={setBedrockSecretKey} placeholder="••••••••" type="password" />
+                        </div>
+                      </>
+                    )}
+                    {provider === 'azure' && (
+                      <>
+                        <div>
+                          <label>Endpoint</label>
+                          <GlassTextField value={azureEndpoint} onChange={setAzureEndpoint} placeholder="https://your-resource.openai.azure.com/" />
+                        </div>
+                        <div>
+                          <label>API Key</label>
+                          <GlassTextField value={azureApiKey} onChange={setAzureApiKey} placeholder="••••••••" type="password" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   <div className="agent-model-actions">
                     {provider === 'ollama' && (
                       <GlassButton
@@ -685,13 +752,15 @@ export default function CreateEditAgentScreen() {
                   )}
 
                   <p className="agent-model-note">
-                    Uses the {providerName(provider)} connection saved in AI Model Configuration.
+                    Values are prefilled from AI Model Configuration. Changes here apply only to this expert.
                   </p>
                 </div>
                 )}
                 </div>
               )}
             </section>
+
+            <AgentPrivateFiles agentId={existing?.id} />
 
             <section className={`agent-guidance-section agent-collapsible-section ${collapsedSections.guidance ? 'agent-collapsible-section--collapsed' : ''}`} aria-labelledby="agent-guidance-heading">
               <div

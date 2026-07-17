@@ -116,11 +116,19 @@ export interface ChatContext {
   riskMetrics?: string
   /** When set, layers a custom Agent's persona on top of the base FinoCurve system prompt. */
   agentPersona?: {
+    /** Stable id used to scope this expert's private local workspace. */
+    id?: string
     name: string
     systemPrompt: string
     /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
     provider?: 'ollama' | 'bedrock' | 'azure'
     model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
     /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
     toolAccess?: 'all' | 'selected' | 'none'
     enabledToolNames?: string[]

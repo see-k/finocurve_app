@@ -584,10 +584,17 @@ export default function AIChatBubble() {
           ...(agent
             ? {
                 agentPersona: {
+                  id: agent.id,
                   name: agent.name,
                   systemPrompt: agent.systemPrompt,
                   provider: agent.provider,
                   model: agent.model,
+                  ollamaBaseUrl: agent.ollamaBaseUrl,
+                  bedrockRegion: agent.bedrockRegion,
+                  bedrockAccessKeyId: agent.bedrockAccessKeyId,
+                  bedrockSecretKey: agent.bedrockSecretKey,
+                  azureEndpoint: agent.azureEndpoint,
+                  azureApiKey: agent.azureApiKey,
                   toolAccess: agent.toolAccess,
                   enabledToolNames: agent.enabledToolNames,
                 },

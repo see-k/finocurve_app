@@ -142,6 +142,15 @@ export function registerLocalStorageHandlers(): void {
     return { ok: true }
   })
 
+  ipcMain.handle('local-storage-open-folder', async (_event, payload: { prefix: string }) => {
+    const { shell } = await import('electron')
+    const fullPath = getFullPath(payload.prefix)
+    ensureDir(fullPath)
+    const error = await shell.openPath(fullPath)
+    if (error) throw new Error(error)
+    return { ok: true }
+  })
+
   ipcMain.handle('local-storage-read-file', async (_event, payload: { key: string }) => {
     const fullPath = getFullPath(payload.key)
     if (!fs.existsSync(fullPath)) throw new Error('File not found')

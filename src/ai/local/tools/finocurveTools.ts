@@ -19,6 +19,8 @@ export interface FinocurveToolContext {
   getDocumentList: () => Promise<DocumentRef[]>
   getReportList: () => Promise<DocumentRef[]>
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
+  getAgentWorkspaceFiles?: () => Promise<DocumentRef[]>
+  getAgentWorkspaceFileContent?: (key: string) => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getRiskMetrics: () => Promise<string>
   extractTextFromDocument: (buffer: Uint8Array, mimeType?: string, fileName?: string) => Promise<string>
   getCongressCache?: () => Promise<CongressCache | null>
@@ -249,6 +251,38 @@ ${topHoldingsBlock}${more}`
         source: z.enum(['cloud', 'local']).describe('Where the document is stored'),
       }),
     }
+  )
+
+  const getAgentWorkspaceFiles = tool(
+    async () => {
+      const files = await ctx.getAgentWorkspaceFiles?.() ?? []
+      if (files.length === 0) return 'This expert\'s private workspace has no files.'
+      return files.map((file) => `- ${file.fileName} (key: ${file.key})`).join('\n')
+    },
+    {
+      name: 'get_agent_workspace_files',
+      description: 'List the files in this expert\'s private local workspace. Use this before retrieving a workspace file, and whenever the user refers to this expert\'s files, references, knowledge, or workspace.',
+    },
+  )
+
+  const getAgentWorkspaceFileContent = tool(
+    async ({ key }: { key: string }) => {
+      const content = await ctx.getAgentWorkspaceFileContent?.(key)
+      const name = key.split('/').pop() || key
+      if (!content) return `Could not read private workspace file: ${name}`
+      const extracted = await ctx.extractTextFromDocument(content.buffer, content.mimeType, name)
+      if (!extracted.trim()) {
+        return `The private workspace file "${name}" has no supported extractable text. PDF, TXT, and CSV files are currently readable.`
+      }
+      return `[Source: Private expert workspace file "${name}"]\n\n${extracted.slice(0, 15000)}`
+    },
+    {
+      name: 'get_agent_workspace_file_content',
+      description: 'Retrieve text from a file in this expert\'s private local workspace. Call get_agent_workspace_files first and pass back its exact key. Supports PDF, TXT, and CSV content.',
+      schema: z.object({
+        key: z.string().describe('Exact workspace file key returned by get_agent_workspace_files'),
+      }),
+    },
   )
 
   const getReportList = tool(
@@ -748,6 +782,8 @@ ${topHoldingsBlock}${more}`
     getRiskMetrics,
     suggestConversationFollowUps,
   ]
+  if (ctx.getAgentWorkspaceFiles) baseTools.push(getAgentWorkspaceFiles)
+  if (ctx.getAgentWorkspaceFileContent) baseTools.push(getAgentWorkspaceFileContent)
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)

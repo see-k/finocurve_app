@@ -16,6 +16,13 @@ export interface Agent {
   provider?: 'ollama' | 'bedrock' | 'azure'
   /** Optional model override; falls back to the global AI config when unset */
   model?: string
+  /** Optional per-agent connection overrides. Unset values inherit the global AI configuration. */
+  ollamaBaseUrl?: string
+  bedrockRegion?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  azureEndpoint?: string
+  azureApiKey?: string
   /** Which tools this expert may discover and invoke. Older profiles default to all. */
   toolAccess?: 'all' | 'selected' | 'none'
   /** Tool allowlist used when toolAccess is selected. */
@@ -38,6 +45,12 @@ export type AgentInput = Pick<Agent, 'name' | 'systemPrompt'> &
     | 'image'
     | 'provider'
     | 'model'
+    | 'ollamaBaseUrl'
+    | 'bedrockRegion'
+    | 'bedrockAccessKeyId'
+    | 'bedrockSecretKey'
+    | 'azureEndpoint'
+    | 'azureApiKey'
     | 'toolAccess'
     | 'enabledToolNames'
   >>

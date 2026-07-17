@@ -462,6 +462,8 @@ export interface LocalAIServiceOptions {
   getPortfolioContext: () => Promise<PortfolioContext | null>
   getDocumentList: () => Promise<DocumentRef[]>
   getReportList: () => Promise<DocumentRef[]>
+  getAgentWorkspaceFiles?: (agentId: string) => Promise<DocumentRef[]>
+  getAgentWorkspaceFileContent?: (agentId: string, key: string) => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getRiskMetrics?: () => Promise<string>
   getCongressCache?: () => Promise<{ senate: Record<string, unknown>[]; house: Record<string, unknown>[]; senateFetchedAt?: string; houseFetchedAt?: string } | null>
   getSECSubmissions?: (tickerOrCik: string) => Promise<{ data: unknown; error: string | null }>
@@ -603,6 +605,11 @@ export class LocalAIService implements AIService {
         `Your display name is "${context.agentPersona.name}". Embody this configured persona naturally: ${context.agentPersona.systemPrompt} ` +
         'Speak directly in the first person and begin with the substance of the answer. Do not announce or describe your identity, job title, role, or persona.'
       )
+      if (context.agentPersona.id) {
+        systemParts.push(
+          'You have a private local file workspace. When a request may depend on its reference material, use get_agent_workspace_files to discover files and get_agent_workspace_file_content to retrieve the relevant content. Do not claim awareness of a file\'s contents until you retrieve it.'
+        )
+      }
     }
     if (!isGroupRouting && context.groupChat && context.agentPersona) {
       const peerNames = context.groupChat.participantNames.filter(
@@ -695,6 +702,12 @@ export class LocalAIService implements AIService {
       getDocumentList: this.options.getDocumentList,
       getReportList: this.options.getReportList,
       getDocumentContent: this.options.getDocumentContent,
+      getAgentWorkspaceFiles: context.agentPersona?.id && this.options.getAgentWorkspaceFiles
+        ? () => this.options.getAgentWorkspaceFiles!(context.agentPersona!.id!)
+        : undefined,
+      getAgentWorkspaceFileContent: context.agentPersona?.id && this.options.getAgentWorkspaceFileContent
+        ? (key: string) => this.options.getAgentWorkspaceFileContent!(context.agentPersona!.id!, key)
+        : undefined,
       getRiskMetrics:
         context.riskMetrics !== undefined
           ? async () => (context.riskMetrics ?? 'Not available')
@@ -855,6 +868,8 @@ export class LocalAIService implements AIService {
       },
       { name: 'get_document_list', description: 'List documents in finocurve/documents/' },
       { name: 'get_document_content', description: 'Fetch text from a document by key' },
+      { name: 'get_agent_workspace_files', description: 'List files in the active expert private workspace' },
+      { name: 'get_agent_workspace_file_content', description: 'Fetch text from an active expert workspace file' },
       { name: 'get_report_list', description: 'List risk reports in finocurve/reports/' },
       { name: 'get_report_content', description: 'Fetch text from a report by key' },
       { name: 'get_risk_metrics', description: 'Get current risk analysis result' },
