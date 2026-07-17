@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, Mail, Camera } from 'lucide-react'
+import { ArrowLeft, User, Mail, Camera, Building2, BriefcaseBusiness, Globe, Link, ExternalLink, FileText } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -18,18 +18,38 @@ export default function AccountScreen() {
   const [name, setName] = useState(prefs.userName || '')
   const [email, setEmail] = useState(prefs.userEmail || '')
   const [profilePicture, setProfilePicture] = useState<string | undefined>(prefs.profilePicturePath)
+  const [companyName, setCompanyName] = useState(prefs.companyName || '')
+  const [companyRole, setCompanyRole] = useState(prefs.companyRole || '')
+  const [companyWebsite, setCompanyWebsite] = useState(prefs.companyWebsite || '')
+  const [linkedInUrl, setLinkedInUrl] = useState(prefs.linkedInUrl || '')
+  const [socialMediaUrl, setSocialMediaUrl] = useState(prefs.socialMediaUrl || '')
+  const [personalBio, setPersonalBio] = useState(prefs.personalBio || '')
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     setName(prefs.userName || '')
     setEmail(prefs.userEmail || '')
     setProfilePicture(prefs.profilePicturePath)
+    setCompanyName(prefs.companyName || '')
+    setCompanyRole(prefs.companyRole || '')
+    setCompanyWebsite(prefs.companyWebsite || '')
+    setLinkedInUrl(prefs.linkedInUrl || '')
+    setSocialMediaUrl(prefs.socialMediaUrl || '')
+    setPersonalBio(prefs.personalBio || '')
   }, [prefs])
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   const handleSave = () => {
-    updatePreferences({ userName: name, userEmail: email, profilePicturePath: profilePicture })
+    updatePreferences({
+      userName: name.trim(), userEmail: email.trim(), profilePicturePath: profilePicture,
+      companyName: companyName.trim() || undefined,
+      companyRole: companyRole.trim() || undefined,
+      companyWebsite: companyWebsite.trim() || undefined,
+      linkedInUrl: linkedInUrl.trim() || undefined,
+      socialMediaUrl: socialMediaUrl.trim() || undefined,
+      personalBio: personalBio.trim() || undefined,
+    })
     navigate(-1)
   }
 
@@ -112,6 +132,40 @@ export default function AccountScreen() {
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Email</label>
               <GlassTextField value={email} onChange={setEmail} placeholder="your@email.com" prefixIcon={<Mail size={16} />} type="email" />
+            </div>
+
+            <div className="account-form-section">
+              <h2>Company</h2>
+              <p>Optional details help your experts tailor business and financial guidance.</p>
+            </div>
+            <div>
+              <label className="account-field-label">Company name <span>Optional</span></label>
+              <GlassTextField value={companyName} onChange={setCompanyName} placeholder="Acme, Inc." prefixIcon={<Building2 size={16} />} />
+            </div>
+            <div>
+              <label className="account-field-label">Your role <span>Optional</span></label>
+              <GlassTextField value={companyRole} onChange={setCompanyRole} placeholder="Founder, CFO, Analyst…" prefixIcon={<BriefcaseBusiness size={16} />} />
+            </div>
+            <div>
+              <label className="account-field-label">Company website <span>Optional</span></label>
+              <GlassTextField value={companyWebsite} onChange={setCompanyWebsite} placeholder="https://company.com" prefixIcon={<Globe size={16} />} type="url" />
+            </div>
+
+            <div className="account-form-section">
+              <h2>About you</h2>
+              <p>These details are optional and available to your AI experts when relevant.</p>
+            </div>
+            <div>
+              <label className="account-field-label">LinkedIn <span>Optional</span></label>
+              <GlassTextField value={linkedInUrl} onChange={setLinkedInUrl} placeholder="https://linkedin.com/in/you" prefixIcon={<Link size={16} />} type="url" />
+            </div>
+            <div>
+              <label className="account-field-label">Other social profile <span>Optional</span></label>
+              <GlassTextField value={socialMediaUrl} onChange={setSocialMediaUrl} placeholder="X, Bluesky, personal site…" prefixIcon={<ExternalLink size={16} />} type="url" />
+            </div>
+            <div>
+              <label className="account-field-label">Short bio <span>Optional</span></label>
+              <GlassTextField value={personalBio} onChange={setPersonalBio} placeholder="Share your background, interests, or priorities" prefixIcon={<FileText size={16} />} maxLines={3} />
             </div>
             <GlassButton text="Save Changes" onClick={handleSave} isPrimary />
           </div>

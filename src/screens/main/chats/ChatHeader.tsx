@@ -32,6 +32,7 @@ interface ChatHeaderProps {
   smartRoutingEnabled: boolean
   onToggleSmartRouting: () => void
   onNavigate: (path: string) => void
+  onEditAgent: (agentId: string) => void
   onRequestDeleteSelected: () => void
 }
 
@@ -55,11 +56,12 @@ export default function ChatHeader({
   smartRoutingEnabled,
   onToggleSmartRouting,
   onNavigate,
+  onEditAgent,
   onRequestDeleteSelected,
 }: ChatHeaderProps) {
   return (
     <header className="chats-screen__chat-header">
-      <div className="chats-screen__participant-stack" aria-hidden="true">
+      <div className="chats-screen__participant-stack">
         <UserAvatar
           src={profilePicturePath}
           initials={getInitials(userName)}
@@ -67,13 +69,21 @@ export default function ChatHeader({
           className="chats-screen__stacked-avatar chats-screen__stacked-avatar--user"
         />
         {participants.slice(0, 3).map((participant, index) => (
-          <UserAvatar
+          <button
             key={participant.id}
-            src={participant.image}
-            initials={getInitials(participant.name)}
-            size={38}
-            className={`chats-screen__stacked-avatar chats-screen__stacked-avatar--${index}`}
-          />
+            type="button"
+            className="chats-screen__expert-link chats-screen__expert-link--stacked"
+            onClick={() => onEditAgent(participant.id)}
+            aria-label={`Edit ${participant.name}`}
+            title={`Edit ${participant.name}`}
+          >
+            <UserAvatar
+              src={participant.image}
+              initials={getInitials(participant.name)}
+              size={38}
+              className={`chats-screen__stacked-avatar chats-screen__stacked-avatar--${index}`}
+            />
+          </button>
         ))}
         {participants.length === 0 && (
           <span className="chats-screen__group-avatar"><Sparkles size={17} /></span>

@@ -231,6 +231,12 @@ export interface UserPreferences {
   userName?: string
   userEmail?: string
   profilePicturePath?: string
+  companyName?: string
+  companyRole?: string
+  companyWebsite?: string
+  linkedInUrl?: string
+  socialMediaUrl?: string
+  personalBio?: string
   hasAgreedToTerms: boolean
   theme: ThemeMode
   notificationsEnabled: boolean

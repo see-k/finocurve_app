@@ -21,6 +21,7 @@ interface ChatMessagesProps {
   mentionNames: string[]
   loading: boolean
   onFollowUp: (prompt: string) => void
+  onEditAgent: (agentId: string) => void
   renderAgentProvider: (agentId?: string) => ReactNode
   messagesEndRef: RefObject<HTMLDivElement | null>
 }
@@ -38,6 +39,7 @@ export default function ChatMessages({
   mentionNames,
   loading,
   onFollowUp,
+  onEditAgent,
   renderAgentProvider,
   messagesEndRef,
 }: ChatMessagesProps) {
@@ -63,16 +65,36 @@ export default function ChatMessages({
             <Fragment key={`${index}-${message.senderName}`}>
               <article className={`chats-screen__message chats-screen__message--${message.role}`}>
                 {message.role === 'assistant' && (
-                  <UserAvatar
-                    src={message.senderAvatar}
-                    initials={getInitials(message.senderName)}
-                    size={32}
-                    className="chats-screen__message-avatar"
-                  />
+                  <button
+                    type="button"
+                    className="chats-screen__expert-link chats-screen__expert-link--avatar"
+                    onClick={() => message.senderAgentId && onEditAgent(message.senderAgentId)}
+                    disabled={!message.senderAgentId}
+                    aria-label={`Edit ${message.senderName}`}
+                    title={`Edit ${message.senderName}`}
+                  >
+                    <UserAvatar
+                      src={message.senderAvatar}
+                      initials={getInitials(message.senderName)}
+                      size={32}
+                      className="chats-screen__message-avatar"
+                    />
+                  </button>
                 )}
                 <div className="chats-screen__message-column">
                   <div className="chats-screen__message-meta">
-                    <span>{message.role === 'user' ? userName : message.senderName}</span>
+                    {message.role === 'assistant' && message.senderAgentId ? (
+                      <button
+                        type="button"
+                        className="chats-screen__expert-link chats-screen__expert-link--name"
+                        onClick={() => onEditAgent(message.senderAgentId!)}
+                        title={`Edit ${message.senderName}`}
+                      >
+                        {message.senderName}
+                      </button>
+                    ) : (
+                      <span>{message.role === 'user' ? userName : message.senderName}</span>
+                    )}
                     {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
                     {message.role === 'assistant' && renderAgentProvider(message.senderAgentId)}
                     {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
@@ -150,15 +172,30 @@ export default function ChatMessages({
 
         {streamingAgentId && (
           <article className="chats-screen__message chats-screen__message--assistant chats-screen__message--streaming">
-            <UserAvatar
-              src={agentById.get(streamingAgentId)?.image}
-              initials={getInitials(agentById.get(streamingAgentId)?.name)}
-              size={32}
-              className="chats-screen__message-avatar"
-            />
+            <button
+              type="button"
+              className="chats-screen__expert-link chats-screen__expert-link--avatar"
+              onClick={() => onEditAgent(streamingAgentId)}
+              aria-label={`Edit ${agentById.get(streamingAgentId)?.name || 'expert'}`}
+              title={`Edit ${agentById.get(streamingAgentId)?.name || 'expert'}`}
+            >
+              <UserAvatar
+                src={agentById.get(streamingAgentId)?.image}
+                initials={getInitials(agentById.get(streamingAgentId)?.name)}
+                size={32}
+                className="chats-screen__message-avatar"
+              />
+            </button>
             <div className="chats-screen__message-column">
               <div className="chats-screen__message-meta">
-                <span>{agentById.get(streamingAgentId)?.name}</span>
+                <button
+                  type="button"
+                  className="chats-screen__expert-link chats-screen__expert-link--name"
+                  onClick={() => onEditAgent(streamingAgentId)}
+                  title={`Edit ${agentById.get(streamingAgentId)?.name || 'expert'}`}
+                >
+                  {agentById.get(streamingAgentId)?.name}
+                </button>
                 <span className="chats-screen__thinking-label">Thinking</span>
                 {renderAgentProvider(streamingAgentId)}
               </div>

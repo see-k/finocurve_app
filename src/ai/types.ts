@@ -108,6 +108,17 @@ export interface ChatMessage {
 
 export interface ChatContext {
   currentRoute?: string
+  /** Optional account details supplied by the user for relevant personalization. */
+  userProfile?: {
+    name?: string
+    email?: string
+    companyName?: string
+    companyRole?: string
+    companyWebsite?: string
+    linkedInUrl?: string
+    socialMediaUrl?: string
+    personalBio?: string
+  }
   portfolioSummary?: string
   documentCount?: number
   /** Full portfolio context for tool use (passed from renderer) */

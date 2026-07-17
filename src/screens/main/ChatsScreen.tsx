@@ -301,7 +301,17 @@ export default function ChatsScreen() {
         valuationAudit: portfolioAudit,
       }
     : undefined
-  const baseContext = { currentRoute: location.pathname, portfolioSummary, portfolioContext }
+  const userProfile = {
+    name: prefs.userName?.trim() || undefined,
+    email: prefs.userEmail?.trim() || undefined,
+    companyName: prefs.companyName?.trim() || undefined,
+    companyRole: prefs.companyRole?.trim() || undefined,
+    companyWebsite: prefs.companyWebsite?.trim() || undefined,
+    linkedInUrl: prefs.linkedInUrl?.trim() || undefined,
+    socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
+    personalBio: prefs.personalBio?.trim() || undefined,
+  }
+  const baseContext = { currentRoute: location.pathname, portfolioSummary, portfolioContext, userProfile }
 
   const handleStop = () => {
     stoppedRef.current = true
@@ -413,6 +423,11 @@ export default function ChatsScreen() {
           includeRoutingRationale: routerPresentation.verbose,
           onSmartRoutingUpdate: (update) => {
             setSmartRoutingStatus({ ...update, conversationId: selected.id })
+          },
+          onAgentStart: (agentId) => {
+            streamingAgentIdRef.current = agentId
+            setStreamingAgentId(agentId)
+            setStreamingText('')
           },
           onChunk: (chunk) => {
             if (chunk.type !== 'answer') return
@@ -625,6 +640,7 @@ export default function ChatsScreen() {
             smartRoutingEnabled={selected.smartRoutingEnabled === true}
             onToggleSmartRouting={() => setSmartRouting(selected.id, !selected.smartRoutingEnabled)}
             onNavigate={navigate}
+            onEditAgent={(agentId) => navigate(`/settings/agents/${agentId}`)}
             onRequestDeleteSelected={() => {
               setShowChatSettings(false)
               setDeleteTarget(selected)
@@ -644,6 +660,7 @@ export default function ChatsScreen() {
             mentionNames={mentionNames}
             loading={loading}
             onFollowUp={handleFollowUp}
+            onEditAgent={(agentId) => navigate(`/settings/agents/${agentId}`)}
             renderAgentProvider={renderAgentProvider}
             messagesEndRef={messagesEndRef}
           />

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip, ChevronDown, Check } from 'lucide-react'
+import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
@@ -241,6 +241,7 @@ function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
 }
 
 export default function AIChatBubble() {
+  const navigate = useNavigate()
   const location = useLocation()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
@@ -577,6 +578,16 @@ export default function AIChatBubble() {
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
+          userProfile: {
+            name: prefs.userName?.trim() || undefined,
+            email: prefs.userEmail?.trim() || undefined,
+            companyName: prefs.companyName?.trim() || undefined,
+            companyRole: prefs.companyRole?.trim() || undefined,
+            companyWebsite: prefs.companyWebsite?.trim() || undefined,
+            linkedInUrl: prefs.linkedInUrl?.trim() || undefined,
+            socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
+            personalBio: prefs.personalBio?.trim() || undefined,
+          },
           portfolioSummary,
           documentCount: undefined,
           portfolioContext,
@@ -711,6 +722,17 @@ export default function AIChatBubble() {
               )}
             </div>
             <div className="ai-chat-header-actions">
+              <button
+                className="ai-chat-header-btn"
+                onClick={() => {
+                  setExpanded(false)
+                  navigate('/main?tab=chats')
+                }}
+                aria-label="Open conversations"
+                title="Open conversations"
+              >
+                <MessagesSquare size={18} />
+              </button>
               <button
                 className="ai-chat-header-btn"
                 onClick={handleNewChat}

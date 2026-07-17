@@ -18,6 +18,8 @@ export interface GroupTurnResult {
 
 export interface RunGroupTurnOptions {
   signal?: AbortSignal
+  /** Called immediately before each selected agent starts generating a reply. */
+  onAgentStart?: (agentId: string) => void
   /** Called with live streaming deltas as each agent's reply is generated. */
   onChunk?: (chunk: GroupTurnChunk) => void
   /** Extra chat context shared with every participant (route, portfolio, etc). */
@@ -400,6 +402,7 @@ export async function* runGroupTurn(
     })
 
     try {
+      options.onAgentStart?.(agentId)
       const { text, reasoning, followUps, aborted } = await streamChat({
         messages: apiMessages,
         context: {

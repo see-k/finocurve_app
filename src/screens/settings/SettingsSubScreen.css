@@ -611,6 +611,24 @@
   border: 2px solid var(--bg-primary);
 }
 
+.account-form-section {
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.account-form-section h2 { margin: 0 0 4px; color: var(--text-primary); font-size: 16px; }
+.account-form-section p { margin: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.5; }
+.account-field-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-field-label span { color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
+
 @media (prefers-reduced-motion: reduce) {
   .a2a-status-dot--running {
     animation: none;
