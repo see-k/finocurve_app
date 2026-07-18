@@ -97,14 +97,14 @@ function readJournal(storageKey: string): JournalEntry | null {
   }
 }
 
-function writeJournal(entry: JournalEntry): boolean {
+function writeJournal(storageKey: string, revision: number, deleted: boolean): boolean {
   try {
     const persisted: PersistedJournalEntry = {
-      storageKey: entry.storageKey,
-      revision: entry.revision,
-      deleted: entry.value === null,
+      storageKey,
+      revision,
+      deleted,
     }
-    localStorage.setItem(journalKey(entry.storageKey), JSON.stringify(persisted))
+    localStorage.setItem(journalKey(storageKey), JSON.stringify(persisted))
     return true
   } catch {
     return false
@@ -145,7 +145,7 @@ function mirrorWrite(entry: JournalEntry): void {
         value: localValue,
         revision: stored.revision + 1,
       }
-      writeJournal(retry)
+      writeJournal(retry.storageKey, retry.revision, retry.value === null)
       try { updateMetadata(retry.storageKey, retry.revision, retry.value === null) } catch { /* journal remains */ }
       mirrorWrite(retry)
       return
@@ -173,7 +173,7 @@ export function setCoreDataItem(storageKey: string, value: string): void {
   }
 
   const entry: JournalEntry = { storageKey, value, revision: nextRevision(storageKey) }
-  writeJournal(entry)
+  writeJournal(storageKey, entry.revision, false)
   let storageError: unknown
   try {
     localStorage.setItem(storageKey, value)
@@ -192,7 +192,7 @@ export function removeCoreDataItem(storageKey: string): void {
   }
 
   const entry: JournalEntry = { storageKey, value: null, revision: nextRevision(storageKey) }
-  writeJournal(entry)
+  writeJournal(storageKey, entry.revision, true)
   let storageError: unknown
   try {
     localStorage.removeItem(storageKey)
