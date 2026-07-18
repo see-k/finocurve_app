@@ -1,0 +1,82 @@
+.valuation-disclosure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 12px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, var(--brand-primary) 22%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.valuation-disclosure--compact {
+  gap: 6px 12px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+
+.valuation-disclosure__label {
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.valuation-disclosure__item,
+.valuation-disclosure__freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.valuation-disclosure__item svg { color: var(--brand-primary); flex: 0 0 auto; }
+.valuation-disclosure__item strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+  overflow: hidden;
+  max-width: 200px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Icons replace the field labels; keep the label text for screen readers only. */
+.valuation-disclosure__key {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.valuation-disclosure__freshness {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.valuation-disclosure__freshness--current { color: var(--status-success); background: color-mix(in srgb, var(--status-success) 12%, transparent); }
+.valuation-disclosure__freshness--aging { color: var(--status-warning); background: color-mix(in srgb, var(--status-warning) 12%, transparent); }
+.valuation-disclosure__freshness--stale { color: var(--status-error); background: color-mix(in srgb, var(--status-error) 12%, transparent); }
+.valuation-disclosure__freshness--historical,
+.valuation-disclosure__freshness--unknown { color: var(--text-tertiary); background: color-mix(in srgb, var(--text-tertiary) 10%, transparent); }
+
+@media (max-width: 700px) {
+  .valuation-disclosure { width: 100%; }
+  .valuation-disclosure__item { width: 100%; }
+  .valuation-disclosure--compact .valuation-disclosure__item { width: auto; }
+}

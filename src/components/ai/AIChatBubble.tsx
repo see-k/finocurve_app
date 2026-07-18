@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, Paperclip } from 'lucide-react'
+import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
-import type { ChatAttachment } from '../../ai/types'
+import { useAgents } from '../../store/useAgents'
+import { DEFAULT_AGENT_ID, isAgentActive, isDefaultAgent } from '../../types/Agent'
+import type { Agent } from '../../types/Agent'
+import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
+import ChatMessageContent, { FollowUpsRow } from './ChatMessageContent'
+import { getCoreDataItem, removeCoreDataItem, setCoreDataItem } from '../../lib/coreDataStorage'
+import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
 import './AIChatBubble.css'
 
 import aiAvatar from '/images/finocurve-icon.png'
@@ -18,20 +24,19 @@ function isAuthenticatedPath(path: string): boolean {
   return AUTHENTICATED_PATHS.some((p) => path.startsWith(p))
 }
 
-interface ChatFollowUpChip {
-  label: string
-  prompt: string
-}
-
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Expert that authored this response, retained when the selected expert changes. */
+  senderAgentId?: string
+  senderName?: string
+  senderAvatar?: string
   /** User turns only: sent to the model (vision + extracted text). */
   attachments?: ChatAttachment[]
   /** Reasoning/thinking from models that support it (o1, o3, llama thinking, etc.) */
   reasoning?: string
   /** Clickable follow-ups from suggest_conversation_follow_ups */
-  followUps?: ChatFollowUpChip[]
+  followUps?: ChatFollowUp[]
 }
 
 const MAX_CHAT_ATTACHMENTS = 6
@@ -39,17 +44,6 @@ const MAX_CHAT_ATTACHMENT_BYTES = 4 * 1024 * 1024
 
 const CHAT_ATTACHMENT_ACCEPT =
   'image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf,text/plain,text/csv,application/csv,.json,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.txt,.csv,.pdf'
-
-function isImageAttachmentMime(mime: string): boolean {
-  const m = mime.toLowerCase().split(';')[0].trim()
-  return (
-    m === 'image/png' ||
-    m === 'image/jpeg' ||
-    m === 'image/jpg' ||
-    m === 'image/gif' ||
-    m === 'image/webp'
-  )
-}
 
 function fileToBase64Data(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -74,7 +68,24 @@ interface PendingAttachment {
 
 const PREFS_STORAGE_KEY = 'finocurve-preferences'
 const PANEL_SIZE_KEY = 'finocurve-ai-chat-panel-size'
+const SELECTED_AGENT_KEY = 'finocurve-ai-bubble-agent-id'
 const MAX_PERSISTED_MESSAGES = 200
+
+function loadSelectedAgentId(): string {
+  try {
+    return localStorage.getItem(SELECTED_AGENT_KEY) || DEFAULT_AGENT_ID
+  } catch {
+    return DEFAULT_AGENT_ID
+  }
+}
+
+function persistSelectedAgentId(id: string) {
+  try {
+    localStorage.setItem(SELECTED_AGENT_KEY, id)
+  } catch {
+    /* ignore */
+  }
+}
 
 const PANEL_DEFAULT_W = 380
 const PANEL_DEFAULT_H = 520
@@ -135,7 +146,7 @@ function readPrefsIdentity(): { userEmail?: string; isGuest?: boolean } {
 
 function loadChatMessages(storageKey: string): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(storageKey)
+    const raw = getCoreDataItem(storageKey)
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -161,7 +172,7 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
         const followUps =
           Array.isArray(rawFu) && rawFu.length > 0
             ? rawFu.filter(
-                (f): f is ChatFollowUpChip =>
+                (f): f is ChatFollowUp =>
                   !!f &&
                   typeof f === 'object' &&
                   typeof f.label === 'string' &&
@@ -193,6 +204,9 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
         return {
           role: msg.role,
           content: msg.content,
+          ...(msg.role === 'assistant' && typeof msg.senderAgentId === 'string' && msg.senderAgentId ? { senderAgentId: msg.senderAgentId } : {}),
+          ...(msg.role === 'assistant' && typeof msg.senderName === 'string' && msg.senderName ? { senderName: msg.senderName } : {}),
+          ...(msg.role === 'assistant' && typeof msg.senderAvatar === 'string' && msg.senderAvatar ? { senderAvatar: msg.senderAvatar } : {}),
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
           ...(typeof msg.reasoning === 'string' && msg.reasoning ? { reasoning: msg.reasoning } : {}),
           ...(followUps && followUps.length > 0 ? { followUps } : {}),
@@ -201,33 +215,6 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
   } catch {
     return []
   }
-}
-
-function AiChatFollowUpsRow({
-  items,
-  disabled,
-  onPick,
-}: {
-  items: ChatFollowUpChip[]
-  disabled?: boolean
-  onPick: (prompt: string) => void
-}) {
-  if (items.length === 0) return null
-  return (
-    <div className="ai-chat-follow-ups" role="list" aria-label="Suggested follow-ups">
-      {items.map((item, idx) => (
-        <button
-          key={`${idx}-${item.label.slice(0, 32)}`}
-          type="button"
-          className="ai-chat-follow-up-chip"
-          disabled={disabled}
-          onClick={() => onPick(item.prompt)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function stripChatAttachmentPayloads(messages: ChatMessage[]): ChatMessage[] {
@@ -243,7 +230,7 @@ function stripChatAttachmentPayloads(messages: ChatMessage[]): ChatMessage[] {
 function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
   const trimmed = messages.length > MAX_PERSISTED_MESSAGES ? messages.slice(-MAX_PERSISTED_MESSAGES) : messages
   const save = (payload: ChatMessage[]) => {
-    localStorage.setItem(storageKey, JSON.stringify(payload))
+    setCoreDataItem(storageKey, JSON.stringify(payload))
   }
   try {
     save(trimmed)
@@ -261,13 +248,41 @@ function persistChatMessages(storageKey: string, messages: ChatMessage[]) {
 }
 
 export default function AIChatBubble() {
+  const navigate = useNavigate()
   const location = useLocation()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
   const { prefs } = usePreferences()
+  const { agents } = useAgents()
   const chatStorageKey = useMemo(
     () => chatStorageKeyForUser(prefs.userEmail, prefs.isGuest),
     [prefs.userEmail, prefs.isGuest]
   )
+
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(loadSelectedAgentId)
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+
+  // Agents available in the switcher: the default plus every active expert.
+  const selectableAgents = useMemo(
+    () => agents.filter((a) => isDefaultAgent(a) || isAgentActive(a)),
+    [agents]
+  )
+  const defaultAgent = useMemo(
+    () => agents.find(isDefaultAgent),
+    [agents]
+  )
+  // Resolve the active agent, falling back to the default if the stored pick was deleted/deactivated.
+  const activeAgent: Agent | undefined = useMemo(
+    () => selectableAgents.find((a) => a.id === selectedAgentId) ?? defaultAgent ?? selectableAgents[0],
+    [selectableAgents, selectedAgentId, defaultAgent]
+  )
+  const activeAgentRef = useRef<Agent | undefined>(activeAgent)
+  activeAgentRef.current = activeAgent
+
+  const selectAgent = useCallback((id: string) => {
+    setSelectedAgentId(id)
+    persistSelectedAgentId(id)
+    setAgentMenuOpen(false)
+  }, [])
 
   const initialPanelDims = useMemo(() => {
     const loaded = loadPanelSize()
@@ -292,7 +307,8 @@ export default function AIChatBubble() {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
-  const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUpChip[]>([])
+  const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
+  const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUp[]>([])
   const [error, setError] = useState<string | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -407,8 +423,11 @@ export default function AIChatBubble() {
     window.addEventListener('pointercancel', onUp)
   }, [panelWidth, panelHeight])
 
+  const portfolioAudit = portfolio
+    ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
+    : undefined
   const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}`
+    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
     : undefined
 
   const handleNewChat = () => {
@@ -421,7 +440,7 @@ export default function AIChatBubble() {
     setInput('')
     setError(null)
     try {
-      localStorage.removeItem(chatStorageKey)
+      removeCoreDataItem(chatStorageKey)
     } catch {
       /* ignore */
     }
@@ -533,6 +552,7 @@ export default function AIChatBubble() {
             totalValue,
             totalGainLossPercent: totalGainLossPercent ?? 0,
             assetCount: portfolio.assets?.length ?? 0,
+            valuationAudit: portfolioAudit,
           }
         : undefined
 
@@ -561,14 +581,45 @@ export default function AIChatBubble() {
         }
       })
 
+      const agent = activeAgentRef.current
+      setStreamingAgentId(agent?.id ?? null)
       const { text: response, reasoning, followUps, aborted } = await streamChat({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
+          userProfile: {
+            name: prefs.userName?.trim() || undefined,
+            email: prefs.userEmail?.trim() || undefined,
+            companyName: prefs.companyName?.trim() || undefined,
+            companyRole: prefs.companyRole?.trim() || undefined,
+            companyWebsite: prefs.companyWebsite?.trim() || undefined,
+            linkedInUrl: prefs.linkedInUrl?.trim() || undefined,
+            socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
+            personalBio: prefs.personalBio?.trim() || undefined,
+          },
           portfolioSummary,
           documentCount: undefined,
           portfolioContext,
           riskMetrics: undefined,
+          ...(agent
+            ? {
+                agentPersona: {
+                  id: agent.id,
+                  name: agent.name,
+                  systemPrompt: agent.systemPrompt,
+                  provider: agent.provider,
+                  model: agent.model,
+                  ollamaBaseUrl: agent.ollamaBaseUrl,
+                  bedrockRegion: agent.bedrockRegion,
+                  bedrockAccessKeyId: agent.bedrockAccessKeyId,
+                  bedrockSecretKey: agent.bedrockSecretKey,
+                  azureEndpoint: agent.azureEndpoint,
+                  azureApiKey: agent.azureApiKey,
+                  toolAccess: agent.toolAccess,
+                  enabledToolNames: agent.enabledToolNames,
+                },
+              }
+            : {}),
         },
       })
 
@@ -585,6 +636,9 @@ export default function AIChatBubble() {
         {
           role: 'assistant',
           content: finalContent || '_Stopped by user._',
+          ...(agent?.id ? { senderAgentId: agent.id } : {}),
+          ...(agent?.name ? { senderName: agent.name } : {}),
+          ...(agent?.image ? { senderAvatar: agent.image } : {}),
           reasoning,
           ...(!wasStopped && followUps && followUps.length > 0 ? { followUps } : {}),
         },
@@ -596,10 +650,17 @@ export default function AIChatBubble() {
       setError(e instanceof Error ? e.message : 'Failed to get response')
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}` },
+        {
+          role: 'assistant',
+          content: `Error: ${e instanceof Error ? e.message : 'Unknown error'}`,
+          ...(activeAgentRef.current?.id ? { senderAgentId: activeAgentRef.current.id } : {}),
+          ...(activeAgentRef.current?.name ? { senderName: activeAgentRef.current.name } : {}),
+          ...(activeAgentRef.current?.image ? { senderAvatar: activeAgentRef.current.image } : {}),
+        },
       ])
     } finally {
       setLoading(false)
+      setStreamingAgentId(null)
     }
   }
 
@@ -611,6 +672,7 @@ export default function AIChatBubble() {
     !!window.electronAPI?.aiChatStream
 
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'You'
+  const assistantAvatarSrc = activeAgent?.image || aiAvatar
 
   if (!visible) return null
 
@@ -623,8 +685,73 @@ export default function AIChatBubble() {
         >
         <GlassContainer padding="16px" borderRadius={16} className="ai-chat-panel">
           <div className="ai-chat-header">
-            <span className="ai-chat-title">AI Assistant</span>
+            <div className="ai-chat-agent-picker">
+              <button
+                type="button"
+                className="ai-chat-agent-trigger"
+                onClick={() => setAgentMenuOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={agentMenuOpen}
+                aria-label="Switch AI agent"
+                title="Switch AI agent"
+              >
+                <span className="ai-chat-agent-trigger__avatar">
+                  {activeAgent?.image ? (
+                    <img src={activeAgent.image} alt="" />
+                  ) : (
+                    <img src={aiAvatar} alt="" />
+                  )}
+                </span>
+                <span className="ai-chat-agent-trigger__name">{activeAgent?.name || 'AI Assistant'}</span>
+                <ChevronDown size={15} className={`ai-chat-agent-trigger__caret ${agentMenuOpen ? 'ai-chat-agent-trigger__caret--open' : ''}`} />
+              </button>
+              {agentMenuOpen && (
+                <>
+                  <div className="ai-chat-agent-menu-backdrop" onClick={() => setAgentMenuOpen(false)} />
+                  <ul className="ai-chat-agent-menu" role="listbox" aria-label="Available agents">
+                    {selectableAgents.map((agent) => {
+                      const selected = agent.id === activeAgent?.id
+                      return (
+                        <li key={agent.id} role="option" aria-selected={selected}>
+                          <button
+                            type="button"
+                            className={`ai-chat-agent-option ${selected ? 'ai-chat-agent-option--selected' : ''}`}
+                            onClick={() => selectAgent(agent.id)}
+                          >
+                            <span className="ai-chat-agent-option__avatar">
+                              {agent.image ? (
+                                <img src={agent.image} alt="" />
+                              ) : isDefaultAgent(agent) ? (
+                                <img src={aiAvatar} alt="" />
+                              ) : (
+                                <span className="ai-chat-agent-option__initials">{getInitials(agent.name)}</span>
+                              )}
+                            </span>
+                            <span className="ai-chat-agent-option__text">
+                              <span className="ai-chat-agent-option__name">{agent.name}</span>
+                              {isDefaultAgent(agent) && <span className="ai-chat-agent-option__tag">Default</span>}
+                            </span>
+                            {selected && <Check size={15} className="ai-chat-agent-option__check" />}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
             <div className="ai-chat-header-actions">
+              <button
+                className="ai-chat-header-btn"
+                onClick={() => {
+                  setExpanded(false)
+                  navigate('/main?tab=chats')
+                }}
+                aria-label="Open conversations"
+                title="Open conversations"
+              >
+                <MessagesSquare size={18} />
+              </button>
               <button
                 className="ai-chat-header-btn"
                 onClick={handleNewChat}
@@ -669,69 +796,53 @@ export default function AIChatBubble() {
                 Ask about your portfolio, risk metrics, or documents. Attach images, PDFs, or text files with the paperclip. Requires an AI provider (Ollama, Bedrock, or Azure) configured in Settings.
               </p>
             )}
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              const messageAgent = msg.senderAgentId ? agents.find((agent) => agent.id === msg.senderAgentId) : undefined
+              const messageAgentName = msg.senderName || messageAgent?.name || activeAgent?.name || 'AI Assistant'
+              const messageAgentAvatar = msg.senderAvatar || messageAgent?.image || assistantAvatarSrc
+              return (
               <div key={i} className={`ai-chat-msg-wrap ai-chat-msg-wrap--${msg.role}`}>
                 <div className="ai-chat-msg-avatar">
                   {msg.role === 'assistant' ? (
-                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--avatar"
+                      onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
+                      disabled={!msg.senderAgentId}
+                      aria-label={`Edit ${messageAgentName}`}
+                      title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                    >
+                      <img src={messageAgentAvatar} alt="" className="ai-chat-avatar-img" />
+                    </button>
                   ) : (
                     <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
-                  {msg.role === 'assistant' ? (
-                    <>
-                      {msg.reasoning && (
-                        <div className="ai-chat-reasoning">
-                          {msg.reasoning}
-                        </div>
-                      )}
-                      <div className="ai-chat-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                      <AiChatFollowUpsRow
-                        items={msg.followUps ?? []}
-                        disabled={loading}
-                        onPick={(prompt) => submitUserText(prompt.trim(), 'followup')}
-                      />
-                    </>
-                  ) : (
-                    <div className="ai-chat-user-turn">
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="ai-chat-msg-attachments">
-                          {msg.attachments.map((a, idx) =>
-                            isImageAttachmentMime(a.mimeType) && a.dataBase64 ? (
-                              <img
-                                key={`${idx}-${a.name}`}
-                                className="ai-chat-msg-thumb"
-                                src={`data:${a.mimeType};base64,${a.dataBase64}`}
-                                alt=""
-                              />
-                            ) : (
-                              <span key={`${idx}-${a.name}`} className="ai-chat-file-chip" title={a.name}>
-                                {a.name}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      )}
-                      {msg.content === '(See attached files)' &&
-                      msg.attachments?.length &&
-                      !msg.attachments.some((a) => (a.dataBase64?.length ?? 0) > 0) ? (
-                        <span className="ai-chat-att-hint">
-                          Attached files (payload not restored after reload — re-attach to use in new
-                          messages)
-                        </span>
-                      ) : msg.content !== '(See attached files)' ? (
-                        <span className="ai-chat-user-text">{msg.content}</span>
-                      ) : null}
-                    </div>
+                  {msg.role === 'assistant' && (
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--name"
+                      onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
+                      disabled={!msg.senderAgentId}
+                      title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                    >
+                      {messageAgentName}
+                    </button>
                   )}
+                  <ChatMessageContent
+                    role={msg.role}
+                    content={msg.content}
+                    attachments={msg.attachments}
+                    reasoning={msg.reasoning}
+                    followUps={msg.followUps}
+                    disabled={loading}
+                    onFollowUpClick={(prompt) => submitUserText(prompt.trim(), 'followup')}
+                  />
                 </div>
               </div>
-            ))}
+              )
+            })}
             {loading && (
               <div className="ai-chat-streaming-turn">
                 <div className="ai-chat-stream-status-row">
@@ -759,9 +870,25 @@ export default function AIChatBubble() {
                 </div>
                 <div className="ai-chat-msg-wrap ai-chat-msg-wrap--assistant">
                   <div className="ai-chat-msg-avatar">
-                    <img src={aiAvatar} alt="AI" className="ai-chat-avatar-img" />
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--avatar"
+                      onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
+                      disabled={!streamingAgentId}
+                      aria-label={`Edit ${agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'expert'}`}
+                    >
+                      <img src={agents.find((agent) => agent.id === streamingAgentId)?.image || assistantAvatarSrc} alt="" className="ai-chat-avatar-img" />
+                    </button>
                   </div>
                   <div className="ai-chat-msg ai-chat-msg--assistant">
+                    <button
+                      type="button"
+                      className="ai-chat-expert-link ai-chat-expert-link--name"
+                      onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
+                      disabled={!streamingAgentId}
+                    >
+                      {agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'AI Assistant'}
+                    </button>
                     {streaming.reasoning && (
                       <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
                         {streaming.reasoning}
@@ -776,7 +903,7 @@ export default function AIChatBubble() {
                         'Thinking...'
                       )}
                     </div>
-                    <AiChatFollowUpsRow
+                    <FollowUpsRow
                       items={streamingFollowUps}
                       disabled={loading}
                       onPick={(prompt) => submitUserText(prompt.trim(), 'followup')}

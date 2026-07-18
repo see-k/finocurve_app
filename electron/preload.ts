@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { PortfolioContext } from '../src/ai/types'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -38,42 +39,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('local-storage-save-file', payload),
   localStorageList: (payload: { prefix: string }) => ipcRenderer.invoke('local-storage-list', payload),
   localStorageOpenFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-open-file', payload),
+  localStorageOpenFolder: (payload: { prefix: string }) => ipcRenderer.invoke('local-storage-open-folder', payload),
   localStorageReadFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-read-file', payload),
   localStorageDeleteFile: (payload: { key: string }) => ipcRenderer.invoke('local-storage-delete-file', payload),
   localStorageOpenDocumentsFolder: () => ipcRenderer.invoke('local-storage-open-documents-folder'),
-  portfolioSync: (
-    payload: {
-      portfolioName: string
-      totalValue: number
-      totalGainLossPercent: number
-      assetCount: number
-      riskScore?: number
-      riskLevel?: string
-      topHoldings?: Array<{ symbol?: string; name: string; value: number; percent?: number }>
-      holdings?: Array<{
-        name: string
-        symbol?: string
-        type: string
-        category: string
-        value: number
-        percent?: number
-        quantity: number
-        costBasis: number
-        currency: string
-      }>
-      loans?: Array<{
-        name: string
-        loanType?: string
-        balance: number
-        principal?: number
-        interestRate?: number
-        monthlyPayment?: number
-        termMonths?: number
-        startDate?: string
-        extraMonthlyPayment?: number
-      }>
-    } | null
-  ) => ipcRenderer.invoke('portfolio-sync', payload),
+  // Versioned SQLite core-data repository. localStorage remains a compatibility cache.
+  coreDataBootstrap: (payload: { records: unknown[] }) =>
+    ipcRenderer.invoke('core-data-bootstrap', payload),
+  coreDataWrite: (payload: { storageKey: string; value: string | null; revision: number }) =>
+    ipcRenderer.invoke('core-data-write', payload),
+  portfolioSync: (payload: PortfolioContext | null) => ipcRenderer.invoke('portfolio-sync', payload),
   aiConfigGet: () => ipcRenderer.invoke('ai-config-get'),
   aiConfigSave: (payload: unknown) => ipcRenderer.invoke('ai-config-save', payload),
   aiCheckOllama: () => ipcRenderer.invoke('ai-check-ollama'),
@@ -196,6 +171,7 @@ contextBridge.exposeInMainWorld('mcpAPI', {
   startServers: () => ipcRenderer.invoke('mcp:start-servers'),
   stopServers: () => ipcRenderer.invoke('mcp:stop-servers'),
   getStatus: () => ipcRenderer.invoke('mcp:get-status'),
+  listTools: () => ipcRenderer.invoke('mcp:list-tools'),
   getSettings: () => ipcRenderer.invoke('mcp:get-settings'),
   updateSettings: (settings: { autoStart?: boolean }) => ipcRenderer.invoke('mcp:update-settings', settings),
 })

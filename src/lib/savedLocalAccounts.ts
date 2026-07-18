@@ -24,12 +24,6 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-interface LegacyFields {
-  passwordSaltB64?: unknown
-  passwordHashB64?: unknown
-  passwordKdf?: unknown
-}
-
 function readStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined
 }
@@ -42,23 +36,22 @@ export function loadSavedLocalAccounts(): SavedLocalAccount[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter(
-        (x): x is SavedLocalAccount & LegacyFields =>
+        (x): x is SavedLocalAccount =>
           !!x &&
           typeof x === 'object' &&
           typeof (x as SavedLocalAccount).email === 'string' &&
           (x as SavedLocalAccount).email.trim().length > 0,
       )
       .map(x => {
-        const legacy = x as LegacyFields
         return {
           email: x.email.trim(),
           userName: readStr(x.userName),
           profilePicturePath: readStr(x.profilePicturePath),
           hasCompletedOnboarding: !!x.hasCompletedOnboarding,
           updatedAt: readStr(x.updatedAt) ?? new Date(0).toISOString(),
-          localAuthSaltB64: readStr(x.localAuthSaltB64) ?? readStr(legacy.passwordSaltB64),
-          localAuthDigestB64: readStr(x.localAuthDigestB64) ?? readStr(legacy.passwordHashB64),
-          localAuthKdf: readStr(x.localAuthKdf) ?? readStr(legacy.passwordKdf),
+          localAuthSaltB64: readStr(x.localAuthSaltB64),
+          localAuthDigestB64: readStr(x.localAuthDigestB64),
+          localAuthKdf: readStr(x.localAuthKdf),
         }
       })
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))

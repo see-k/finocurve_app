@@ -9,9 +9,17 @@ import GlassIconButton from '../../components/glass/GlassIconButton'
 import CountrySelect from '../../components/CountrySelect'
 import AssetLogo from '../../components/AssetLogo'
 import TradingViewChart, { getTradingViewSymbol } from '../../components/TradingViewChart'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import type { Asset, AssetSector, PerformancePeriod } from '../../types'
 import { assetCurrentValue, assetGainLoss, assetGainLossPercent, ASSET_TYPE_ICONS, SECTOR_LABELS, isLoan } from '../../types'
 import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
+import {
+  createFinancialProvenance,
+  deriveAssetValueProvenance,
+  getAssetCostBasisProvenance,
+  getAssetCurrentPriceProvenance,
+} from '../../lib/financialProvenance'
 import './DetailScreen.css'
 import '../add-asset/AddAsset.css'
 
@@ -43,7 +51,7 @@ export default function AssetDetailScreen() {
   const [showTvChart, setShowTvChart] = useState(false)
 
   // Load asset from portfolio
-  const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+  const portfolio = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
   const asset: Asset | undefined = (portfolio.assets || []).find((a: Asset) => a.id === assetId)
 
   const [editQty, setEditQty] = useState(asset?.quantity.toString() || '')
@@ -66,6 +74,12 @@ export default function AssetDetailScreen() {
       date: row.dateLabel,
     }))
   }, [chartData])
+  const chartProvenance = useMemo(() => createFinancialProvenance({
+    sourceKind: 'demo',
+    sourceName: 'FinoCurve illustrative series',
+    valuationMethod: 'illustrative_simulation',
+    isEstimated: true,
+  }), [asset?.id, period])
 
   if (!asset) {
     return (
@@ -90,27 +104,45 @@ export default function AssetDetailScreen() {
   const fmt = (n: number) => '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const handleSaveEdit = () => {
+    const now = new Date().toISOString()
+    const nextCost = parseFloat(editCost) || asset.costBasis
+    const nextPrice = parseFloat(editPrice) || asset.currentPrice
     const updated = {
       ...asset,
       quantity: parseFloat(editQty) || asset.quantity,
-      costBasis: parseFloat(editCost) || asset.costBasis,
-      currentPrice: parseFloat(editPrice) || asset.currentPrice,
+      costBasis: nextCost,
+      currentPrice: nextPrice,
       sector: editSector,
       country: editCountry || undefined,
+      financialProvenance: {
+        currentPrice: nextPrice === asset.currentPrice
+          ? getAssetCurrentPriceProvenance(asset, portfolio.updatedAt)
+          : createFinancialProvenance({
+              sourceKind: 'manual', sourceName: 'User-entered valuation', valuationMethod: 'manual_mark',
+              asOf: now, recordedAt: now,
+            }, now),
+        costBasis: nextCost === asset.costBasis
+          ? getAssetCostBasisProvenance(asset, portfolio.updatedAt)
+          : createFinancialProvenance({
+              sourceKind: 'manual', sourceName: 'User-entered cost basis', valuationMethod: 'acquisition_cost',
+              asOf: asset.purchaseDate || now, recordedAt: now,
+            }, now),
+      },
     }
-    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const p = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
     p.assets = (p.assets || []).map((a: Asset) => a.id === updated.id ? updated : a)
-    p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    p.updatedAt = now
+    p.financialProvenanceVersion = 1
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(p))
     setShowEdit(false)
     window.location.reload()
   }
 
   const handleDelete = () => {
-    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const p = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
     p.assets = (p.assets || []).filter((a: Asset) => a.id !== asset.id)
     p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(p))
     navigate('/main', { replace: true })
   }
 
@@ -155,6 +187,8 @@ export default function AssetDetailScreen() {
               {asset.quantity} shares @ {fmt(asset.currentPrice)} per share
             </div>
           </div>
+          <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label="Current holding value" />
+          <ValuationDisclosure provenance={getAssetCostBasisProvenance(asset, portfolio.updatedAt)} label="Cost basis" compact />
 
           <div className="period-selector">
             {periods.map(p => (
@@ -200,6 +234,7 @@ export default function AssetDetailScreen() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          <ValuationDisclosure provenance={chartProvenance} label="Price chart" compact />
         </GlassContainer>
 
         <GlassContainer style={{ marginTop: 16 }}>

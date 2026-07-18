@@ -28,6 +28,25 @@ interface AssetSeries {
   firstPrice: number | null
 }
 
+interface PriceDataProvenance {
+  sourceKind: 'market' | 'historical'
+  sourceName: string
+  asOf: string
+  recordedAt: string
+  valuationMethod: 'market_price' | 'historical_close'
+}
+
+function marketTimeIso(value: unknown, fallback: string): string {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString()
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const milliseconds = value < 10_000_000_000 ? value * 1000 : value
+    const date = new Date(milliseconds)
+    if (Number.isFinite(date.getTime())) return date.toISOString()
+  }
+  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return new Date(value).toISOString()
+  return fallback
+}
+
 function toBucket(date: Date, interval: '1h' | '1d' | '1wk'): string {
   const iso = date.toISOString()
   if (interval === '1h') return iso.slice(0, 13) // YYYY-MM-DDTHH
@@ -118,7 +137,10 @@ export function registerPriceHandlers(): void {
       _event,
       payload: { query: string }
     ): Promise<{
-      results: Array<{ symbol: string; name: string; type: AssetType; price: number; sector: AssetSector }>
+      results: Array<{
+        symbol: string; name: string; type: AssetType; price: number; sector: AssetSector
+        priceSource: string; priceAsOf: string; isLive: true
+      }>
       error: string | null
     }> => {
       try {
@@ -147,14 +169,18 @@ export function registerPriceHandlers(): void {
         const symbols = yahooQuotes.map((q) => q.symbol as string)
         const quoteResults = await yahooFinance.quote(symbols)
         const quoteArray = Array.isArray(quoteResults) ? quoteResults : [quoteResults]
-        const quoteBySymbol = new Map<string, { regularMarketPrice?: number }>()
+        const quoteBySymbol = new Map<string, { regularMarketPrice?: number; regularMarketTime?: unknown }>()
         quoteArray.forEach((q, i) => {
-          const raw = q as { symbol?: string; regularMarketPrice?: number }
+          const raw = q as { symbol?: string; regularMarketPrice?: number; regularMarketTime?: unknown }
           const sym = raw?.symbol ?? symbols[i]
           if (sym) quoteBySymbol.set(sym, raw)
         })
 
-        const results: Array<{ symbol: string; name: string; type: AssetType; price: number; sector: AssetSector }> = []
+        const recordedAt = new Date().toISOString()
+        const results: Array<{
+          symbol: string; name: string; type: AssetType; price: number; sector: AssetSector
+          priceSource: string; priceAsOf: string; isLive: true
+        }> = []
         for (const q of yahooQuotes) {
           const quote = quoteBySymbol.get(q.symbol)
           const price = quote?.regularMarketPrice
@@ -165,10 +191,15 @@ export function registerPriceHandlers(): void {
 
           const name = q.longname ?? q.shortname ?? q.symbol
           const sector = mapSector(q.sector ?? q.sectorDisp)
+          const audit = {
+            priceSource: 'Yahoo Finance',
+            priceAsOf: marketTimeIso(quote?.regularMarketTime, recordedAt),
+            isLive: true as const,
+          }
           if (assetType === 'etf') {
-            results.push({ symbol: q.symbol, name, type: 'etf', price, sector: sector === 'other' ? 'diversified' : sector })
+            results.push({ symbol: q.symbol, name, type: 'etf', price, sector: sector === 'other' ? 'diversified' : sector, ...audit })
           } else {
-            results.push({ symbol: q.symbol, name, type: assetType, price, sector })
+            results.push({ symbol: q.symbol, name, type: assetType, price, sector, ...audit })
           }
         }
 
@@ -185,11 +216,15 @@ export function registerPriceHandlers(): void {
     async (
       _event,
       payload: PriceHistoricalPayload
-    ): Promise<{ data: { date: string; value: number }[]; error: string | null }> => {
+    ): Promise<{
+      data: { date: string; value: number }[]
+      provenance: PriceDataProvenance | null
+      error: string | null
+    }> => {
       try {
         const { assets, period, otherAssetsValue } = payload
         if (!assets || assets.length === 0) {
-          return { data: [], error: null }
+          return { data: [], provenance: null, error: null }
         }
 
         const { period1, period2, interval } = getDateRange(period)
@@ -252,7 +287,7 @@ export function registerPriceHandlers(): void {
         }
 
         if (series.length === 0 || allBuckets.size === 0) {
-          return { data: [], error: null }
+          return { data: [], provenance: null, error: null }
         }
 
         const sortedBuckets = Array.from(allBuckets).sort()
@@ -290,10 +325,22 @@ export function registerPriceHandlers(): void {
           }
         }
 
-        return { data, error: null }
+        const recordedAt = new Date().toISOString()
+        const latestAsOf = data[data.length - 1]?.date ?? recordedAt
+        return {
+          data,
+          provenance: {
+            sourceKind: 'historical',
+            sourceName: 'Yahoo Finance',
+            asOf: latestAsOf,
+            recordedAt,
+            valuationMethod: 'historical_close',
+          },
+          error: null,
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        return { data: [], error: message }
+        return { data: [], provenance: null, error: message }
       }
     }
   )

@@ -5,8 +5,9 @@
  */
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import type { RiskAnalysisResult, Asset } from '../types'
+import type { RiskAnalysisResult, Asset, FinancialValueProvenance } from '../types'
 import { assetCurrentValue, assetGainLoss, assetGainLossPercent, isLoan, ASSET_TYPE_LABELS, SECTOR_LABELS } from '../types'
+import { formatProvenanceAsOf, getFinancialFreshness, VALUATION_METHOD_LABELS } from '../lib/financialProvenance'
 
 // ── Colors ──
 const C = {
@@ -70,6 +71,8 @@ interface ReportOptions {
   sectorAlloc: Record<string, number>
   countryAlloc: Record<string, number>
   typeAlloc: Record<string, number>
+  /** Audit trail for portfolio values and the risk metrics derived from them. */
+  valuationProvenance?: FinancialValueProvenance
   /** AI-generated insights from user documents */
   documentInsights?: DocumentInsight[]
   /** Professional advanced analysis sections (no AI wording) */
@@ -79,7 +82,7 @@ interface ReportOptions {
 }
 
 export async function generateRiskReportPdf(opts: ReportOptions) {
-  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc, documentInsights, advancedAnalysis } = opts
+  const { risk, assets, totalValue, totalGainLossPercent, portfolioName, sectorAlloc, countryAlloc, typeAlloc, valuationProvenance, documentInsights, advancedAnalysis } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()
   const ph = doc.internal.pageSize.getHeight()
@@ -176,6 +179,13 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
 
   doc.setFontSize(10)
   doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, margin, 62)
+  if (valuationProvenance) {
+    const freshness = getFinancialFreshness(valuationProvenance)
+    const method = VALUATION_METHOD_LABELS[valuationProvenance.valuationMethod]
+    doc.setFontSize(7)
+    const auditLine = `Source: ${valuationProvenance.sourceName}  |  As of: ${formatProvenanceAsOf(valuationProvenance.asOf)}  |  Method: ${method}  |  Freshness: ${freshness.label}${valuationProvenance.isEstimated ? ' (estimated)' : ''}`
+    doc.text(doc.splitTextToSize(auditLine, cw), margin, 69)
+  }
 
   // Executive Summary Box
   y = 100
@@ -732,10 +742,27 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   // ────────────────────────────────────
   // Explainability: What Changed & Data Sources
   // ────────────────────────────────────
-  if ((risk.changeSummary && risk.changeSummary.length > 0) || (risk.explainableMetrics && risk.explainableMetrics.length > 0)) {
+  if (valuationProvenance || (risk.changeSummary && risk.changeSummary.length > 0) || (risk.explainableMetrics && risk.explainableMetrics.length > 0)) {
     checkSpace(40)
     newPage()
     sectionTitle('Explainability & Methodology')
+
+    if (valuationProvenance) {
+      const freshness = getFinancialFreshness(valuationProvenance)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...C.dark)
+      doc.text('Portfolio Valuation Audit Trail', margin, y)
+      y += 6
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...C.text)
+      bodyText(`Source: ${valuationProvenance.sourceName}`)
+      bodyText(`As of: ${formatProvenanceAsOf(valuationProvenance.asOf)}`)
+      bodyText(`Valuation method: ${VALUATION_METHOD_LABELS[valuationProvenance.valuationMethod]}`)
+      bodyText(`Freshness: ${freshness.label}${valuationProvenance.isEstimated ? ' (estimated)' : ''}`)
+      y += 6
+    }
 
     if (risk.changeSummary && risk.changeSummary.length > 0) {
       doc.setFontSize(10)

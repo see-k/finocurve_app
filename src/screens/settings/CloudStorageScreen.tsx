@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Cloud, FolderOpen } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import SettingsSubNav from '../../components/settings/SettingsSubNav'
 import { usePreferences } from '../../store/usePreferences'
 import './SettingsSubScreen.css'
 
 const hasElectronS3 = typeof window !== 'undefined' && window.electronAPI?.s3SaveCredentials
 const hasElectronLocal = typeof window !== 'undefined' && window.electronAPI?.localStorageChooseDirectory
 
+type CloudStorageSection = 's3' | 'local'
+
 export default function CloudStorageScreen() {
   const navigate = useNavigate()
+  const { section } = useParams<{ section: string }>()
+  const activeSection: CloudStorageSection = section === 'local' ? 'local' : 's3'
+  const goToSection = (s: string) => navigate(`/settings/cloud-storage/${s}`, { replace: true })
   const { prefs, updatePreferences } = usePreferences()
   const [visible, setVisible] = useState(false)
   const [localPath, setLocalPath] = useState<string | null>(null)
@@ -122,6 +128,18 @@ export default function CloudStorageScreen() {
           <h1 className="settings-sub-title">Cloud Storage</h1>
         </div>
 
+        {hasElectronLocal && (
+          <SettingsSubNav
+            activeId={activeSection}
+            onSelect={goToSection}
+            items={[
+              { id: 's3', label: 'AWS S3', icon: <Cloud size={15} /> },
+              { id: 'local', label: 'Local storage', icon: <FolderOpen size={15} /> },
+            ]}
+          />
+        )}
+
+        {activeSection === 's3' && (
         <GlassContainer>
           <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Cloud size={18} /> AWS S3 Bucket
@@ -155,9 +173,10 @@ export default function CloudStorageScreen() {
             </div>
           </div>
         </GlassContainer>
+        )}
 
-        {hasElectronLocal && (
-          <GlassContainer style={{ marginTop: 24 }}>
+        {activeSection === 'local' && hasElectronLocal && (
+          <GlassContainer>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <FolderOpen size={18} /> Local storage
             </h3>

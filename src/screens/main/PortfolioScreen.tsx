@@ -12,11 +12,17 @@ import {
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import AssetLogo from '../../components/AssetLogo'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
 import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { getPerformanceChartData } from '../../utils/performanceChartData'
 import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import {
+  aggregateAssetValueProvenance,
+  createFinancialProvenance,
+  deriveAssetValueProvenance,
+} from '../../lib/financialProvenance'
 import type { PerformancePeriod, Asset } from '../../types'
 import {
   assetCurrentValue, assetGainLossPercent, isLoan,
@@ -45,13 +51,13 @@ export default function PortfolioScreen() {
   const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
 
   const { history } = usePortfolioValueHistory(totalValue, totalInvestableValue, !!hasAssets)
-  const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
+  const { data: historicalApiData, provenance: historicalProvenance, loading: historicalLoading } = useHistoricalPrices(
     portfolio?.assets ?? [],
     selectedPeriod,
     totalValue,
     !!hasAssets && !!window.electronAPI?.priceHistorical
   )
-  const { data: chartData, hasRealData } = useMemo(
+  const { data: chartData, hasRealData, dataSource } = useMemo(
     () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
     [history, totalValue, selectedPeriod, historicalApiData]
   )
@@ -188,6 +194,20 @@ export default function PortfolioScreen() {
   }
 
   const isPositive = totalGainLoss >= 0
+  const portfolioValuation = useMemo(
+    () => aggregateAssetValueProvenance(portfolio?.assets ?? []),
+    [portfolio?.assets]
+  )
+  const chartValuation = useMemo(() => {
+    if (dataSource === 'api' && historicalProvenance) return historicalProvenance
+    return createFinancialProvenance({
+      sourceKind: dataSource === 'history' ? 'historical' : 'calculated',
+      sourceName: dataSource === 'history' ? 'FinoCurve portfolio snapshots' : 'Current portfolio valuation',
+      valuationMethod: dataSource === 'history' ? 'historical_close' : 'portfolio_sum',
+      asOf: chartData[chartData.length - 1]?.date ?? portfolioValuation.asOf,
+      isEstimated: dataSource === 'none' || portfolioValuation.isEstimated,
+    })
+  }, [chartData, dataSource, historicalProvenance, portfolioValuation])
 
   return (
     <div className="portfolio">
@@ -223,6 +243,7 @@ export default function PortfolioScreen() {
             <span>{portfolio!.currency}</span>
             <span>Cost: {fmt(totalCost)}</span>
           </div>
+          <ValuationDisclosure provenance={portfolioValuation} label="Portfolio totals" compact />
         </GlassContainer>
 
         {/* Allocation */}
@@ -340,6 +361,7 @@ export default function PortfolioScreen() {
         <p className="performance-chart-disclaimer" style={{ marginTop: 8, marginBottom: 0 }}>
           Gray: linear fit to the series. Dashed amber: extrapolation — illustrative only.
         </p>
+        <ValuationDisclosure provenance={chartValuation} label="Performance series" compact />
       </GlassContainer>
 
       {/* Sankey – Interactive Portfolio Flow */}
@@ -443,6 +465,7 @@ export default function PortfolioScreen() {
                       <span className="port-asset-card__badge">{ASSET_TYPE_LABELS[asset.type]}</span>
                       <span>{asset.quantity} shares</span>
                     </div>
+                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} value`} compact />
                   </div>
                   <div className="port-asset-card__right">
                     <div className="port-asset-card__value">{fmt(val)}</div>
@@ -476,6 +499,7 @@ export default function PortfolioScreen() {
                       <span className="port-asset-card__badge">Loan</span>
                       {asset.interestRate && <span>{asset.interestRate}% APR</span>}
                     </div>
+                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} balance`} compact />
                   </div>
                   <div className="port-asset-card__right">
                     <div className="port-asset-card__value" style={{ color: 'var(--status-error)' }}>{fmt(Math.abs(asset.currentPrice))}</div>

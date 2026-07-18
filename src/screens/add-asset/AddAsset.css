@@ -201,6 +201,12 @@
   color: var(--text-secondary);
 }
 
+.search-result-item__source {
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 9px;
+}
+
 .search-quantity-form {
   margin-top: 16px;
   display: flex;

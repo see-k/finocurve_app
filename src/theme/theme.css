@@ -389,6 +389,181 @@ h1, h2, h3, h4 {
 }
 
 /* ============================================
+   DARK: Aurora (teal → sky → violet — animated aurora accents)
+   Signature theme: shimmering gradient headings + animated glow (see feature
+   section at the bottom of this file). Brand shifts to aurora teal/violet.
+   ============================================ */
+[data-theme="dark-aurora"] {
+  --brand-primary: #2dd4bf;
+  --brand-secondary: #22c55e;
+  --primary: #2dd4bf;
+  --primary-hover: #14b8a6;
+  --primary-alpha-20: rgba(45, 212, 191, 0.22);
+  --primary-alpha-40: rgba(45, 212, 191, 0.48);
+  --primary-alpha-90: rgba(45, 212, 191, 0.92);
+  --primary-hover-alpha-85: rgba(20, 184, 166, 0.88);
+  --brand-primary-r: 45;
+  --brand-primary-g: 212;
+  --brand-primary-b: 191;
+  --brand-secondary-r: 34;
+  --brand-secondary-g: 197;
+  --brand-secondary-b: 94;
+
+  --bg: #060b0d;
+  --bg-primary: #060b0d;
+  --surface: #0c1418;
+  --surface-light: #132026;
+
+  --text-primary: #ecfdf5;
+  --text-secondary: #93b4b0;
+  --text-tertiary: rgba(236, 253, 245, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(45, 212, 191, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(45, 212, 191, 0.16);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.58);
+  --divider: rgba(45, 212, 191, 0.1);
+
+  --nav-bg: rgba(6, 11, 13, 0.94);
+  --nav-border: rgba(45, 212, 191, 0.14);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(45, 212, 191, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(45, 212, 191, 0.07);
+  --chart-tooltip-bg: #0c1418;
+
+  --screen-overlay-soft: rgba(4, 10, 12, 0.4);
+  --screen-overlay-md: rgba(4, 11, 14, 0.52);
+  --screen-overlay-strong: rgba(4, 12, 15, 0.68);
+  --screen-overlay-deep: rgba(3, 8, 10, 0.9);
+
+  /* Aurora accent gradient — drives shimmering headings, buttons, and glows */
+  --aurora-1: #2dd4bf;
+  --aurora-2: #38bdf8;
+  --aurora-3: #22c55e;
+  --aurora-gradient: linear-gradient(120deg, #2dd4bf 0%, #38bdf8 46%, #22c55e 100%);
+  --aurora-glow-1: rgba(45, 212, 191, 0.5);
+  --aurora-glow-2: rgba(34, 197, 94, 0.5);
+}
+
+/* ============================================
+   DARK: Sapphire (corporate blue — enterprise)
+   ============================================ */
+[data-theme="dark-sapphire"] {
+  --brand-primary: #3b82f6;
+  --brand-secondary: #2563eb;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-alpha-20: rgba(59, 130, 246, 0.22);
+  --primary-alpha-40: rgba(59, 130, 246, 0.48);
+  --primary-alpha-90: rgba(59, 130, 246, 0.92);
+  --primary-hover-alpha-85: rgba(37, 99, 235, 0.88);
+  --brand-primary-r: 59;
+  --brand-primary-g: 130;
+  --brand-primary-b: 246;
+  --brand-secondary-r: 37;
+  --brand-secondary-g: 99;
+  --brand-secondary-b: 235;
+
+  --bg: #070c16;
+  --bg-primary: #070c16;
+  --surface: #0e1626;
+  --surface-light: #172236;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-tertiary: rgba(241, 245, 249, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(59, 130, 246, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(96, 165, 250, 0.15);
+  --glass-shadow: rgba(0, 0, 0, 0.42);
+
+  --overlay: rgba(0, 0, 0, 0.56);
+  --divider: rgba(148, 163, 184, 0.1);
+
+  --nav-bg: rgba(7, 12, 22, 0.94);
+  --nav-border: rgba(96, 165, 250, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(96, 165, 250, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(96, 165, 250, 0.07);
+  --chart-tooltip-bg: #0e1626;
+
+  --screen-overlay-soft: rgba(5, 9, 18, 0.4);
+  --screen-overlay-md: rgba(5, 10, 20, 0.52);
+  --screen-overlay-strong: rgba(4, 9, 18, 0.68);
+  --screen-overlay-deep: rgba(3, 6, 14, 0.9);
+
+  --ent-rim: rgba(96, 165, 250, 0.1);
+  --ent-glow: rgba(59, 130, 246, 0.09);
+}
+
+/* ============================================
+   DARK: Evergreen (deep emerald — enterprise / wealth)
+   ============================================ */
+[data-theme="dark-evergreen"] {
+  --brand-primary: #10b981;
+  --brand-secondary: #059669;
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-alpha-20: rgba(16, 185, 129, 0.22);
+  --primary-alpha-40: rgba(16, 185, 129, 0.48);
+  --primary-alpha-90: rgba(16, 185, 129, 0.92);
+  --primary-hover-alpha-85: rgba(5, 150, 105, 0.88);
+  --brand-primary-r: 16;
+  --brand-primary-g: 185;
+  --brand-primary-b: 129;
+  --brand-secondary-r: 5;
+  --brand-secondary-g: 150;
+  --brand-secondary-b: 105;
+
+  --bg: #06100c;
+  --bg-primary: #06100c;
+  --surface: #0c1a14;
+  --surface-light: #14261d;
+
+  --text-primary: #ecfdf3;
+  --text-secondary: #94b3a4;
+  --text-tertiary: rgba(236, 253, 243, 0.42);
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(16, 185, 129, 0.09);
+  --glass-bg-strong: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(16, 185, 129, 0.15);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --overlay: rgba(0, 0, 0, 0.58);
+  --divider: rgba(16, 185, 129, 0.1);
+
+  --nav-bg: rgba(6, 16, 12, 0.94);
+  --nav-border: rgba(16, 185, 129, 0.12);
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(16, 185, 129, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(16, 185, 129, 0.07);
+  --chart-tooltip-bg: #0c1a14;
+
+  --screen-overlay-soft: rgba(4, 12, 9, 0.4);
+  --screen-overlay-md: rgba(4, 13, 10, 0.52);
+  --screen-overlay-strong: rgba(3, 12, 9, 0.68);
+  --screen-overlay-deep: rgba(2, 9, 7, 0.9);
+
+  --ent-rim: rgba(16, 185, 129, 0.1);
+  --ent-glow: rgba(16, 185, 129, 0.08);
+}
+
+/* ============================================
    LIGHT
    ============================================ */
 [data-theme="light"] {
@@ -518,6 +693,302 @@ h1, h2, h3, h4 {
   --screen-overlay-md: rgba(248, 245, 238, 0.58);
   --screen-overlay-strong: rgba(248, 245, 238, 0.8);
   --screen-overlay-deep: rgba(248, 245, 238, 0.94);
+}
+
+/* ============================================
+   LIGHT: Aurora (bright mint & lavender — animated aurora accents)
+   Brand deepened for contrast on light surfaces.
+   ============================================ */
+[data-theme="light-aurora"] {
+  --brand-primary: #0d9488;
+  --brand-secondary: #16a34a;
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --primary-alpha-20: rgba(13, 148, 136, 0.2);
+  --primary-alpha-40: rgba(13, 148, 136, 0.4);
+  --primary-alpha-90: rgba(13, 148, 136, 0.9);
+  --primary-hover-alpha-85: rgba(15, 118, 110, 0.85);
+  --brand-primary-r: 13;
+  --brand-primary-g: 148;
+  --brand-primary-b: 136;
+  --brand-secondary-r: 22;
+  --brand-secondary-g: 163;
+  --brand-secondary-b: 74;
+
+  --bg: #eef7f4;
+  --bg-primary: #eef7f4;
+  --surface: #ffffff;
+  --surface-light: #f4fbf8;
+
+  --text-primary: #0f2a24;
+  --text-secondary: #4b6b64;
+  --text-tertiary: rgba(15, 42, 36, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(13, 148, 136, 0.18);
+  --glass-shadow: rgba(15, 42, 36, 0.1);
+
+  --overlay: rgba(15, 42, 36, 0.26);
+  --divider: rgba(13, 148, 136, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(13, 148, 136, 0.14);
+
+  --input-bg: rgba(13, 148, 136, 0.05);
+  --input-border: rgba(13, 148, 136, 0.22);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(13, 148, 136, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(238, 247, 244, 0.45);
+  --screen-overlay-md: rgba(238, 247, 244, 0.58);
+  --screen-overlay-strong: rgba(238, 247, 244, 0.8);
+  --screen-overlay-deep: rgba(238, 247, 244, 0.94);
+
+  --aurora-1: #0d9488;
+  --aurora-2: #0284c7;
+  --aurora-3: #16a34a;
+  --aurora-gradient: linear-gradient(120deg, #0d9488 0%, #0284c7 46%, #16a34a 100%);
+  --aurora-glow-1: rgba(13, 148, 136, 0.35);
+  --aurora-glow-2: rgba(22, 163, 74, 0.35);
+}
+
+/* ============================================
+   LIGHT: Sapphire (professional blue on white — enterprise)
+   ============================================ */
+[data-theme="light-sapphire"] {
+  --brand-primary: #2563eb;
+  --brand-secondary: #1d4ed8;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-alpha-20: rgba(37, 99, 235, 0.2);
+  --primary-alpha-40: rgba(37, 99, 235, 0.4);
+  --primary-alpha-90: rgba(37, 99, 235, 0.9);
+  --primary-hover-alpha-85: rgba(29, 78, 216, 0.85);
+  --brand-primary-r: 37;
+  --brand-primary-g: 99;
+  --brand-primary-b: 235;
+  --brand-secondary-r: 29;
+  --brand-secondary-g: 78;
+  --brand-secondary-b: 216;
+
+  --bg: #eef2f9;
+  --bg-primary: #eef2f9;
+  --surface: #ffffff;
+  --surface-light: #f5f8fd;
+
+  --text-primary: #0f1b30;
+  --text-secondary: #55647c;
+  --text-tertiary: rgba(15, 27, 48, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(37, 99, 235, 0.16);
+  --glass-shadow: rgba(15, 27, 48, 0.1);
+
+  --overlay: rgba(15, 27, 48, 0.26);
+  --divider: rgba(37, 99, 235, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(37, 99, 235, 0.14);
+
+  --input-bg: rgba(37, 99, 235, 0.05);
+  --input-border: rgba(37, 99, 235, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(37, 99, 235, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(238, 242, 249, 0.45);
+  --screen-overlay-md: rgba(238, 242, 249, 0.58);
+  --screen-overlay-strong: rgba(238, 242, 249, 0.8);
+  --screen-overlay-deep: rgba(238, 242, 249, 0.94);
+
+  --ent-rim: rgba(37, 99, 235, 0.14);
+  --ent-glow: rgba(37, 99, 235, 0.08);
+}
+
+/* ============================================
+   LIGHT: Evergreen (refined emerald on white — enterprise / wealth)
+   ============================================ */
+[data-theme="light-evergreen"] {
+  --brand-primary: #047857;
+  --brand-secondary: #065f46;
+  --primary: #047857;
+  --primary-hover: #065f46;
+  --primary-alpha-20: rgba(4, 120, 87, 0.2);
+  --primary-alpha-40: rgba(4, 120, 87, 0.4);
+  --primary-alpha-90: rgba(4, 120, 87, 0.9);
+  --primary-hover-alpha-85: rgba(6, 95, 70, 0.85);
+  --brand-primary-r: 4;
+  --brand-primary-g: 120;
+  --brand-primary-b: 87;
+  --brand-secondary-r: 6;
+  --brand-secondary-g: 95;
+  --brand-secondary-b: 70;
+
+  --bg: #eef5f1;
+  --bg-primary: #eef5f1;
+  --surface: #ffffff;
+  --surface-light: #f3faf6;
+
+  --text-primary: #0b2419;
+  --text-secondary: #4b6b5d;
+  --text-tertiary: rgba(11, 36, 25, 0.45);
+
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(4, 120, 87, 0.16);
+  --glass-shadow: rgba(11, 36, 25, 0.1);
+
+  --overlay: rgba(11, 36, 25, 0.26);
+  --divider: rgba(4, 120, 87, 0.12);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: rgba(4, 120, 87, 0.14);
+
+  --input-bg: rgba(4, 120, 87, 0.05);
+  --input-border: rgba(4, 120, 87, 0.2);
+  --input-focus-border: var(--brand-primary);
+
+  --chart-grid: rgba(4, 120, 87, 0.1);
+  --chart-tooltip-bg: #ffffff;
+
+  --screen-overlay-soft: rgba(238, 245, 241, 0.45);
+  --screen-overlay-md: rgba(238, 245, 241, 0.58);
+  --screen-overlay-strong: rgba(238, 245, 241, 0.8);
+  --screen-overlay-deep: rgba(238, 245, 241, 0.94);
+
+  --ent-rim: rgba(4, 120, 87, 0.14);
+  --ent-glow: rgba(4, 120, 87, 0.07);
+}
+
+/* ============================================
+   ENTERPRISE (Sapphire + Evergreen): restrained, professional polish.
+   A crisp brand-tinted rim + soft ambient depth on glass surfaces and nav.
+   No animation — deliberately calm for enterprise use.
+   ============================================ */
+[data-theme="dark-sapphire"] .glass-container,
+[data-theme="dark-evergreen"] .glass-container,
+[data-theme="light-sapphire"] .glass-container,
+[data-theme="light-evergreen"] .glass-container {
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    0 0 0 1px var(--ent-rim),
+    0 0 42px -18px var(--ent-glow);
+}
+
+[data-theme="dark-sapphire"] .nav-pill,
+[data-theme="dark-evergreen"] .nav-pill,
+[data-theme="light-sapphire"] .nav-pill,
+[data-theme="light-evergreen"] .nav-pill {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--ent-rim);
+}
+
+[data-theme="dark-sapphire"] .glass-button--primary,
+[data-theme="dark-evergreen"] .glass-button--primary,
+[data-theme="light-sapphire"] .glass-button--primary,
+[data-theme="light-evergreen"] .glass-button--primary {
+  box-shadow:
+    0 4px 15px var(--primary-alpha-40),
+    0 0 0 1px var(--ent-rim);
+}
+
+/* ============================================
+   AURORA (dark-aurora + light-aurora): signature animated accents
+   Shimmering gradient headings, aurora-swept primary buttons, pulsing FAB,
+   and a soft aurora rim on glass cards. All motion respects reduced-motion.
+   ============================================ */
+@keyframes aurora-shift {
+  to { background-position: 200% center; }
+}
+
+@keyframes aurora-fab-pulse {
+  0%, 100% {
+    box-shadow:
+      0 4px 18px var(--primary-alpha-40),
+      0 0 34px -6px var(--aurora-glow-1);
+  }
+  50% {
+    box-shadow:
+      0 4px 20px rgba(56, 189, 248, 0.4),
+      0 0 44px -4px var(--aurora-glow-2);
+  }
+}
+
+/* Shimmering gradient page titles */
+[data-theme="dark-aurora"] h1,
+[data-theme="light-aurora"] h1 {
+  background: var(--aurora-gradient);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: aurora-shift 8s linear infinite;
+}
+
+/* Aurora-swept primary buttons */
+[data-theme="dark-aurora"] .glass-button--primary,
+[data-theme="light-aurora"] .glass-button--primary {
+  background: var(--aurora-gradient);
+  background-size: 200% auto;
+  border-color: transparent;
+  animation: aurora-shift 6s linear infinite;
+}
+[data-theme="dark-aurora"] .glass-button--primary:hover:not(:disabled),
+[data-theme="light-aurora"] .glass-button--primary:hover:not(:disabled) {
+  box-shadow:
+    0 6px 22px var(--primary-alpha-40),
+    0 0 42px -8px var(--aurora-glow-2);
+}
+
+/* Soft aurora rim + ambient glow on glass cards */
+[data-theme="dark-aurora"] .glass-container {
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    0 0 0 1px rgba(45, 212, 191, 0.08),
+    0 0 48px -16px rgba(56, 189, 248, 0.12);
+}
+
+/* Pulsing aurora nav FAB (the + button) */
+[data-theme="dark-aurora"] .nav-fab,
+[data-theme="light-aurora"] .nav-fab {
+  background: var(--aurora-gradient);
+  background-size: 200% auto;
+  animation: aurora-fab-pulse 5s ease-in-out infinite;
+}
+
+/* Aurora edge on the floating nav pill */
+[data-theme="dark-aurora"] .nav-pill {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 52px -14px rgba(45, 212, 191, 0.12);
+}
+
+/* Aurora-tinted active nav item */
+[data-theme="dark-aurora"] .nav-item--active,
+[data-theme="light-aurora"] .nav-item--active {
+  background: linear-gradient(135deg, var(--primary-alpha-20), color-mix(in srgb, var(--brand-secondary) 14%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark-aurora"] h1,
+  [data-theme="light-aurora"] h1,
+  [data-theme="dark-aurora"] .glass-button--primary,
+  [data-theme="light-aurora"] .glass-button--primary,
+  [data-theme="dark-aurora"] .nav-fab,
+  [data-theme="light-aurora"] .nav-fab {
+    animation: none;
+  }
 }
 
 /* ============================================

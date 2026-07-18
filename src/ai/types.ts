@@ -9,11 +9,21 @@ export interface DocumentRef {
   source: 'cloud' | 'local'
 }
 
+/** Serializable financial audit detail passed to AI tools and A2A clients. */
+export interface FinancialAuditContext {
+  source: string
+  asOf: string
+  valuationMethod: string
+  freshness: string
+  estimated?: boolean
+}
+
 export interface PortfolioHolding {
   symbol?: string
   name: string
   value: number
   percent?: number
+  valueAudit?: FinancialAuditContext
 }
 
 /** Non-loan assets synced for AI tools (full list, excluding loans). */
@@ -27,6 +37,8 @@ export interface PortfolioAssetRecord {
   quantity: number
   costBasis: number
   currency: string
+  valueAudit?: FinancialAuditContext
+  costBasisAudit?: FinancialAuditContext
 }
 
 /** Loans synced from the portfolio for AI tools (category === loan). */
@@ -42,6 +54,9 @@ export interface LoanContextRecord {
   termMonths?: number
   startDate?: string
   extraMonthlyPayment?: number
+  balanceAudit?: FinancialAuditContext
+  principalAudit?: FinancialAuditContext
+  termsAudit?: FinancialAuditContext
 }
 
 export interface PortfolioContext {
@@ -51,6 +66,9 @@ export interface PortfolioContext {
   assetCount: number
   riskScore?: number
   riskLevel?: string
+  /** Audit trail for totalValue and values derived from the current holdings. */
+  valuationAudit?: FinancialAuditContext
+  riskAudit?: FinancialAuditContext
   /** Top holdings for news matching and context (legacy; prefer holdings) */
   topHoldings?: PortfolioHolding[]
   /** All non-loan holdings, sorted by value descending */
@@ -90,12 +108,50 @@ export interface ChatMessage {
 
 export interface ChatContext {
   currentRoute?: string
+  /** Optional account details supplied by the user for relevant personalization. */
+  userProfile?: {
+    name?: string
+    email?: string
+    companyName?: string
+    companyRole?: string
+    companyWebsite?: string
+    linkedInUrl?: string
+    socialMediaUrl?: string
+    personalBio?: string
+  }
   portfolioSummary?: string
   documentCount?: number
   /** Full portfolio context for tool use (passed from renderer) */
   portfolioContext?: PortfolioContext | null
   /** Risk metrics summary for tool use (passed from renderer) */
   riskMetrics?: string
+  /** When set, layers a custom Agent's persona on top of the base FinoCurve system prompt. */
+  agentPersona?: {
+    /** Stable id used to scope this expert's private local workspace. */
+    id?: string
+    name: string
+    systemPrompt: string
+    /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
+    provider?: 'ollama' | 'bedrock' | 'azure'
+    model?: string
+    ollamaBaseUrl?: string
+    bedrockRegion?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    azureEndpoint?: string
+    azureApiKey?: string
+    /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
+    toolAccess?: 'all' | 'selected' | 'none'
+    enabledToolNames?: string[]
+  }
+  /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
+  groupChat?: {
+    participantNames: string[]
+    /** True when the user explicitly @mentioned this turn's responder. */
+    directlyAddressed: boolean
+  }
+  /** Internal, non-conversational model pass. It never appears as a chat participant. */
+  backgroundTask?: 'group-routing'
 }
 
 /** Chunk from chat stream - reasoning (thinking) vs answer content vs suggested follow-ups. */

@@ -6,9 +6,17 @@ import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import CountrySelect from '../../components/CountrySelect'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import { getName } from 'country-list'
 import type { Asset, AmortizationEntry, AssetSector, LoanType } from '../../types'
 import { loanPrincipal, loanBalance, loanPaidOff, loanPayoffPercent, LOAN_TYPE_LABELS, LOAN_TYPE_ICONS, SECTOR_LABELS } from '../../types'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
+import {
+  createFinancialProvenance,
+  deriveAssetValueProvenance,
+  getAssetCostBasisProvenance,
+  getAssetCurrentPriceProvenance,
+} from '../../lib/financialProvenance'
 import './DetailScreen.css'
 import '../add-asset/AddAsset.css'
 
@@ -87,7 +95,7 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
   const [showEdit, setShowEdit] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+  const portfolio = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
   const asset: Asset | undefined = (portfolio.assets || []).find((a: Asset) => a.id === assetId)
 
   const [editName, setEditName] = useState(asset?.name || '')
@@ -172,12 +180,15 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
 
   const handleSaveEdit = () => {
     if (!asset) return
+    const now = new Date().toISOString()
+    const nextPrincipal = -Math.abs(parseFloat(editPrincipal) || 0)
+    const nextBalance = -Math.abs(parseFloat(editBalance) || 0)
     const updated: Asset = {
       ...asset,
       name: editName,
       loanType: editLoanType,
-      costBasis: -Math.abs(parseFloat(editPrincipal) || 0),
-      currentPrice: -Math.abs(parseFloat(editBalance) || 0),
+      costBasis: nextPrincipal,
+      currentPrice: nextBalance,
       interestRate: editInterestRate ? parseFloat(editInterestRate) : undefined,
       loanTermMonths: editTermMonths ? parseInt(editTermMonths) : undefined,
       monthlyPayment: editMonthlyPayment ? parseFloat(editMonthlyPayment) : undefined,
@@ -185,20 +196,39 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
       extraMonthlyPayment: editExtraPayment ? parseFloat(editExtraPayment) : undefined,
       sector: editSector,
       country: editCountry || undefined,
+      financialProvenance: {
+        currentPrice: nextBalance === asset.currentPrice
+          ? getAssetCurrentPriceProvenance(asset, portfolio.updatedAt)
+          : createFinancialProvenance({
+              sourceKind: 'manual', sourceName: 'User-entered loan balance', valuationMethod: 'outstanding_balance',
+              asOf: now, recordedAt: now,
+            }, now),
+        costBasis: nextPrincipal === asset.costBasis
+          ? getAssetCostBasisProvenance(asset, portfolio.updatedAt)
+          : createFinancialProvenance({
+              sourceKind: 'manual', sourceName: 'User-entered original principal', valuationMethod: 'original_principal',
+              asOf: editStartDate || now, recordedAt: now,
+            }, now),
+        loanTerms: createFinancialProvenance({
+          sourceKind: 'manual', sourceName: 'User-entered loan terms', valuationMethod: 'amortization',
+          asOf: now, recordedAt: now,
+        }, now),
+      },
     }
-    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const p = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
     p.assets = (p.assets || []).map((a: Asset) => (a.id === updated.id ? updated : a))
-    p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    p.updatedAt = now
+    p.financialProvenanceVersion = 1
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(p))
     setShowEdit(false)
     window.location.reload()
   }
 
   const handleDelete = () => {
-    const p = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const p = JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}')
     p.assets = (p.assets || []).filter((a: Asset) => a.id !== asset.id)
     p.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(p))
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(p))
     setShowDeleteConfirm(false)
     navigate('/main?tab=portfolio', { replace: true })
   }
@@ -279,6 +309,9 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
                 </div>
               </div>
 
+              <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label="Current loan balance" />
+              <ValuationDisclosure provenance={getAssetCostBasisProvenance(asset, portfolio.updatedAt)} label="Original principal" compact />
+
               <div className="info-rows">
                 <div className="info-row"><span className="info-row__label">Interest Rate</span><span className="info-row__value">{rate}%</span></div>
                 <div className="info-row"><span className="info-row__label">Monthly Payment</span><span className="info-row__value">{fmt(payment)}</span></div>
@@ -287,6 +320,9 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
                 {asset.sector && <div className="info-row"><span className="info-row__label">Sector</span><span className="info-row__value">{SECTOR_LABELS[asset.sector] || asset.sector}</span></div>}
                 {asset.country && <div className="info-row"><span className="info-row__label">Country</span><span className="info-row__value">{getName(asset.country) || asset.country}</span></div>}
               </div>
+              {asset.financialProvenance?.loanTerms && (
+                <ValuationDisclosure provenance={asset.financialProvenance.loanTerms} label="Loan terms and payment inputs" compact />
+              )}
             </>
           )}
 

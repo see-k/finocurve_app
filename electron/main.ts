@@ -11,6 +11,8 @@ import { registerCongressHandlers } from './congressHandlers'
 import { registerSECHandlers } from './secHandlers'
 import { registerPluginSettingsHandlers } from './pluginSettingsHandlers'
 import { registerMCPHandlers } from './mcpHandlers'
+import { registerCoreDataHandlers } from './coreDataHandlers'
+import { closeCoreDataDb } from './coreDataDb'
 import { stopMCPServers } from './mcpServer'
 import { setMainWindow } from './mainWindow'
 
@@ -107,6 +109,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopMCPServers().catch(() => {})
+  closeCoreDataDb()
 })
 
 app.on('second-instance', () => {
@@ -133,6 +136,7 @@ app.whenReady().then(() => {
   registerSECHandlers()
   registerPluginSettingsHandlers()
   registerMCPHandlers()
+  registerCoreDataHandlers()
   createWindow()
 })
 

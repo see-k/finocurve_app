@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen, GitBranch } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
+import SettingsSubNav from '../../components/settings/SettingsSubNav'
 import {
   hasA2AAPI,
   startA2AServer,
@@ -18,9 +19,17 @@ import AgentTerminal from '../../components/ai/AgentTerminal'
 import './SettingsSubScreen.css'
 
 type AIProvider = 'ollama' | 'bedrock' | 'azure'
+type RouterProvider = 'default' | 'ollama'
+type AIConfigSection = 'provider' | 'model' | 'router' | 'a2a' | 'mcp'
+const AI_CONFIG_SECTIONS: AIConfigSection[] = ['provider', 'model', 'router', 'a2a', 'mcp']
 
 export default function AIConfigScreen() {
   const navigate = useNavigate()
+  const { section } = useParams<{ section: string }>()
+  const activeSection: AIConfigSection = AI_CONFIG_SECTIONS.includes(section as AIConfigSection)
+    ? (section as AIConfigSection)
+    : 'provider'
+  const goToSection = (s: string) => navigate(`/settings/ai-config/${s}`, { replace: true })
   const [visible, setVisible] = useState(false)
   const [provider, setProvider] = useState<AIProvider>('ollama')
   const [model, setModel] = useState('llama3.2')
@@ -33,12 +42,22 @@ export default function AIConfigScreen() {
   const [azureDeployment, setAzureDeployment] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [secretStorageWarning, setSecretStorageWarning] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [connectionTesting, setConnectionTesting] = useState(false)
   const [showAdvancedOllama, setShowAdvancedOllama] = useState(false)
+  const [routerProvider, setRouterProvider] = useState<RouterProvider>('default')
+  const [routerModel, setRouterModel] = useState('llama3.2')
+  const [routerOllamaBaseUrl, setRouterOllamaBaseUrl] = useState('http://localhost:11434')
+  const [routerOllamaModels, setRouterOllamaModels] = useState<string[]>([])
+  const [routerModelsLoading, setRouterModelsLoading] = useState(false)
+  const [routerConnectionStatus, setRouterConnectionStatus] = useState<{ ok: boolean; message: string } | null>(null)
+  const [routerConnectionTesting, setRouterConnectionTesting] = useState(false)
+  const [routerShowProvider, setRouterShowProvider] = useState(false)
+  const [routerVerbose, setRouterVerbose] = useState(false)
 
   // A2A state
   const [a2aStatus, setA2aStatus] = useState<A2AServerStatus | null>(null)
@@ -76,6 +95,12 @@ export default function AIConfigScreen() {
         setAzureEndpoint(config.azureEndpoint || '')
         setAzureApiKey(config.azureApiKey || '')
         setAzureDeployment(config.azureDeployment || '')
+        setRouterProvider(config.routerProvider || 'default')
+        setRouterModel(config.routerModel || 'llama3.2')
+        setRouterOllamaBaseUrl(config.routerOllamaBaseUrl || 'http://localhost:11434')
+        setRouterShowProvider(config.routerShowProvider ?? false)
+        setRouterVerbose(config.routerVerbose ?? false)
+        setSecretStorageWarning(config.secretStorageWarning || null)
       }).catch(() => setError('Failed to load config'))
         .finally(() => setLoading(false))
     } else {
@@ -179,6 +204,25 @@ export default function AIConfigScreen() {
     }
   }, [provider, fetchOllamaModels])
 
+  const fetchRouterOllamaModels = useCallback(async () => {
+    if (!window.electronAPI?.aiOllamaListModels) return
+    setRouterModelsLoading(true)
+    try {
+      const { models } = await window.electronAPI.aiOllamaListModels(routerOllamaBaseUrl || undefined)
+      setRouterOllamaModels(models)
+    } finally {
+      setRouterModelsLoading(false)
+    }
+  }, [routerOllamaBaseUrl])
+
+  useEffect(() => {
+    if (activeSection === 'router' && routerProvider === 'ollama') {
+      void fetchRouterOllamaModels()
+    }
+    // Base URL edits are applied by the explicit Refresh button, avoiding a request per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, routerProvider])
+
   const handleTestConnection = async () => {
     if (!window.electronAPI?.aiTestConnection) return
     setConnectionStatus(null)
@@ -211,6 +255,26 @@ export default function AIConfigScreen() {
     }
   }
 
+  const handleRouterTestConnection = async () => {
+    if (!window.electronAPI?.aiTestConnection || routerProvider === 'default') return
+    setRouterConnectionStatus(null)
+    setRouterConnectionTesting(true)
+    try {
+      const result = await window.electronAPI.aiTestConnection({
+        provider: 'ollama',
+        model: routerModel.trim() || 'llama3.2',
+        ollamaBaseUrl: routerOllamaBaseUrl.trim() || 'http://localhost:11434',
+      })
+      setRouterConnectionStatus(result.ok
+        ? { ok: true, message: 'Router model is ready.' }
+        : { ok: false, message: result.error || 'Router connection failed' })
+    } catch {
+      setRouterConnectionStatus({ ok: false, message: 'Router connection failed' })
+    } finally {
+      setRouterConnectionTesting(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!window.electronAPI?.aiConfigSave) {
       setError('AI config is only available in the desktop app.')
@@ -219,7 +283,7 @@ export default function AIConfigScreen() {
     setError(null)
     setSaving(true)
     try {
-      await window.electronAPI.aiConfigSave({
+      const result = await window.electronAPI.aiConfigSave({
         provider,
         model: model.trim() || 'llama3.2',
         ollamaBaseUrl: provider === 'ollama' ? ollamaBaseUrl.trim() : undefined,
@@ -229,8 +293,18 @@ export default function AIConfigScreen() {
         azureEndpoint: provider === 'azure' ? azureEndpoint.trim() : undefined,
         azureApiKey: provider === 'azure' ? azureApiKey : undefined,
         azureDeployment: provider === 'azure' ? azureDeployment.trim() : undefined,
+        routerProvider,
+        routerModel: routerModel.trim() || 'llama3.2',
+        routerOllamaBaseUrl: routerOllamaBaseUrl.trim() || 'http://localhost:11434',
+        routerShowProvider,
+        routerVerbose,
         a2aEnabled: a2aStatus?.running ?? false,
       })
+      if (result.warning) {
+        setSecretStorageWarning(result.warning)
+        return
+      }
+      setSecretStorageWarning(null)
       navigate(-1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
@@ -396,7 +470,7 @@ export default function AIConfigScreen() {
       <div className="settings-sub">
         <div className="settings-sub-bg settings-sub-bg--1" />
         <div className="settings-sub-bg settings-sub-bg--2" />
-        <div className={`settings-sub-content ${visible ? 'settings-sub-content--visible' : ''}`}>
+        <div className={`settings-sub-content settings-sub-content--ai ${visible ? 'settings-sub-content--visible' : ''}`}>
           <div className="settings-sub-header">
             <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
             <h1 className="settings-sub-title">AI Model Configuration</h1>
@@ -415,11 +489,23 @@ export default function AIConfigScreen() {
     <div className="settings-sub">
       <div className="settings-sub-bg settings-sub-bg--1" />
       <div className="settings-sub-bg settings-sub-bg--2" />
-      <div className={`settings-sub-content ${visible ? 'settings-sub-content--visible' : ''}`}>
+      <div className={`settings-sub-content settings-sub-content--ai ${visible ? 'settings-sub-content--visible' : ''}`}>
         <div className="settings-sub-header">
           <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} />
           <h1 className="settings-sub-title">AI Model Configuration</h1>
         </div>
+
+        <SettingsSubNav
+          activeId={activeSection}
+          onSelect={goToSection}
+          items={[
+            { id: 'provider', label: 'Provider', icon: <Cpu size={15} /> },
+            { id: 'model', label: 'Model', icon: <Cloud size={15} /> },
+            { id: 'router', label: 'Router Agent', icon: <GitBranch size={15} /> },
+            { id: 'a2a', label: 'A2A Protocol', icon: <Shield size={15} /> },
+            { id: 'mcp', label: 'MCP Servers', icon: <Server size={15} /> },
+          ]}
+        />
 
         {loading ? (
           <GlassContainer>
@@ -427,6 +513,7 @@ export default function AIConfigScreen() {
           </GlassContainer>
         ) : (
           <>
+            {activeSection === 'provider' && (
             <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Cpu size={18} /> Provider
@@ -454,8 +541,10 @@ export default function AIConfigScreen() {
                 ))}
               </div>
             </GlassContainer>
+            )}
 
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'model' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16 }}>Model</h3>
 
               {provider === 'ollama' ? (
@@ -584,9 +673,193 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
+
+            {activeSection === 'router' && (
+            <GlassContainer>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <GitBranch size={18} /> Router Agent
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
+                The private router reads each unmentioned group prompt, ranks the useful advisors, and returns their response priority. Its output is never shown as a chat message.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                <button
+                  type="button"
+                  className={`settings-provider-option ${routerProvider === 'default' ? 'settings-provider-option--active' : ''}`}
+                  onClick={() => {
+                    setRouterProvider('default')
+                    setRouterConnectionStatus(null)
+                  }}
+                >
+                  <Cloud size={20} />
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                    <strong style={{ fontSize: 13 }}>Use primary AI model</strong>
+                    <small style={{ color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 400 }}>
+                      Current behavior · {provider} / {model}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-provider-option ${routerProvider === 'ollama' ? 'settings-provider-option--active' : ''}`}
+                  onClick={() => {
+                    setRouterProvider('ollama')
+                    setRouterConnectionStatus(null)
+                  }}
+                >
+                  <Cpu size={20} />
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                    <strong style={{ fontSize: 13 }}>Ollama router</strong>
+                    <small style={{ color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 400 }}>
+                      Fast, local, and separate from the advisor model
+                    </small>
+                  </span>
+                </button>
+              </div>
+
+              {routerProvider === 'default' ? (
+                <div className="a2a-info-box">
+                  <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <p>
+                    Smart routing continues to use the primary <strong>{provider}</strong> model, <strong>{model}</strong>. This preserves the current behavior.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                      Router model
+                    </label>
+                    <select
+                      className="ai-config-select"
+                      value={routerModel}
+                      onChange={(event) => {
+                        setRouterModel(event.target.value)
+                        setRouterConnectionStatus(null)
+                      }}
+                      disabled={routerModelsLoading}
+                    >
+                      {routerModelsLoading ? (
+                        <option value={routerModel}>Loading models...</option>
+                      ) : routerOllamaModels.length === 0 ? (
+                        <option value={routerModel}>{routerModel || 'No models found'}</option>
+                      ) : (
+                        <>
+                          {!routerOllamaModels.includes(routerModel) && routerModel && (
+                            <option value={routerModel}>{routerModel} (not installed)</option>
+                          )}
+                          {routerOllamaModels.map((routerModelName) => (
+                            <option key={routerModelName} value={routerModelName}>{routerModelName}</option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    {routerOllamaModels.length === 0 && !routerModelsLoading && (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                        Install a compact instruction model with <code>ollama pull llama3.2</code>, then refresh.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                      Ollama base URL
+                    </label>
+                    <GlassTextField
+                      value={routerOllamaBaseUrl}
+                      onChange={(value) => {
+                        setRouterOllamaBaseUrl(value)
+                        setRouterConnectionStatus(null)
+                      }}
+                      placeholder="http://localhost:11434"
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+                    <GlassButton
+                      text={routerModelsLoading ? 'Refreshing...' : 'Refresh models'}
+                      onClick={fetchRouterOllamaModels}
+                      disabled={routerModelsLoading}
+                      width="auto"
+                    />
+                    <GlassButton
+                      text={routerConnectionTesting ? 'Testing...' : 'Test router model'}
+                      onClick={handleRouterTestConnection}
+                      disabled={routerConnectionTesting || routerModelsLoading}
+                      width="auto"
+                    />
+                  </div>
+
+                  {routerConnectionStatus && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      {routerConnectionStatus.ok
+                        ? <CheckCircle size={18} style={{ color: 'var(--status-success)' }} />
+                        : <XCircle size={18} style={{ color: 'var(--status-error)' }} />}
+                      <span style={{ color: routerConnectionStatus.ok ? 'var(--status-success)' : 'var(--status-error)' }}>
+                        {routerConnectionStatus.message}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="a2a-info-box">
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <p>
+                      Choose a small instruction-following model that reliably returns JSON. The router uses no tools and receives only recent room context plus the participating agents’ capabilities.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="router-display-options">
+                <div className="router-display-options__heading">
+                  <strong>Routing display</strong>
+                  <small>Optional details shown only while a prompt is being routed</small>
+                </div>
+                <div className="router-display-options__row">
+                  <span>
+                    <strong>Show model provider</strong>
+                    <small>Display Ollama, Anthropic via Bedrock, or Azure alongside the routing status.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`settings-toggle ${routerShowProvider ? 'settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={routerShowProvider}
+                    aria-label="Show router model provider"
+                    onClick={() => setRouterShowProvider((current) => !current)}
+                  >
+                    <span className="settings-toggle__thumb" />
+                  </button>
+                </div>
+                <div className="router-display-options__row">
+                  <span>
+                    <strong>Verbose routing notes</strong>
+                    <small>Quietly show the router’s concise rationale for its advisor selection.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`settings-toggle ${routerVerbose ? 'settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={routerVerbose}
+                    aria-label="Show verbose router notes"
+                    onClick={() => setRouterVerbose((current) => !current)}
+                  >
+                    <span className="settings-toggle__thumb" />
+                  </button>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 18, lineHeight: 1.55 }}>
+                One routing inference is added for each general group prompt while Smart routing is enabled. Direct @mentions and @everyone bypass the router.
+              </p>
+            </GlassContainer>
+            )}
 
             {/* A2A Protocol Control Panel */}
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'a2a' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Shield size={18} /> A2A Protocol
               </h3>
@@ -760,9 +1033,11 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
 
             {/* MCP Servers */}
-            <GlassContainer style={{ marginTop: 24 }}>
+            {activeSection === 'mcp' && (
+            <GlassContainer>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Server size={18} /> MCP Servers
               </h3>
@@ -941,11 +1216,20 @@ export default function AIConfigScreen() {
                 </div>
               )}
             </GlassContainer>
+            )}
+
+            {secretStorageWarning && (
+              <div className="a2a-info-box" style={{ marginTop: 16, borderColor: 'color-mix(in srgb, var(--status-warning) 38%, var(--glass-border))' }}>
+                <Shield size={14} style={{ flexShrink: 0, marginTop: 2, color: 'var(--status-warning)' }} />
+                <p>{secretStorageWarning}</p>
+              </div>
+            )}
 
             {error && <p style={{ fontSize: 13, color: 'var(--status-error)', marginTop: 16 }}>{error}</p>}
 
             <AgentTerminal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
 
+            {(activeSection === 'provider' || activeSection === 'model' || activeSection === 'router') && (
             <div style={{ marginTop: 24 }}>
               <GlassButton
                 text={saving ? 'Saving...' : 'Save Configuration'}
@@ -954,6 +1238,7 @@ export default function AIConfigScreen() {
                 disabled={saving}
               />
             </div>
+            )}
           </>
         )}
       </div>

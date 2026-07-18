@@ -19,6 +19,8 @@ export interface FinocurveToolContext {
   getDocumentList: () => Promise<DocumentRef[]>
   getReportList: () => Promise<DocumentRef[]>
   getDocumentContent: (key: string, source: 'cloud' | 'local') => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
+  getAgentWorkspaceFiles?: () => Promise<DocumentRef[]>
+  getAgentWorkspaceFileContent?: (key: string) => Promise<{ buffer: Uint8Array; mimeType?: string } | null>
   getRiskMetrics: () => Promise<string>
   extractTextFromDocument: (buffer: Uint8Array, mimeType?: string, fileName?: string) => Promise<string>
   getCongressCache?: () => Promise<CongressCache | null>
@@ -66,6 +68,10 @@ export interface FinocurveToolContext {
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
+  const auditLine = (audit: import('../../types').FinancialAuditContext | undefined, label = 'Valuation audit') => {
+    if (!audit) return `${label}: unavailable (legacy or unsynced record)`
+    return `${label}: Source ${audit.source} · As of ${audit.asOf} · Method ${audit.valuationMethod} · Freshness ${audit.freshness}${audit.estimated ? ' · Estimated' : ''}`
+  }
   const getPortfolioSummary = tool(
     async () => {
       const portfolio = await ctx.getPortfolioContext()
@@ -78,7 +84,7 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
           ? topList
               .map(
                 (h) =>
-                  `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}`
+                  `- ${h.symbol ? `${h.symbol} (${h.name})` : h.name}: $${h.value.toLocaleString()}${h.percent != null ? ` (${h.percent.toFixed(1)}%)` : ''}\n  ${auditLine(h.valueAudit, 'Value audit')}`
               )
               .join('\n')
           : 'Top holdings not available in current context.'
@@ -90,9 +96,11 @@ export function createFinocurveTools(ctx: FinocurveToolContext) {
 Portfolio: ${portfolio.portfolioName}
 Total value: $${portfolio.totalValue.toLocaleString()}
 Total gain/loss: ${portfolio.totalGainLossPercent.toFixed(1)}%
+${auditLine(portfolio.valuationAudit, 'Total value audit')}
 Asset count: ${portfolio.assetCount}
 Risk score: ${portfolio.riskScore ?? 'N/A'}
 Risk level: ${portfolio.riskLevel ?? 'N/A'}
+${auditLine(portfolio.riskAudit, 'Risk audit')}
 
 Top holdings (non-loan assets by value):
 ${topHoldingsBlock}${more}`
@@ -133,7 +141,9 @@ ${topHoldingsBlock}${more}`
         return (
           `${i + 1}. ${label}${pct}\n` +
           `   Type: ${h.type} · Category: ${h.category} · Value: $${h.value.toLocaleString()}\n` +
-          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}`
+          `   Qty: ${h.quantity} · Cost basis: $${h.costBasis.toLocaleString()} · Currency: ${h.currency}\n` +
+          `   ${auditLine(h.valueAudit, 'Value audit')}\n` +
+          `   ${auditLine(h.costBasisAudit, 'Cost basis audit')}`
         )
       })
       return `[Source: FinoCurve — all recorded holdings (non-loan assets)]\nPortfolio: ${portfolio.portfolioName}\nCount: ${list.length}\n\n${lines.join('\n\n')}`
@@ -160,9 +170,11 @@ ${topHoldingsBlock}${more}`
           `${i + 1}. ${l.name}`,
           l.loanType ? `   Type: ${l.loanType.replace(/_/g, ' ')}` : '',
           `   Outstanding balance: $${l.balance.toLocaleString()}`,
+          `   ${auditLine(l.balanceAudit, 'Balance audit')}`,
         ]
         if (l.principal != null && l.principal > 0) {
           bits.push(`   Original principal: $${l.principal.toLocaleString()}`)
+          bits.push(`   ${auditLine(l.principalAudit, 'Principal audit')}`)
         }
         if (l.interestRate != null) bits.push(`   Interest rate: ${l.interestRate}% APR`)
         if (l.monthlyPayment != null) bits.push(`   Monthly payment: $${l.monthlyPayment.toLocaleString()}`)
@@ -171,6 +183,7 @@ ${topHoldingsBlock}${more}`
         }
         if (l.termMonths != null) bits.push(`   Term: ${l.termMonths} months`)
         if (l.startDate) bits.push(`   Start date: ${l.startDate}`)
+        if (l.termsAudit) bits.push(`   ${auditLine(l.termsAudit, 'Loan terms audit')}`)
         return bits.filter(Boolean).join('\n')
       })
       return `[Source: FinoCurve — loans recorded in app]\nPortfolio: ${portfolio.portfolioName}\n\n${lines.join('\n\n')}`
@@ -238,6 +251,38 @@ ${topHoldingsBlock}${more}`
         source: z.enum(['cloud', 'local']).describe('Where the document is stored'),
       }),
     }
+  )
+
+  const getAgentWorkspaceFiles = tool(
+    async () => {
+      const files = await ctx.getAgentWorkspaceFiles?.() ?? []
+      if (files.length === 0) return 'This expert\'s private workspace has no files.'
+      return files.map((file) => `- ${file.fileName} (key: ${file.key})`).join('\n')
+    },
+    {
+      name: 'get_agent_workspace_files',
+      description: 'List the files in this expert\'s private local workspace. Use this before retrieving a workspace file, and whenever the user refers to this expert\'s files, references, knowledge, or workspace.',
+    },
+  )
+
+  const getAgentWorkspaceFileContent = tool(
+    async ({ key }: { key: string }) => {
+      const content = await ctx.getAgentWorkspaceFileContent?.(key)
+      const name = key.split('/').pop() || key
+      if (!content) return `Could not read private workspace file: ${name}`
+      const extracted = await ctx.extractTextFromDocument(content.buffer, content.mimeType, name)
+      if (!extracted.trim()) {
+        return `The private workspace file "${name}" has no supported extractable text. PDF, TXT, and CSV files are currently readable.`
+      }
+      return `[Source: Private expert workspace file "${name}"]\n\n${extracted.slice(0, 15000)}`
+    },
+    {
+      name: 'get_agent_workspace_file_content',
+      description: 'Retrieve text from a file in this expert\'s private local workspace. Call get_agent_workspace_files first and pass back its exact key. Supports PDF, TXT, and CSV content.',
+      schema: z.object({
+        key: z.string().describe('Exact workspace file key returned by get_agent_workspace_files'),
+      }),
+    },
   )
 
   const getReportList = tool(
@@ -737,6 +782,8 @@ ${topHoldingsBlock}${more}`
     getRiskMetrics,
     suggestConversationFollowUps,
   ]
+  if (ctx.getAgentWorkspaceFiles) baseTools.push(getAgentWorkspaceFiles)
+  if (ctx.getAgentWorkspaceFileContent) baseTools.push(getAgentWorkspaceFileContent)
   if (ctx.getCongressCache) baseTools.push(getCongressionalTrades)
   if (ctx.getSECSubmissions) baseTools.push(getSECFilings)
   if (ctx.getSECFilingContent) baseTools.push(getSECFilingContent)

@@ -9,9 +9,15 @@ export type AppThemeId =
   | 'dark-royal'
   | 'dark-executive'
   | 'dark-cyan'
+  | 'dark-aurora'
+  | 'dark-sapphire'
+  | 'dark-evergreen'
   | 'dark-neqtex'
   | 'light'
   | 'light-warm'
+  | 'light-aurora'
+  | 'light-sapphire'
+  | 'light-evergreen'
   | 'light-neqtex'
 
 export const THEME_IDS: AppThemeId[] = [
@@ -21,9 +27,15 @@ export const THEME_IDS: AppThemeId[] = [
   'dark-royal',
   'dark-executive',
   'dark-cyan',
+  'dark-aurora',
+  'dark-sapphire',
+  'dark-evergreen',
   'dark-neqtex',
   'light',
   'light-warm',
+  'light-aurora',
+  'light-sapphire',
+  'light-evergreen',
   'light-neqtex',
 ]
 
@@ -59,12 +71,24 @@ export function tradingViewBackgroundColor(id: AppThemeId): string {
       return '#050505'
     case 'dark-cyan':
       return '#030708'
+    case 'dark-aurora':
+      return '#060b0d'
+    case 'dark-sapphire':
+      return '#070c16'
+    case 'dark-evergreen':
+      return '#06100c'
     case 'dark-neqtex':
       return '#070807'
     case 'light':
       return '#f4f4f8'
     case 'light-warm':
       return '#f5f1eb'
+    case 'light-aurora':
+      return '#eef7f4'
+    case 'light-sapphire':
+      return '#eef2f9'
+    case 'light-evergreen':
+      return '#eef5f1'
     case 'light-neqtex':
       return '#f8f5ee'
     default:
@@ -79,8 +103,14 @@ export const THEME_OPTIONS: { id: AppThemeId; label: string; subtitle: string }[
   { id: 'dark-royal', label: 'Royal', subtitle: 'Classic purple night' },
   { id: 'dark-executive', label: 'Executive', subtitle: 'Black & gold' },
   { id: 'dark-cyan', label: 'Developer', subtitle: 'Black & cyan' },
+  { id: 'dark-aurora', label: 'Aurora', subtitle: 'Animated teal & violet' },
+  { id: 'dark-sapphire', label: 'Sapphire', subtitle: 'Corporate blue' },
+  { id: 'dark-evergreen', label: 'Evergreen', subtitle: 'Deep emerald' },
   { id: 'dark-neqtex', label: 'Neqtex', subtitle: 'Noir & gold (client)' },
   { id: 'light', label: 'Light', subtitle: 'Clean & bright' },
   { id: 'light-warm', label: 'Parchment', subtitle: 'Warm paper' },
+  { id: 'light-aurora', label: 'Aurora', subtitle: 'Bright mint & lavender' },
+  { id: 'light-sapphire', label: 'Sapphire', subtitle: 'Professional blue' },
+  { id: 'light-evergreen', label: 'Evergreen', subtitle: 'Refined emerald' },
   { id: 'light-neqtex', label: 'Neqtex', subtitle: 'Ivory & gold (client)' },
 ]

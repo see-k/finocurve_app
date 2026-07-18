@@ -1,0 +1,44 @@
+.new-convo-modal {
+  width: 420px;
+  max-width: 90vw;
+}
+
+.new-convo-modal__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.new-convo-modal__agent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.new-convo-modal__agent:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.new-convo-modal__agent--selected {
+  border-color: var(--accent-primary, #6c8cff);
+  background: rgba(108, 140, 255, 0.12);
+}
+
+.new-convo-modal__agent-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.new-convo-modal__agent-check {
+  color: var(--accent-primary, #6c8cff);
+}

@@ -7,10 +7,13 @@ import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
 import type { Asset, AssetType } from '../../types'
+import { getCoreDataItem, PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
+import { createFinancialProvenance, normalizePortfolioFinancialProvenance } from '../../lib/financialProvenance'
 import './AddAsset.css'
 
 interface PublicAsset {
   symbol: string; name: string; type: AssetType; price: number; sector: string
+  priceSource?: string; priceAsOf?: string; isLive?: boolean
 }
 
 const SAMPLE_PUBLIC_ASSETS: PublicAsset[] = [
@@ -90,6 +93,11 @@ export default function SearchPublicAssetScreen() {
 
   const handleAdd = () => {
     if (!selected || !quantity) return
+    const now = new Date().toISOString()
+    const currentSource = selected.priceSource || 'FinoCurve sample market data'
+    const currentSourceKind = selected.isLive ? 'market' : 'demo'
+    const currentAsOf = selected.priceAsOf || now
+    const enteredCostBasis = costBasis ? parseFloat(costBasis) : null
     const asset: Asset = {
       id: crypto.randomUUID(),
       name: selected.name,
@@ -97,16 +105,33 @@ export default function SearchPublicAssetScreen() {
       type: selected.type,
       category: 'public',
       quantity: parseFloat(quantity),
-      costBasis: costBasis ? parseFloat(costBasis) : parseFloat(quantity) * selected.price,
+      costBasis: enteredCostBasis ?? parseFloat(quantity) * selected.price,
       currentPrice: selected.price,
       currency: 'USD',
       tags: [],
       sector: selected.sector as Asset['sector'],
+      financialProvenance: {
+        currentPrice: createFinancialProvenance({
+          sourceKind: currentSourceKind,
+          sourceName: currentSource,
+          valuationMethod: selected.isLive ? 'market_price' : 'legacy_record',
+          asOf: currentAsOf,
+          recordedAt: now,
+          isEstimated: !selected.isLive,
+        }, now),
+        costBasis: createFinancialProvenance(enteredCostBasis !== null ? {
+          sourceKind: 'manual', sourceName: 'User-entered cost basis', valuationMethod: 'acquisition_cost',
+          asOf: now, recordedAt: now,
+        } : {
+          sourceKind: currentSourceKind, sourceName: currentSource, valuationMethod: 'quantity_times_price',
+          asOf: currentAsOf, recordedAt: now, isEstimated: !selected.isLive,
+        }, now),
+      },
     }
-    const portfolio = JSON.parse(localStorage.getItem('finocurve-portfolio') || '{}')
+    const portfolio = normalizePortfolioFinancialProvenance(JSON.parse(getCoreDataItem(PORTFOLIO_STORAGE_KEY) || '{}'))
     portfolio.assets = [...(portfolio.assets || []), asset]
-    portfolio.updatedAt = new Date().toISOString()
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(portfolio))
+    portfolio.updatedAt = now
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(portfolio))
     navigate('/main', { replace: true })
   }
 
@@ -157,6 +182,7 @@ export default function SearchPublicAssetScreen() {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${a.price.toLocaleString()}</div>
                     <span className="search-result-item__type">{a.type}</span>
+                    <div className="search-result-item__source">{a.priceSource || 'Sample data'}</div>
                   </div>
                 </div>
               ))}

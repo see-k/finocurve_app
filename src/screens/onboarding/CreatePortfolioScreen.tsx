@@ -6,6 +6,7 @@ import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import { CURRENCIES } from '../../types'
+import { PORTFOLIO_STORAGE_KEY, setCoreDataItem } from '../../lib/coreDataStorage'
 import './OnboardingScreen.css'
 
 export default function CreatePortfolioScreen() {
@@ -29,7 +30,7 @@ export default function CreatePortfolioScreen() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    localStorage.setItem('finocurve-portfolio', JSON.stringify(portfolio))
+    setCoreDataItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(portfolio))
     localStorage.setItem('finocurve-preferences', JSON.stringify(prefs))
     navigate('/onboarding/add-first-asset')
   }

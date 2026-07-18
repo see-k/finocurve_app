@@ -47,6 +47,48 @@ export type { AppThemeId } from '../theme/themes'
 /** Alias for preferences / legacy references */
 export type ThemeMode = import('../theme/themes').AppThemeId
 
+export type FinancialSourceKind =
+  | 'market'
+  | 'manual'
+  | 'calculated'
+  | 'historical'
+  | 'demo'
+  | 'imported'
+  | 'ai'
+
+export type FinancialValuationMethod =
+  | 'market_price'
+  | 'manual_mark'
+  | 'quantity_times_price'
+  | 'acquisition_cost'
+  | 'original_principal'
+  | 'outstanding_balance'
+  | 'portfolio_sum'
+  | 'historical_close'
+  | 'amortization'
+  | 'user_reported'
+  | 'risk_model'
+  | 'illustrative_simulation'
+  | 'legacy_record'
+
+/** Audit metadata attached to a stored or calculated financial value. */
+export interface FinancialValueProvenance {
+  sourceKind: FinancialSourceKind
+  sourceName: string
+  /** Point in time represented by the value. */
+  asOf: string
+  /** Time the value was recorded or calculated in FinoCurve. */
+  recordedAt: string
+  valuationMethod: FinancialValuationMethod
+  isEstimated?: boolean
+}
+
+export interface AssetFinancialProvenance {
+  currentPrice: FinancialValueProvenance
+  costBasis: FinancialValueProvenance
+  loanTerms?: FinancialValueProvenance
+}
+
 // ============================================
 // Asset
 // ============================================
@@ -75,6 +117,8 @@ export interface Asset {
   monthlyPayment?: number
   loanStartDate?: string
   extraMonthlyPayment?: number
+  /** Optional for backward compatibility; legacy records are enriched on load. */
+  financialProvenance?: AssetFinancialProvenance
 }
 
 // Computed helpers
@@ -122,6 +166,8 @@ export interface Portfolio {
   assets: Asset[]
   createdAt: string
   updatedAt: string
+  /** Additive schema marker; portfolio values remain unchanged during enrichment. */
+  financialProvenanceVersion?: 1
 }
 
 export function portfolioTotalValue(p: Portfolio): number {
@@ -185,6 +231,12 @@ export interface UserPreferences {
   userName?: string
   userEmail?: string
   profilePicturePath?: string
+  companyName?: string
+  companyRole?: string
+  companyWebsite?: string
+  linkedInUrl?: string
+  socialMediaUrl?: string
+  personalBio?: string
   hasAgreedToTerms: boolean
   theme: ThemeMode
   notificationsEnabled: boolean
@@ -399,6 +451,8 @@ export type MainTab =
   | 'insights'
   | 'reports'
   | 'tracker'
+  | 'experts'
+  | 'chats'
   | 'settings'
 
 // ============================================

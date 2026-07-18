@@ -15,6 +15,7 @@ import { RISK_LEVEL_META } from '../../constants/riskMeta'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
@@ -23,6 +24,12 @@ import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
 import { getPerformanceChartData } from '../../utils/performanceChartData'
 import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import {
+  aggregateAssetValueProvenance,
+  createFinancialProvenance,
+  deriveCalculatedProvenance,
+  deriveAssetValueProvenance,
+} from '../../lib/financialProvenance'
 import type { PerformancePeriod, Asset } from '../../types'
 import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
 import './DashboardScreen.css'
@@ -57,13 +64,13 @@ export default function DashboardScreen() {
   const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
 
   const { history } = usePortfolioValueHistory(totalValue, totalInvestableValue, !!hasAssets)
-  const { data: historicalApiData, loading: historicalLoading } = useHistoricalPrices(
+  const { data: historicalApiData, provenance: historicalProvenance, loading: historicalLoading } = useHistoricalPrices(
     portfolio?.assets ?? [],
     selectedPeriod,
     totalValue,
     !!hasAssets && !!window.electronAPI?.priceHistorical
   )
-  const { data: chartData, hasRealData } = useMemo(
+  const { data: chartData, hasRealData, dataSource } = useMemo(
     () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
     [history, totalValue, selectedPeriod, historicalApiData]
   )
@@ -107,6 +114,25 @@ export default function DashboardScreen() {
   )
   const riskScore = riskResult?.riskScore ?? 0
   const riskMeta = riskResult ? RISK_LEVEL_META[riskResult.riskLevel] : null
+  const portfolioValuation = useMemo(
+    () => aggregateAssetValueProvenance(portfolio?.assets ?? []),
+    [portfolio?.assets]
+  )
+  const chartValuation = useMemo(() => {
+    if (dataSource === 'api' && historicalProvenance) return historicalProvenance
+    const latest = chartData[chartData.length - 1]?.date ?? portfolioValuation.asOf
+    return createFinancialProvenance({
+      sourceKind: dataSource === 'history' ? 'historical' : 'calculated',
+      sourceName: dataSource === 'history' ? 'FinoCurve portfolio snapshots' : 'Current portfolio valuation',
+      valuationMethod: dataSource === 'history' ? 'historical_close' : 'portfolio_sum',
+      asOf: latest,
+      isEstimated: dataSource === 'none' || portfolioValuation.isEstimated,
+    })
+  }, [chartData, dataSource, historicalProvenance, portfolioValuation])
+  const riskValuation = useMemo(
+    () => deriveCalculatedProvenance(portfolioValuation, 'FinoCurve risk engine', 'risk_model'),
+    [portfolioValuation]
+  )
 
   if (!hasAssets) {
     return (
@@ -189,6 +215,7 @@ export default function DashboardScreen() {
           </div>
         </GlassContainer>
       </div>
+      <ValuationDisclosure provenance={portfolioValuation} label="Portfolio totals" compact />
 
       {/* Performance Chart */}
       <GlassContainer padding="24px" borderRadius={20} className="dashboard-chart-card">
@@ -270,6 +297,7 @@ export default function DashboardScreen() {
         <p className="performance-chart-disclaimer" style={{ marginTop: 8, marginBottom: 0 }}>
           Solid gray line: least-squares fit to the series. Dashed amber: same slope extended forward — illustrative only, not a forecast of returns.
         </p>
+        <ValuationDisclosure provenance={chartValuation} label="Performance series" compact />
       </GlassContainer>
 
       {/* Risk Score + Allocation row */}
@@ -312,6 +340,7 @@ export default function DashboardScreen() {
               <div className="dash-risk-card__cta">View full analysis</div>
             </div>
           </div>
+          <ValuationDisclosure provenance={riskValuation} label="Risk metrics" compact />
         </GlassContainer>
 
         {/* Allocation */}
@@ -394,6 +423,7 @@ export default function DashboardScreen() {
                   <div className="dash-holding-card__info">
                     <div className="dash-holding-card__name">{asset.name}</div>
                     <div className="dash-holding-card__meta">{asset.symbol || asset.type} &middot; {asset.quantity} shares</div>
+                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} value`} compact />
                   </div>
                   <div className="dash-holding-card__right">
                     <div className="dash-holding-card__value">${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -425,6 +455,7 @@ export default function DashboardScreen() {
                     <div className="dash-holding-card__meta">
                       {asset.interestRate ? `${asset.interestRate}% APR` : 'Loan'}
                     </div>
+                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} balance`} compact />
                   </div>
                   <div className="dash-holding-card__right">
                     <div className="dash-holding-card__value" style={{ color: 'var(--status-error)' }}>

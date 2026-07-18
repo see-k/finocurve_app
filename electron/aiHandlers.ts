@@ -4,7 +4,13 @@
 
 import { ipcMain, app, BrowserWindow } from 'electron'
 import { startA2AServer, stopA2AServer, getA2AServerStatus, DEFAULT_PORT } from './a2aServer'
-import { loadAIConfig, saveAIConfig, type StoredAIConfig } from './aiConfigStorage'
+import {
+  getAIConfigStorageStatus,
+  loadAIConfig,
+  saveAIConfig,
+  type StoredAIConfig,
+} from './aiConfigStorage'
+import { mergeAIConfigUpdate } from './aiConfigCodec'
 import path from 'node:path'
 import fs from 'node:fs'
 import { LocalAIService } from '../src/ai/local/LocalAIService'
@@ -162,6 +168,45 @@ function listReportsFromLocal(): DocumentRef[] {
   return items
 }
 
+function getAgentWorkspacePrefix(agentId: string): string | null {
+  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) return null
+  return `finocurve/agents/${agentId}/files/`
+}
+
+function listAgentWorkspaceFiles(agentId: string): DocumentRef[] {
+  const config = getLocalStorageConfig()
+  const prefix = getAgentWorkspacePrefix(agentId)
+  if (!config || !prefix) return []
+  const baseDir = path.join(config.directoryPath, prefix)
+  if (!fs.existsSync(baseDir)) return []
+  const items: DocumentRef[] = []
+
+  const walk = (directory: string, relative = '') => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const relativePath = relative ? `${relative}/${entry.name}` : entry.name
+      const fullPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) walk(fullPath, relativePath)
+      else if (entry.isFile()) {
+        items.push({ key: prefix + relativePath, fileName: relativePath, source: 'local' })
+      }
+    }
+  }
+  walk(baseDir)
+  return items
+}
+
+async function getAgentWorkspaceFileContent(
+  agentId: string,
+  key: string,
+): Promise<{ buffer: Uint8Array; mimeType?: string } | null> {
+  const prefix = getAgentWorkspacePrefix(agentId)
+  if (!prefix || !key.startsWith(prefix)) return null
+  // Only exact keys discovered inside this expert's directory are readable.
+  const allowed = listAgentWorkspaceFiles(agentId).some((file) => file.key === key)
+  if (!allowed) return null
+  return getDocumentContentFromLocal(key)
+}
+
 function getFinocurveLogoDataUrlForMain(): string | null {
   const candidates = [
     path.join(app.getAppPath(), 'dist', 'images', 'finocurve-logo-transparent.png'),
@@ -300,44 +345,108 @@ function storedConfigToAIConfig(stored: StoredAIConfig) {
 
 export function registerAIHandlers(): void {
   let aiService: LocalAIService | null = null
+  let routerService: LocalAIService | null = null
+  const agentServices = new Map<string, LocalAIService>()
+
+  function createService(stored: StoredAIConfig): LocalAIService {
+    return new LocalAIService({
+      getDocumentContent,
+      getPortfolioContext: async () => loadPortfolioCache(),
+      getDocumentList: async () => listDocumentsFromLocal(),
+      getReportList: async () => listReportsFromLocal(),
+      getAgentWorkspaceFiles: async (agentId: string) => listAgentWorkspaceFiles(agentId),
+      getAgentWorkspaceFileContent,
+      getRiskMetrics: async () => 'Not available',
+      getCongressCache: async () => getCongressCacheData(),
+      getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
+      getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
+        getSECFilingContentData(tickerOrCik, accessionNumber),
+      getMCPTools: () => getMCPLangChainTools(),
+      saveCustomBrandedReport: saveCustomBrandedReportForChat,
+      saveCustomCsvDocument: saveCustomCsvForChat,
+      appendNetWorthEntry: trackerAppendNetWorthAI,
+      getNetWorthLogSummary: trackerGetNetWorthLogSummary,
+      getTrackerGoalsSummary: async () => trackerGetGoalsSummary(loadPortfolioCache()),
+      createTrackerGoal: async (args) =>
+        trackerCreateGoalAI({
+          ...args,
+          portfolio: loadPortfolioCache(),
+        }),
+      updateTrackerGoal: async (args) =>
+        trackerUpdateGoalAI({
+          ...args,
+          portfolio: loadPortfolioCache(),
+        }),
+      config: storedConfigToAIConfig(stored),
+    })
+  }
 
   function getService(): LocalAIService {
     if (!aiService) {
-      const stored = loadAIConfig()
-      aiService = new LocalAIService({
-        getDocumentContent,
-        getPortfolioContext: async () => loadPortfolioCache(),
-        getDocumentList: async () => listDocumentsFromLocal(),
-        getReportList: async () => listReportsFromLocal(),
-        getRiskMetrics: async () => 'Not available',
-        getCongressCache: async () => getCongressCacheData(),
-        getSECSubmissions: (tickerOrCik: string) => getSECSubmissionsData(tickerOrCik),
-        getSECFilingContent: (tickerOrCik: string, accessionNumber: string) =>
-          getSECFilingContentData(tickerOrCik, accessionNumber),
-        getMCPTools: () => getMCPLangChainTools(),
-        saveCustomBrandedReport: saveCustomBrandedReportForChat,
-        saveCustomCsvDocument: saveCustomCsvForChat,
-        appendNetWorthEntry: trackerAppendNetWorthAI,
-        getNetWorthLogSummary: trackerGetNetWorthLogSummary,
-        getTrackerGoalsSummary: async () => trackerGetGoalsSummary(loadPortfolioCache()),
-        createTrackerGoal: async (args) =>
-          trackerCreateGoalAI({
-            ...args,
-            portfolio: loadPortfolioCache(),
-          }),
-        updateTrackerGoal: async (args) =>
-          trackerUpdateGoalAI({
-            ...args,
-            portfolio: loadPortfolioCache(),
-          }),
-        config: storedConfigToAIConfig(stored),
-      })
+      aiService = createService(loadAIConfig())
     }
     return aiService
   }
 
+  function getRouterService(): LocalAIService {
+    const stored = loadAIConfig()
+    if (!stored.routerProvider || stored.routerProvider === 'default') return getService()
+
+    if (!routerService) {
+      routerService = createService({
+        ...stored,
+        provider: 'ollama',
+        model: stored.routerModel?.trim() || 'llama3.2',
+        ollamaBaseUrl:
+          stored.routerOllamaBaseUrl?.trim() ||
+          stored.ollamaBaseUrl ||
+          'http://localhost:11434',
+      })
+    }
+    return routerService
+  }
+
+  function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): LocalAIService {
+    if (!persona.provider) return getService()
+
+    const stored = loadAIConfig()
+    const providerDefaults: Record<NonNullable<typeof persona.provider>, string> = {
+      ollama: 'llama3.2',
+      bedrock: 'anthropic.claude-3-haiku-20240307-v1:0',
+      azure: 'gpt-4',
+    }
+    const model = persona.model?.trim() ||
+      (stored.provider === persona.provider ? stored.model : providerDefaults[persona.provider])
+    const inheritedSecret = (value: string | undefined) =>
+      value && value !== '••••••••' ? value : undefined
+    const overrides = {
+      ollamaBaseUrl: persona.ollamaBaseUrl?.trim() || stored.ollamaBaseUrl,
+      bedrockRegion: persona.bedrockRegion?.trim() || stored.bedrockRegion,
+      bedrockAccessKeyId: persona.bedrockAccessKeyId?.trim() || stored.bedrockAccessKeyId,
+      bedrockSecretKey: inheritedSecret(persona.bedrockSecretKey) || stored.bedrockSecretKey,
+      azureEndpoint: persona.azureEndpoint?.trim() || stored.azureEndpoint,
+      azureApiKey: inheritedSecret(persona.azureApiKey) || stored.azureApiKey,
+    }
+    const cacheKey = JSON.stringify([persona.provider, model, overrides])
+    const cached = agentServices.get(cacheKey)
+    if (cached) return cached
+
+    const agentConfig: StoredAIConfig = {
+      ...stored,
+      provider: persona.provider,
+      model,
+      ...overrides,
+      ...(persona.provider === 'azure' ? { azureDeployment: model } : {}),
+    }
+    const service = createService(agentConfig)
+    agentServices.set(cacheKey, service)
+    return service
+  }
+
   function resetService() {
     aiService = null
+    routerService = null
+    agentServices.clear()
   }
 
   // =============================================
@@ -346,27 +455,22 @@ export function registerAIHandlers(): void {
 
   ipcMain.handle('ai-config-get', async () => {
     const config = loadAIConfig()
+    const storageStatus = getAIConfigStorageStatus()
     return {
       ...config,
       bedrockSecretKey: config.bedrockSecretKey ? '••••••••' : '',
       azureApiKey: config.azureApiKey ? '••••••••' : '',
+      secretStorageEncryptionAvailable: storageStatus.encryptionAvailable,
+      secretStorageWarning: storageStatus.warning,
     }
   })
 
   ipcMain.handle('ai-config-save', async (_event, payload: StoredAIConfig) => {
     const existing = loadAIConfig()
-    const toSave: StoredAIConfig = {
-      ...payload,
-      bedrockSecretKey: payload.bedrockSecretKey && payload.bedrockSecretKey !== '••••••••'
-        ? payload.bedrockSecretKey
-        : existing.bedrockSecretKey,
-      azureApiKey: payload.azureApiKey && payload.azureApiKey !== '••••••••'
-        ? payload.azureApiKey
-        : existing.azureApiKey,
-    }
-    saveAIConfig(toSave)
+    const toSave = mergeAIConfigUpdate(existing, payload)
+    const storageResult = saveAIConfig(toSave)
     resetService()
-    return { ok: true }
+    return { ok: true, ...storageResult }
   })
 
   async function testConnection(config: {
@@ -517,7 +621,11 @@ export function registerAIHandlers(): void {
       context: ChatContext
     }
   ) => {
-    const service = getService()
+    const service = payload.context.backgroundTask === 'group-routing'
+      ? getRouterService()
+      : payload.context.agentPersona?.provider
+        ? getAgentService(payload.context.agentPersona)
+        : getService()
     const sender = event.sender
     const senderId = sender.id
 

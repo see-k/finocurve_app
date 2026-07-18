@@ -44,6 +44,14 @@
   transition: all 0.4s ease;
 }
 
+.settings-sub-content--ai {
+  max-width: 880px;
+}
+
+.settings-sub-content--ai .settings-subnav {
+  overflow-x: visible;
+}
+
 .settings-sub-content--visible {
   opacity: 1;
   transform: translateY(0);
@@ -149,6 +157,8 @@
   cursor: pointer;
   transition: background 0.3s ease;
   flex-shrink: 0;
+  padding: 0;
+  border: 0;
 }
 
 .settings-toggle--on {
@@ -337,6 +347,62 @@
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.router-display-options {
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--glass-bg) 76%, transparent);
+}
+
+.router-display-options__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.router-display-options__heading strong,
+.router-display-options__row > span > strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.router-display-options__heading small,
+.router-display-options__row > span > small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.router-display-options__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 68px;
+  padding: 12px 16px;
+}
+
+.router-display-options__row + .router-display-options__row {
+  border-top: 1px solid var(--glass-border);
+}
+
+.router-display-options__row > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (max-width: 760px) {
+  .settings-sub-content--ai .settings-subnav {
+    overflow-x: auto;
+  }
 }
 
 /* A2A Success Banner */
@@ -544,6 +610,24 @@
   justify-content: center;
   border: 2px solid var(--bg-primary);
 }
+
+.account-form-section {
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.account-form-section h2 { margin: 0 0 4px; color: var(--text-primary); font-size: 16px; }
+.account-form-section p { margin: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.5; }
+.account-field-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-field-label span { color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
 
 @media (prefers-reduced-motion: reduce) {
   .a2a-status-dot--running {
