@@ -479,6 +479,11 @@ export interface LocalAIServiceOptions {
   getTrackerGoalsSummary?: FinocurveToolContext['getTrackerGoalsSummary']
   createTrackerGoal?: FinocurveToolContext['createTrackerGoal']
   updateTrackerGoal?: FinocurveToolContext['updateTrackerGoal']
+  /** Desktop, Enterprise mode: consolidated balances, activity, connection health, and history from Finocurve Service. */
+  getEnterpriseBalances?: FinocurveToolContext['getEnterpriseBalances']
+  getEnterpriseTransactions?: FinocurveToolContext['getEnterpriseTransactions']
+  getEnterpriseConnectionHealth?: FinocurveToolContext['getEnterpriseConnectionHealth']
+  getEnterpriseBalanceHistory?: FinocurveToolContext['getEnterpriseBalanceHistory']
   config?: Partial<AIConfig>
 }
 
@@ -709,6 +714,17 @@ export class LocalAIService implements AIService {
       systemParts.push(`Tracker: ${trackerBits.join(' ')}`)
     }
 
+    if (!isGroupRouting && (
+      (this.options.getEnterpriseBalances && toolIsAllowed('get_enterprise_balances')) ||
+      (this.options.getEnterpriseTransactions && toolIsAllowed('get_enterprise_transactions')) ||
+      (this.options.getEnterpriseConnectionHealth && toolIsAllowed('get_enterprise_connection_health')) ||
+      (this.options.getEnterpriseBalanceHistory && toolIsAllowed('get_enterprise_balance_history'))
+    )) {
+      systemParts.push(
+        'Enterprise: get_enterprise_balances, get_enterprise_transactions, get_enterprise_connection_health, and get_enterprise_balance_history read consolidated institutional data from Finocurve Service — separate from the user\'s personal FinoCurve portfolio. Cite this data as Finocurve Service, not the user\'s portfolio.'
+      )
+    }
+
     const followUpRoundRef = { items: [] as ChatFollowUp[] }
     const toolContext = {
       // Prefer main-process cache (holdings, loans, topHoldings from portfolioSync) over the
@@ -742,6 +758,10 @@ export class LocalAIService implements AIService {
       getTrackerGoalsSummary: this.options.getTrackerGoalsSummary,
       createTrackerGoal: this.options.createTrackerGoal,
       updateTrackerGoal: this.options.updateTrackerGoal,
+      getEnterpriseBalances: this.options.getEnterpriseBalances,
+      getEnterpriseTransactions: this.options.getEnterpriseTransactions,
+      getEnterpriseConnectionHealth: this.options.getEnterpriseConnectionHealth,
+      getEnterpriseBalanceHistory: this.options.getEnterpriseBalanceHistory,
       recordSuggestedFollowUps: (items: { label: string; prompt: string }[]) => {
         followUpRoundRef.items = normalizeChatFollowUps(items)
       },

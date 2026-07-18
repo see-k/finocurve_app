@@ -65,6 +65,14 @@ export interface FinocurveToolContext {
   }) => Promise<string>
   /** Called when the model uses suggest_conversation_follow_ups so the UI can show clickable chips. */
   recordSuggestedFollowUps?: (items: { label: string; prompt: string }[]) => void
+  /** Desktop, Enterprise mode: consolidated balances by source from Finocurve Service. */
+  getEnterpriseBalances?: () => Promise<string>
+  /** Desktop, Enterprise mode: recent institutional transactions from Finocurve Service. */
+  getEnterpriseTransactions?: () => Promise<string>
+  /** Desktop, Enterprise mode: live per-provider connection status from Finocurve Service. */
+  getEnterpriseConnectionHealth?: () => Promise<string>
+  /** Desktop, Enterprise mode: recorded consolidated balance snapshots over time from Finocurve Service. */
+  getEnterpriseBalanceHistory?: () => Promise<string>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -770,6 +778,62 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const getEnterpriseBalances = tool(
+    async () => {
+      if (!ctx.getEnterpriseBalances) {
+        return 'Enterprise balances are only available when Enterprise mode is connected to a Finocurve Service.'
+      }
+      return ctx.getEnterpriseBalances()
+    },
+    {
+      name: 'get_enterprise_balances',
+      description:
+        'Read consolidated institutional account balances by source (bank, brokerage, crypto exchange, etc.) from Finocurve Service. This is separate from the user\'s personal FinoCurve portfolio. Use when the user asks about enterprise, institutional, or consolidated balances.',
+    }
+  )
+
+  const getEnterpriseTransactions = tool(
+    async () => {
+      if (!ctx.getEnterpriseTransactions) {
+        return 'Enterprise activity is only available when Enterprise mode is connected to a Finocurve Service.'
+      }
+      return ctx.getEnterpriseTransactions()
+    },
+    {
+      name: 'get_enterprise_transactions',
+      description:
+        'Read the most recent institutional transactions across enrolled accounts from Finocurve Service. Use when the user asks about enterprise or institutional activity, spending, or recent transactions across connected accounts.',
+    }
+  )
+
+  const getEnterpriseConnectionHealth = tool(
+    async () => {
+      if (!ctx.getEnterpriseConnectionHealth) {
+        return 'Enterprise connection health is only available when Enterprise mode is connected to a Finocurve Service.'
+      }
+      return ctx.getEnterpriseConnectionHealth()
+    },
+    {
+      name: 'get_enterprise_connection_health',
+      description:
+        'Check the live connection status of each Finocurve Service data provider (connected, error, or not configured). Use when the user asks whether an institution or provider is connected or having issues.',
+    }
+  )
+
+  const getEnterpriseBalanceHistory = tool(
+    async () => {
+      if (!ctx.getEnterpriseBalanceHistory) {
+        return 'Enterprise balance history is only available when Enterprise mode is connected to a Finocurve Service.'
+      }
+      return ctx.getEnterpriseBalanceHistory()
+    },
+    {
+      name: 'get_enterprise_balance_history',
+      description:
+        'Read recorded consolidated balance snapshots over time from Finocurve Service (daily and manual snapshots). Use when the user asks how their enterprise/institutional balance has trended over time.',
+    }
+  )
+
   const baseTools: StructuredToolInterface[] = [
     getPortfolioSummary,
     getHoldings,
@@ -794,5 +858,9 @@ ${topHoldingsBlock}${more}`
   if (ctx.getTrackerGoalsSummary) baseTools.push(getTrackerGoals)
   if (ctx.createTrackerGoal) baseTools.push(createTrackerGoal)
   if (ctx.updateTrackerGoal) baseTools.push(updateTrackerGoal)
+  if (ctx.getEnterpriseBalances) baseTools.push(getEnterpriseBalances)
+  if (ctx.getEnterpriseTransactions) baseTools.push(getEnterpriseTransactions)
+  if (ctx.getEnterpriseConnectionHealth) baseTools.push(getEnterpriseConnectionHealth)
+  if (ctx.getEnterpriseBalanceHistory) baseTools.push(getEnterpriseBalanceHistory)
   return baseTools
 }

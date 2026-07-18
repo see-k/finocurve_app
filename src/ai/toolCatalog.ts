@@ -5,6 +5,7 @@ export type ExpertToolCategory =
   | 'Tracker'
   | 'Creation'
   | 'Workspace'
+  | 'Enterprise'
   | 'Connected'
 
 export interface ExpertToolDefinition {
@@ -158,6 +159,30 @@ export const BUILT_IN_EXPERT_TOOLS: ExpertToolDefinition[] = [
     description: 'Offer relevant next-question buttons after an answer.',
     category: 'Workspace',
   },
+  {
+    name: 'get_enterprise_balances',
+    label: 'Enterprise balances',
+    description: 'Read consolidated account balances across connected institutions from Finocurve Service.',
+    category: 'Enterprise',
+  },
+  {
+    name: 'get_enterprise_transactions',
+    label: 'Enterprise activity',
+    description: 'Read recent institutional transactions across enrolled accounts from Finocurve Service.',
+    category: 'Enterprise',
+  },
+  {
+    name: 'get_enterprise_connection_health',
+    label: 'Enterprise connection health',
+    description: 'Check live status of each Finocurve Service data provider.',
+    category: 'Enterprise',
+  },
+  {
+    name: 'get_enterprise_balance_history',
+    label: 'Enterprise balance history',
+    description: 'Read recorded consolidated balance snapshots over time from Finocurve Service.',
+    category: 'Enterprise',
+  },
 ]
 
 export const EXPERT_TOOL_CATEGORIES: ExpertToolCategory[] = [
@@ -167,6 +192,7 @@ export const EXPERT_TOOL_CATEGORIES: ExpertToolCategory[] = [
   'Tracker',
   'Creation',
   'Workspace',
+  'Enterprise',
   'Connected',
 ]
 
@@ -181,12 +207,15 @@ export function humanizeToolName(name: string): string {
 
 export function mergeExpertToolDefinitions(
   runtimeTools: { name: string; description?: string }[],
+  options?: { includeEnterprise?: boolean },
 ): ExpertToolDefinition[] {
   const runtimeByName = new Map(runtimeTools.map((tool) => [tool.name, tool]))
-  const builtIns = BUILT_IN_EXPERT_TOOLS.map((tool) => ({
-    ...tool,
-    description: runtimeByName.get(tool.name)?.description || tool.description,
-  }))
+  const builtIns = BUILT_IN_EXPERT_TOOLS
+    .filter((tool) => options?.includeEnterprise || tool.category !== 'Enterprise')
+    .map((tool) => ({
+      ...tool,
+      description: runtimeByName.get(tool.name)?.description || tool.description,
+    }))
   const knownNames = new Set(builtIns.map((tool) => tool.name))
   const connected = runtimeTools
     .filter((tool) => !knownNames.has(tool.name))

@@ -35,6 +35,12 @@ import {
   trackerCreateGoalAI,
   trackerUpdateGoalAI,
 } from './trackerHandlers'
+import {
+  enterpriseGetBalancesSummary,
+  enterpriseGetTransactionsSummary,
+  enterpriseGetConnectionHealthSummary,
+  enterpriseGetBalanceHistorySummary,
+} from './enterpriseHandlers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -377,6 +383,10 @@ export function registerAIHandlers(): void {
           ...args,
           portfolio: loadPortfolioCache(),
         }),
+      getEnterpriseBalances: enterpriseGetBalancesSummary,
+      getEnterpriseTransactions: enterpriseGetTransactionsSummary,
+      getEnterpriseConnectionHealth: enterpriseGetConnectionHealthSummary,
+      getEnterpriseBalanceHistory: enterpriseGetBalanceHistorySummary,
       config: storedConfigToAIConfig(stored),
     })
   }

@@ -21,6 +21,7 @@ import { useAgents } from '../../../store/useAgents'
 import { useConversations } from '../../../store/useConversations'
 import { getAgentToolCount, isAgentActive, isDefaultAgent } from '../../../types/Agent'
 import { mergeExpertToolDefinitions } from '../../../ai/toolCatalog'
+import { useEnterpriseMode } from '../../../hooks/useEnterpriseMode'
 import '../SettingsSubScreen.css'
 import './AgentsScreen.css'
 
@@ -28,6 +29,7 @@ export default function AgentsListScreen() {
   const navigate = useNavigate()
   const { agents, deleteAgent } = useAgents()
   const { findOneOnOne, createConversation } = useConversations()
+  const { isEnterprise } = useEnterpriseMode()
   const [visible, setVisible] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [aiConfig, setAIConfig] = useState<AIConfigFromMain | null>(null)
@@ -35,7 +37,7 @@ export default function AgentsListScreen() {
   const [displaySaving, setDisplaySaving] = useState(false)
   const [displayError, setDisplayError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [availableToolCount, setAvailableToolCount] = useState(() => mergeExpertToolDefinitions([]).length)
+  const [runtimeTools, setRuntimeTools] = useState<{ name: string; description?: string }[]>([])
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
@@ -54,12 +56,17 @@ export default function AgentsListScreen() {
   useEffect(() => {
     let active = true
     void window.mcpAPI?.listTools?.().then(({ tools }) => {
-      if (active) setAvailableToolCount(mergeExpertToolDefinitions(tools).length)
+      if (active) setRuntimeTools(tools)
     }).catch(() => {
       // Built-in capability count remains useful if connected tools cannot be read.
     })
     return () => { active = false }
   }, [])
+
+  const availableToolCount = useMemo(
+    () => mergeExpertToolDefinitions(runtimeTools, { includeEnterprise: isEnterprise }).length,
+    [runtimeTools, isEnterprise],
+  )
 
   const handleShowProviderToggle = async () => {
     if (!aiConfig || !window.electronAPI?.aiConfigSave || displaySaving) return

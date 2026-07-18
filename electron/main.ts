@@ -12,9 +12,15 @@ import { registerSECHandlers } from './secHandlers'
 import { registerPluginSettingsHandlers } from './pluginSettingsHandlers'
 import { registerMCPHandlers } from './mcpHandlers'
 import { registerCoreDataHandlers } from './coreDataHandlers'
-import { closeCoreDataDb, getCoreDataDb } from './coreDataDb'
+import { closeCoreDataDb } from './coreDataDb'
 import { stopMCPServers } from './mcpServer'
 import { setMainWindow } from './mainWindow'
+import {
+  fetchEnterprisePath,
+  normalizeEnterpriseUrl,
+  readEnterpriseServiceUrl,
+  saveEnterpriseServiceUrl,
+} from './enterpriseHandlers'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -100,32 +106,6 @@ function createWindow() {
   }
 }
 
-const ENTERPRISE_URL_SETTING_KEY = 'enterprise_service_url'
-
-function readEnterpriseServiceUrl(): string {
-  try {
-    const row = getCoreDataDb()
-      .prepare('SELECT value FROM app_settings WHERE key = ?')
-      .get(ENTERPRISE_URL_SETTING_KEY) as { value?: string } | undefined
-    return (row?.value ?? '').trim()
-  } catch {
-    return ''
-  }
-}
-
-/** Normalize to a trailing-slash-free http(s) origin+path; '' clears, null = invalid. */
-function normalizeEnterpriseUrl(raw: string): string | null {
-  const trimmed = (raw ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  try {
-    const url = new URL(trimmed)
-    if (!['http:', 'https:'].includes(url.protocol)) return null
-    return trimmed
-  } catch {
-    return null
-  }
-}
-
 function registerEnterpriseHandlers() {
   ipcMain.handle('enterprise-get-url', async () => ({ url: readEnterpriseServiceUrl() }))
 
@@ -135,15 +115,7 @@ function registerEnterpriseHandlers() {
       return { ok: false, error: 'Enter a valid http:// or https:// URL' }
     }
     try {
-      const db = getCoreDataDb()
-      if (!normalized) {
-        db.prepare('DELETE FROM app_settings WHERE key = ?').run(ENTERPRISE_URL_SETTING_KEY)
-      } else {
-        db.prepare(`
-          INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-        `).run(ENTERPRISE_URL_SETTING_KEY, normalized, new Date().toISOString())
-      }
+      saveEnterpriseServiceUrl(normalized)
       return { ok: true, url: normalized }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'Could not save the service URL' }
@@ -182,56 +154,12 @@ function registerEnterpriseHandlers() {
   ])
 
   ipcMain.handle('enterprise-request', async (_event, payload: { path?: string; refresh?: boolean; method?: string }) => {
-    try {
-      const pathName = payload?.path ?? ''
-      const method = payload?.method === 'POST' ? 'POST' : 'GET'
-      if (allowedEnterprisePaths.get(pathName) !== method) {
-        return { ok: false, status: 400, error: 'Enterprise API path is not allowed' }
-      }
-
-      const baseUrl = readEnterpriseServiceUrl()
-      if (!baseUrl) {
-        return { ok: false, status: 503, error: 'Finocurve Service is not configured. Add its URL in Settings → Enterprise service.' }
-      }
-      const requestUrl = new URL(baseUrl)
-      if (!['http:', 'https:'].includes(requestUrl.protocol)) {
-        return { ok: false, status: 400, error: 'Enterprise service URL must use HTTP or HTTPS' }
-      }
-      requestUrl.pathname = `${requestUrl.pathname.replace(/\/+$/, '')}${pathName}`
-      requestUrl.search = payload?.refresh ? 'refresh=1' : ''
-      requestUrl.hash = ''
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 20000)
-      try {
-        const response = await net.fetch(requestUrl.toString(), {
-          method,
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        })
-        const body = await response.text()
-        let data: unknown
-        try {
-          data = body ? JSON.parse(body) : null
-        } catch {
-          return { ok: false, status: response.status, error: 'Service returned an invalid response' }
-        }
-        if (!response.ok) {
-          const message = data && typeof data === 'object' && 'error' in data
-            ? String((data as { error: unknown }).error)
-            : `Finocurve Service returned ${response.status}`
-          return { ok: false, status: response.status, error: message }
-        }
-        return { ok: true, status: response.status, data }
-      } finally {
-        clearTimeout(timeout)
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return { ok: false, error: 'Finocurve Service took too long to respond. Try again.' }
-      }
-      return { ok: false, error: error instanceof Error ? error.message : 'Service unavailable' }
+    const pathName = payload?.path ?? ''
+    const method = payload?.method === 'POST' ? 'POST' : 'GET'
+    if (allowedEnterprisePaths.get(pathName) !== method) {
+      return { ok: false, status: 400, error: 'Enterprise API path is not allowed' }
     }
+    return fetchEnterprisePath(pathName, method, { refresh: payload?.refresh })
   })
 }
 
