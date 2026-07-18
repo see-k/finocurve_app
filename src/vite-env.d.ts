@@ -57,8 +57,10 @@ interface ElectronAPI {
   }
   send: (channel: string, data: unknown) => void
   receive: (channel: string, func: (...args: unknown[]) => void) => void
-  enterpriseCheck?: (payload: { url: string }) => Promise<{ available: boolean; status?: number; error?: string }>
-  enterpriseRequest?: <T>(payload: { url: string; path: string; refresh?: boolean }) => Promise<{ ok: boolean; status?: number; data?: T; error?: string }>
+  enterpriseCheck?: (payload: { url?: string }) => Promise<{ available: boolean; status?: number; error?: string }>
+  enterpriseRequest?: <T>(payload: { path: string; refresh?: boolean; method?: 'GET' | 'POST' }) => Promise<{ ok: boolean; status?: number; data?: T; error?: string }>
+  enterpriseGetUrl?: () => Promise<{ url: string }>
+  enterpriseSetUrl?: (payload: { url: string }) => Promise<{ ok: boolean; url?: string; error?: string }>
   // S3 cloud storage (user-owned bucket)
   s3SaveCredentials?: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) => Promise<{ ok: boolean }>
   s3ClearCredentials?: () => Promise<{ ok: boolean }>

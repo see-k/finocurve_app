@@ -1,5 +1,5 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { enterpriseFetch, enterpriseServiceUrl } from '../services/enterprise'
+import { enterpriseFetch, loadEnterpriseServiceUrl } from '../services/enterprise'
 
 type EnterpriseMode = 'checking' | 'active' | 'inactive'
 type EnterpriseModeContextValue = {
@@ -15,17 +15,18 @@ const EnterpriseModeContext = createContext<EnterpriseModeContextValue>({
 })
 
 export function EnterpriseModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<EnterpriseMode>(enterpriseServiceUrl ? 'checking' : 'inactive')
+  const [mode, setMode] = useState<EnterpriseMode>('checking')
 
   const check = useCallback(async () => {
-    if (!enterpriseServiceUrl) {
-      setMode('inactive')
-      return
-    }
     setMode('checking')
     try {
+      const serviceUrl = await loadEnterpriseServiceUrl()
+      if (!serviceUrl) {
+        setMode('inactive')
+        return
+      }
       if (window.electronAPI?.enterpriseCheck) {
-        const result = await window.electronAPI.enterpriseCheck({ url: enterpriseServiceUrl })
+        const result = await window.electronAPI.enterpriseCheck({ url: serviceUrl })
         if (!result.available) throw new Error(result.error || 'Service unavailable')
       } else {
         const controller = new AbortController()

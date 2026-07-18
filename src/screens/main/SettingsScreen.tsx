@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Target, Bot, Palette,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Target, Bot, Palette, Building2,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
@@ -14,12 +14,14 @@ import { usePortfolio } from '../../store/usePortfolio'
 import { removeSavedLocalAccount, upsertSavedLocalAccount } from '../../lib/savedLocalAccounts'
 import { archiveActiveSessionForEmail, removeArchivedSessionForEmail } from '../../lib/perUserLocalArchive'
 import { PORTFOLIO_STORAGE_KEY, removeCoreDataItem } from '../../lib/coreDataStorage'
+import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
 import './SettingsScreen.css'
 import { APP_VERSION } from '../../constants/appVersion'
 
 export default function SettingsScreen() {
   const { theme } = useTheme()
   const { prefs, updatePreferences, resetPreferences } = usePreferences()
+  const { isEnterprise } = useEnterpriseMode()
 
   const currentThemeLabel = THEME_OPTIONS.find(o => o.id === theme)?.label ?? 'Theme'
   const { portfolio } = usePortfolio()
@@ -158,6 +160,7 @@ export default function SettingsScreen() {
           {typeof window !== 'undefined' && window.electronAPI?.pluginsSettingsGet && (
             <SettingsRow icon={<Plug size={18} />} label="Plugins" value="API keys" onClick={() => navigate('/settings/plugins')} />
           )}
+          <SettingsRow icon={<Building2 size={18} />} label="Enterprise service" value={isEnterprise ? 'Connected' : 'Configure'} onClick={() => navigate('/settings/enterprise')} />
         </GlassContainer>
       </div>
 

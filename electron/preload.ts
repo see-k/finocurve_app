@@ -20,8 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on(channel, (_event, ...args) => func(...args))
     }
   },
-  enterpriseCheck: (payload: { url: string }) => ipcRenderer.invoke('enterprise-check', payload),
-  enterpriseRequest: (payload: { url: string; path: string; refresh?: boolean }) => ipcRenderer.invoke('enterprise-request', payload),
+  enterpriseCheck: (payload: { url?: string }) => ipcRenderer.invoke('enterprise-check', payload),
+  enterpriseRequest: (payload: { path: string; refresh?: boolean; method?: 'GET' | 'POST' }) => ipcRenderer.invoke('enterprise-request', payload),
+  enterpriseGetUrl: () => ipcRenderer.invoke('enterprise-get-url'),
+  enterpriseSetUrl: (payload: { url: string }) => ipcRenderer.invoke('enterprise-set-url', payload),
   s3SaveCredentials: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) =>
     ipcRenderer.invoke('s3-save-credentials', payload),
   s3ClearCredentials: () => ipcRenderer.invoke('s3-clear-credentials'),

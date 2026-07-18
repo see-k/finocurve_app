@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3'
 
-export const CORE_DATA_SCHEMA_VERSION = 1
+export const CORE_DATA_SCHEMA_VERSION = 2
 
 export function migrateCoreDataSchema(database: Database.Database): void {
   const row = database.prepare('PRAGMA user_version').get() as { user_version: number }
@@ -48,6 +48,20 @@ export function migrateCoreDataSchema(database: Database.Database): void {
       database.pragma('user_version = 1')
     })()
     version = 1
+  }
+
+  if (version < 2) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `)
+      database.pragma('user_version = 2')
+    })()
+    version = 2
   }
 
   if (version !== CORE_DATA_SCHEMA_VERSION) {
