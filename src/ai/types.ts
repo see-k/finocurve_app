@@ -158,6 +158,8 @@ export interface ChatContext {
 export type ChatStreamChunk =
   | { type: 'reasoning'; content: string }
   | { type: 'answer'; content: string }
+  | { type: 'tool_start'; toolName: string }
+  | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
   | { type: 'follow_ups'; items: ChatFollowUp[] }
 
 export interface Tool {

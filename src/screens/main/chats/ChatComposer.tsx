@@ -1,5 +1,5 @@
 import { type DragEvent, type KeyboardEvent, type RefObject } from 'react'
-import { ArrowUp, FileText, Paperclip, Square, Users, X } from 'lucide-react'
+import { ArrowUp, FileText, Paperclip, Square, Users, X, BrainCircuit } from 'lucide-react'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import { renderTextWithMentions } from '../../../components/ai/ChatMessageContent'
 import type { Agent } from '../../../types/Agent'
@@ -44,6 +44,8 @@ interface ChatComposerProps {
   isReadingAttachments: boolean
   isDraggingFiles: boolean
   loading: boolean
+  verboseStreaming: boolean
+  onToggleVerbose: () => void
   onDragEnter: (event: DragEvent<HTMLDivElement>) => void
   onDragOver: (event: DragEvent<HTMLDivElement>) => void
   onDragLeave: (event: DragEvent<HTMLDivElement>) => void
@@ -77,6 +79,8 @@ export default function ChatComposer({
   isReadingAttachments,
   isDraggingFiles,
   loading,
+  verboseStreaming,
+  onToggleVerbose,
   onDragEnter,
   onDragOver,
   onDragLeave,
@@ -302,6 +306,16 @@ export default function ChatComposer({
       </div>
       {attachmentError && <div className="chats-screen__attachment-error" role="alert">{attachmentError}</div>}
       <p>
+        <button
+          type="button"
+          className={`chats-screen__verbose-toggle ${verboseStreaming ? 'chats-screen__verbose-toggle--active' : ''}`}
+          onClick={onToggleVerbose}
+          aria-pressed={verboseStreaming}
+          title="Show live reasoning and tool activity while responses generate"
+        >
+          <BrainCircuit size={13} /> Verbose {verboseStreaming ? 'on' : 'off'}
+        </button>
+        <span>·</span>
         {participants.length > 1 && <><b>@mention for a direct reply</b><span>·</span></>}
         <b>Attach, paste, or drop files</b><span>·</span>
         Enter to send <span>·</span> Shift + Enter for a new line

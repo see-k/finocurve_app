@@ -837,12 +837,14 @@ export class LocalAIService implements AIService {
         if (isAborted()) return
         const tool = toolMap.get(tc.name)
         const id = tc.id ?? `call_${tc.name}_${round}`
+        yield { type: 'tool_start', toolName: tc.name }
         try {
           const invokeArgs = tc.args ?? {}
           if (!tool) {
             toolMessages.push(
               new ToolMessage({ content: `Tool ${tc.name} not found`, tool_call_id: id, status: 'error' })
             )
+            yield { type: 'tool_end', toolName: tc.name, status: 'error' }
             continue
           }
           // RunnableConfig.signal is plumbed through for tools that honor it
@@ -858,10 +860,12 @@ export class LocalAIService implements AIService {
             typeof result === 'string' ? result : JSON.stringify(result)
           )
           toolMessages.push(new ToolMessage({ content: resultStr, tool_call_id: id }))
+          yield { type: 'tool_end', toolName: tc.name, status: 'success' }
         } catch (err) {
           if (isAborted() || isAbortError(err)) return
           const errMsg = err instanceof Error ? err.message : 'Tool execution failed'
           toolMessages.push(new ToolMessage({ content: `Error: ${errMsg}`, tool_call_id: id, status: 'error' }))
+          yield { type: 'tool_end', toolName: tc.name, status: 'error' }
         }
       }
 

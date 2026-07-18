@@ -113,7 +113,7 @@ export default function SettingsScreen() {
 
       {/* Profile */}
       <GlassContainer padding="20px 24px" borderRadius={20} className="settings-profile" onClick={() => navigate('/settings/account')}>
-        <UserAvatar src={prefs.profilePicturePath} initials={initials} size={52} className="settings-avatar" />
+        <UserAvatar src={prefs.profilePicturePath} initials={initials} size={52} className="settings-avatar" showEnterpriseIndicator />
         <div className="settings-profile__info">
           <span className="settings-profile__name">{userName}</span>
           <span className="settings-profile__email">{userEmail}</span>

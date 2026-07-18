@@ -82,6 +82,13 @@ npm install
 npm run dev
 ```
 
+### Enterprise mode
+
+Set `VITE_FINOCURVE_SERVICE_URL` to the base URL of a running
+`finocurve-service` instance (for example, `http://localhost:8001`). The app
+checks the service at startup and reveals the Enterprise navigation only after
+the API responds successfully. See `.env.example` for the expected format.
+
 ### Production builds
 
 ```bash

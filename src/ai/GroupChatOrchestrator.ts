@@ -2,9 +2,11 @@ import type { Agent } from '../types/Agent'
 import type { Conversation, ConversationMessage } from '../types/Conversation'
 
 export interface GroupTurnChunk {
-  type: 'reasoning' | 'answer'
+  type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
   agentId: string
-  content: string
+  content?: string
+  toolName?: string
+  status?: 'success' | 'error'
 }
 
 export interface GroupTurnResult {
@@ -398,7 +400,7 @@ export async function* runGroupTurn(
 
     const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
       if (chunk.type === 'follow_ups') return
-      options.onChunk?.({ type: chunk.type, agentId, content: chunk.content })
+      options.onChunk?.({ agentId, ...chunk })
     })
 
     try {

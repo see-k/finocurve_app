@@ -100,7 +100,7 @@ export default function AccountScreen() {
             className="account-avatar-picker"
           >
             <div className="account-avatar-wrapper">
-              <UserAvatar src={profilePicture} initials={initials} size={80} />
+              <UserAvatar src={profilePicture} initials={initials} size={80} showEnterpriseIndicator />
               {uploading && <div className="account-avatar-overlay">Uploading…</div>}
               <div className="account-avatar-badge">
                 <Camera size={16} />

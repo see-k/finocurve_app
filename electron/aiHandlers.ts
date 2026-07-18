@@ -650,9 +650,11 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'follow_ups') {
           followUps = chunk.items
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'follow_ups', items: chunk.items })
-        } else {
+        } else if (chunk.type === 'answer') {
           answer += chunk.content
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
+        } else {
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', chunk)
         }
       }
     } catch (err) {

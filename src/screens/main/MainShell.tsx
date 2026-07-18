@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useMatch, useLocation, Routes, Route, Nav
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
   Search, PenLine, Target, MessagesSquare, UsersRound, Workflow, WalletCards, PackagePlus,
-  EarthIcon,
+  EarthIcon, Building2,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -15,6 +15,7 @@ import SettingsScreen from './SettingsScreen'
 import TrackerScreen from './TrackerScreen'
 import NewsScreen from './NewsScreen'
 import ChatsScreen from './ChatsScreen'
+import EnterpriseScreen from './EnterpriseScreen'
 import RiskAnalysisScreen from '../detail/RiskAnalysisScreen'
 import LoanDetailScreen from '../detail/LoanDetailScreen'
 import AccountScreen from '../settings/AccountScreen'
@@ -32,6 +33,7 @@ import CreateEditAgentScreen from '../settings/agents/CreateEditAgentScreen'
 import { TickerTapeWidget } from '../../components/TradingViewWidgets'
 import type { MainTab } from '../../types'
 import './MainShell.css'
+import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
 
 type NavItem = { id: MainTab; label: string; icon: React.ReactNode; description?: string }
 
@@ -92,10 +94,12 @@ const navGroups: Array<{
 const TAB_IDS: MainTab[] = [
   dashboardNavItem.id,
   ...navGroups.flatMap((group) => group.items.map((item) => item.id)),
+  'enterprise',
   settingsNavItem.id,
 ]
 
 export default function MainShell() {
+  const { isEnterprise } = useEnterpriseMode()
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = useMemo((): MainTab => {
     const raw = searchParams.get('tab')
@@ -118,6 +122,10 @@ export default function MainShell() {
   const showLoanDetail = !!loanDetailMatch
   const isSettingsArea = location.pathname.startsWith('/settings')
   const isExpertsArea = location.pathname.startsWith('/settings/agents')
+
+  useEffect(() => {
+    if (activeTab === 'enterprise' && !isEnterprise) setSearchParams({}, { replace: true })
+  }, [activeTab, isEnterprise, setSearchParams])
 
   const goToShellTab = useCallback(
     (tab: MainTab) => {
@@ -166,6 +174,7 @@ export default function MainShell() {
       case 'tracker': return <TrackerScreen />
       case 'experts': return <AgentsListScreen />
       case 'chats': return <ChatsScreen />
+      case 'enterprise': return isEnterprise ? <EnterpriseScreen /> : <DashboardScreen />
       case 'settings': return <SettingsScreen />
     }
   }
@@ -293,6 +302,20 @@ export default function MainShell() {
           ))}
 
           <span className="nav-pill__separator" aria-hidden="true" />
+
+          {isEnterprise && <>
+            <button
+              type="button"
+              className={`nav-item nav-standalone-item ${navActiveTab === 'enterprise' ? 'nav-item--active' : ''}`}
+              onClick={() => { setOpenNavGroup(null); setShowFabMenu(false); goToShellTab('enterprise') }}
+              data-tooltip="Enterprise"
+              aria-current={navActiveTab === 'enterprise' ? 'page' : undefined}
+            >
+              <Building2 size={20} />
+              {navActiveTab === 'enterprise' && <span className="nav-item__indicator" />}
+            </button>
+            <span className="nav-pill__separator" aria-hidden="true" />
+          </>}
 
           <div className="nav-static-controls" role="group" aria-label="App controls">
             <button

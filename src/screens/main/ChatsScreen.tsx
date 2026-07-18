@@ -62,6 +62,9 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const [streamingReasoning, setStreamingReasoning] = useState('')
+  const [streamingTools, setStreamingTools] = useState<{ name: string; status: 'running' | 'success' | 'error' }[]>([])
+  const [verboseStreaming, setVerboseStreaming] = useState(() => localStorage.getItem('finocurve-chat-verbose') === 'true')
   const [smartRoutingStatus, setSmartRoutingStatus] = useState<SmartRoutingStatus | null>(null)
   const [routerPresentation, setRouterPresentation] = useState<RouterPresentation>({
     showProvider: false,
@@ -168,7 +171,49 @@ export default function ChatsScreen() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [selected?.id, selected?.messages.length, streamingText, smartRoutingStatus?.phase])
+  }, [selected?.id, selected?.messages.length, streamingText, streamingReasoning, streamingTools, smartRoutingStatus?.phase])
+
+  const toggleVerboseStreaming = () => {
+    setVerboseStreaming((current) => {
+      const next = !current
+      localStorage.setItem('finocurve-chat-verbose', String(next))
+      return next
+    })
+  }
+
+  const resetStreamingActivity = () => {
+    setStreamingReasoning('')
+    setStreamingTools([])
+  }
+
+  const handleLiveChunk = (chunk: {
+    type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
+    content?: string
+    toolName?: string
+    status?: 'success' | 'error'
+  }) => {
+    if (chunk.type === 'answer' && chunk.content) {
+      setStreamingText((previous) => previous + chunk.content)
+    } else if (chunk.type === 'reasoning' && chunk.content) {
+      setStreamingReasoning((previous) => previous + chunk.content)
+    } else if (chunk.type === 'tool_start' && chunk.toolName) {
+      setStreamingTools((previous) => [...previous, { name: chunk.toolName!, status: 'running' }])
+    } else if (chunk.type === 'tool_end' && chunk.toolName) {
+      setStreamingTools((previous) => {
+        let index = -1
+        for (let toolIndex = previous.length - 1; toolIndex >= 0; toolIndex -= 1) {
+          if (previous[toolIndex].name === chunk.toolName && previous[toolIndex].status === 'running') {
+            index = toolIndex
+            break
+          }
+        }
+        if (index < 0) return previous
+        return previous.map((tool, toolIndex) => toolIndex === index
+          ? { ...tool, status: chunk.status ?? 'success' }
+          : tool)
+      })
+    }
+  }
 
   useEffect(() => {
     const textarea = composerRef.current
@@ -361,9 +406,10 @@ export default function ChatsScreen() {
         streamingAgentIdRef.current = agent.id
         setStreamingAgentId(agent.id)
         setStreamingText('')
+        resetStreamingActivity()
 
         const unsubscribe = window.electronAPI.onAiChatChunk?.((chunk) => {
-          if (chunk.type === 'answer') setStreamingText((previous) => previous + chunk.content)
+          if (chunk.type !== 'follow_ups') handleLiveChunk(chunk)
         })
 
         try {
@@ -428,16 +474,16 @@ export default function ChatsScreen() {
             streamingAgentIdRef.current = agentId
             setStreamingAgentId(agentId)
             setStreamingText('')
+            resetStreamingActivity()
           },
           onChunk: (chunk) => {
-            if (chunk.type !== 'answer') return
-            if (streamingAgentIdRef.current === chunk.agentId) {
-              setStreamingText((previous) => previous + chunk.content)
-            } else {
+            if (streamingAgentIdRef.current !== chunk.agentId) {
               streamingAgentIdRef.current = chunk.agentId
               setStreamingAgentId(chunk.agentId)
-              setStreamingText(chunk.content)
+              setStreamingText('')
+              resetStreamingActivity()
             }
+            handleLiveChunk(chunk)
           },
         })) {
           if (stoppedRef.current) break
@@ -459,6 +505,7 @@ export default function ChatsScreen() {
       streamingAgentIdRef.current = null
       setStreamingAgentId(null)
       setStreamingText('')
+      resetStreamingActivity()
       setSmartRoutingStatus(null)
       setLoading(false)
       abortRef.current = null
@@ -651,6 +698,9 @@ export default function ChatsScreen() {
             conversation={selected}
             streamingAgentId={streamingAgentId}
             streamingText={streamingText}
+            streamingReasoning={streamingReasoning}
+            streamingTools={streamingTools}
+            verboseStreaming={verboseStreaming}
             smartRoutingStatus={smartRoutingStatus}
             routerPresentation={routerPresentation}
             agentById={agentById}
@@ -692,6 +742,8 @@ export default function ChatsScreen() {
             isReadingAttachments={isReadingAttachments}
             isDraggingFiles={isDraggingFiles}
             loading={loading}
+            verboseStreaming={verboseStreaming}
+            onToggleVerbose={toggleVerboseStreaming}
             onDragEnter={handleComposerDragEnter}
             onDragOver={handleComposerDragOver}
             onDragLeave={handleComposerDragLeave}

@@ -561,6 +561,7 @@ export default function AIChatBubble() {
         setStreamingFollowUps(chunk.items)
         return
       }
+      if (chunk.type === 'tool_start' || chunk.type === 'tool_end') return
       setStreaming((prev) =>
         chunk.type === 'reasoning'
           ? { ...prev, reasoning: prev.reasoning + chunk.content }
@@ -815,7 +816,7 @@ export default function AIChatBubble() {
                       <img src={messageAgentAvatar} alt="" className="ai-chat-avatar-img" />
                     </button>
                   ) : (
-                    <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
+                    <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} showEnterpriseIndicator />
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
