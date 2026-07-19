@@ -81,11 +81,26 @@ export default function EnterpriseScreen() {
   useEffect(() => { void load(page) }, [page])
 
   const connectedCount = (connections ?? []).filter(item => item.status === 'connected').length
-  const chartData = useMemo(() => Array.from((history ?? []).reduce((days, item) => {
-    const existing = days.get(item.snapshot_date)
-    if (!existing || Number(item.id) > Number(existing.id)) days.set(item.snapshot_date, item)
-    return days
-  }, new Map<string, BalanceSnapshot>()).values()).map(item => ({ date: item.snapshot_date, total: Number(item.total_usd) })).sort((a, b) => a.date.localeCompare(b.date)), [history])
+  // Plot every recorded snapshot (same series as the service UI). Collapsing to one
+  // point per calendar day hid large intra-day swings and made the line look flat.
+  const chartData = useMemo(() =>
+    [...(history ?? [])]
+      .sort((a, b) => Number(a.id) - Number(b.id))
+      .map(item => ({
+        key: String(item.id),
+        date: item.snapshot_date,
+        total: Number(item.total_usd),
+      })),
+  [history])
+  const historyYDomain = useMemo((): [number, number] | undefined => {
+    const values = chartData.map(item => item.total).filter(Number.isFinite)
+    if (!values.length) return undefined
+    const lo = Math.min(...values)
+    const hi = Math.max(...values)
+    const span = hi - lo || Math.max(Math.abs(hi) * 0.08, 1)
+    const pad = Math.max(span * 0.12, Math.abs(hi) * 0.03, 1)
+    return [Math.max(0, lo - pad), hi + pad]
+  }, [chartData])
   const products = balances?.by_product ?? []
   const reportingProducts = products.filter(product => !product.error && product.total_usd > 0)
   const cryptoHoldings = balances?.aggregate.crypto ?? []
@@ -180,7 +195,7 @@ export default function EnterpriseScreen() {
         </section>
         <section className="enterprise-grid">
           <article className="enterprise-card enterprise-chart-card"><div className="enterprise-card-title"><div><span>Balance history</span><small>Recorded consolidated value over time</small></div><div className="enterprise-chart-actions"><button className="enterprise-snapshot" onClick={() => void recordSnapshot()} disabled={snapshotting}><Camera size={13} />{snapshotting ? 'Recording…' : 'Record snapshot'}</button><Activity size={18} /></div></div>
-            {chartData.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={chartData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}><defs><linearGradient id="enterpriseArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.4}/><stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0.02}/></linearGradient></defs><CartesianGrid stroke="var(--divider)" vertical={false}/><XAxis dataKey="date" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false}/><YAxis tickFormatter={value => compactMoney.format(value)} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={70}/><Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--divider)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-secondary)' }} formatter={value => money.format(Number(value))}/><Area type="monotone" dataKey="total" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#enterpriseArea)" /></AreaChart></ResponsiveContainer> : <div className="enterprise-empty">No balance snapshots yet.</div>}
+            {chartData.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={chartData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}><defs><linearGradient id="enterpriseArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.4}/><stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0.02}/></linearGradient></defs><CartesianGrid stroke="var(--divider)" vertical={false}/><XAxis dataKey="key" tickFormatter={(_, index) => chartData[index]?.date ?? ''} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={48}/><YAxis domain={historyYDomain ?? ['auto', 'auto']} allowDataOverflow={historyYDomain != null} tickFormatter={value => compactMoney.format(value)} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={70}/><Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--divider)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-secondary)' }} labelFormatter={(_, payload) => String(payload?.[0]?.payload?.date ?? '')} formatter={value => money.format(Number(value))}/><Area type="monotone" dataKey="total" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#enterpriseArea)" /></AreaChart></ResponsiveContainer> : <div className="enterprise-empty">No balance snapshots yet.</div>}
             <p className="enterprise-description">This series reflects persisted daily and manual snapshots—not estimated market performance. <Citation path="/api/balance-history" label="Balance history" /></p>
           </article>
           <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Source allocation</span><small>Funded sources with successfully reported USD value</small></div><CircleDollarSign size={18} /></div><div className="enterprise-allocation">{reportingProducts.map(product => { const share = balances?.aggregate.total_usd ? Math.max(2, product.total_usd / balances.aggregate.total_usd * 100) : 2; return <div key={`${product.product}-${product.institution_name ?? ''}`}><div><span>{product.institution_name ?? productNames[product.product] ?? product.product}</span><strong>{money.format(product.total_usd)}</strong></div><i><b style={{ width: `${share}%` }} /></i></div> })}</div></article>

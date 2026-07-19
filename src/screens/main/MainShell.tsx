@@ -4,6 +4,8 @@ import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
   Search, PenLine, Target, MessagesSquare, UsersRound, Workflow, WalletCards, PackagePlus,
   EarthIcon, Building2,
+  BookAIcon,
+  BookOpenIcon,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -71,7 +73,7 @@ const navGroups: Array<{
     id: 'research',
     label: 'Research and analysis',
     description: 'Market intelligence and reporting',
-    icon: <Search size={20} />,
+    icon: <BookOpenIcon size={20} />,
     items: [
       { id: 'markets', label: 'Markets', description: 'Prices, charts and market activity', icon: <BarChart3 size={20} /> },
       { id: 'news', label: 'News & data', description: 'Financial news and disclosures', icon: <Newspaper size={20} /> },
