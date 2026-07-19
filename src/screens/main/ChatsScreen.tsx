@@ -340,9 +340,9 @@ export default function ChatsScreen() {
   const portfolioAudit = portfolio
     ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
     : undefined
-  const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
-    : undefined
+  // Portfolio totals are no longer preloaded into the model system prompt.
+  // Agents must call tools (e.g. get_portfolio_summary); portfolioContext stays
+  // available only as the backend for those tools.
   const portfolioContext = portfolio && totalValue >= 0
     ? {
         portfolioName: portfolio.name || 'Portfolio',
@@ -362,7 +362,7 @@ export default function ChatsScreen() {
     socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
     personalBio: prefs.personalBio?.trim() || undefined,
   }
-  const baseContext = { currentRoute: location.pathname, portfolioSummary, portfolioContext, userProfile }
+  const baseContext = { currentRoute: location.pathname, portfolioContext, userProfile }
 
   const handleStop = () => {
     stoppedRef.current = true

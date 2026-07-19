@@ -89,12 +89,8 @@ function savePortfolioCache(ctx: PortfolioContext | null): void {
 /** Build ChatContext from main-process-available data (for A2A) */
 function getAIContextForA2A(): ChatContext {
   const portfolio = loadPortfolioCache()
-  const docs = listDocumentsFromLocal()
   return {
-    portfolioSummary: portfolio
-      ? `Portfolio: ${portfolio.portfolioName}, ~$${portfolio.totalValue.toLocaleString()}`
-      : undefined,
-    documentCount: docs.length,
+    // Portfolio totals are available via tools (get_portfolio_summary), not preloaded into prompts.
     portfolioContext: portfolio ?? undefined,
     riskMetrics: undefined,
   }

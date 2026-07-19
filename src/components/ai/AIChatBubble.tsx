@@ -453,10 +453,6 @@ export default function AIChatBubble() {
   const portfolioAudit = portfolio
     ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
     : undefined
-  const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
-    : undefined
-
   const handleNewChat = () => {
     pendingAttachments.forEach((p) => {
       if (p.objectUrl) URL.revokeObjectURL(p.objectUrl)
@@ -625,8 +621,6 @@ export default function AIChatBubble() {
             socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
             personalBio: prefs.personalBio?.trim() || undefined,
           },
-          portfolioSummary,
-          documentCount: undefined,
           portfolioContext,
           riskMetrics: undefined,
           ...(agent

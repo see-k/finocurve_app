@@ -119,9 +119,15 @@ export interface ChatContext {
     socialMediaUrl?: string
     personalBio?: string
   }
+  /**
+   * Optional legacy portfolio blurb. Chat no longer injects this into the system
+   * prompt; agents should call get_portfolio_summary (and related tools) instead.
+   * Still accepted for non-chat callers such as document insights.
+   */
   portfolioSummary?: string
+  /** @deprecated Unused by chat; document inventory comes from tools when needed. */
   documentCount?: number
-  /** Full portfolio context for tool use (passed from renderer) */
+  /** Full portfolio context for tool use (passed from renderer) — not placed in the system prompt. */
   portfolioContext?: PortfolioContext | null
   /** Risk metrics summary for tool use (passed from renderer) */
   riskMetrics?: string

@@ -728,13 +728,11 @@ export class LocalAIService implements AIService {
         'When the user asks for a spreadsheet, Excel-style export, table download, or CSV, use save_custom_csv_document with fileBaseName, headers (column names), and rows (array of rows matching header order). The file is UTF-8 with BOM for Excel compatibility and is saved under finocurve/documents/ when storage is configured.'
       )
     }
-    if (!isGroupRouting && context.portfolioSummary) systemParts.push(`Current context: ${context.portfolioSummary}`)
     if (!isGroupRouting) {
       systemParts.push(
-        'When quoting a financial value from FinoCurve tools, retain its available source, as-of time, valuation method, and freshness. Clearly identify estimated, illustrative, stale, or legacy values.'
+        'Do not assume portfolio balances, holdings, or document inventory from memory or prior turns. Call the relevant FinoCurve tools when you need that data. When quoting a financial value from those tools, retain its available source, as-of time, valuation method, and freshness. Clearly identify estimated, illustrative, stale, or legacy values.'
       )
     }
-    if (!isGroupRouting && context.documentCount !== undefined) systemParts.push(`User has ${context.documentCount} documents.`)
     const hasAttachments = messages.some((m) => m.role === 'user' && (m.attachments?.length ?? 0) > 0)
     if (!isGroupRouting && hasAttachments) {
       systemParts.push(
