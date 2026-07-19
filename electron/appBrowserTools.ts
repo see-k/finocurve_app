@@ -244,7 +244,7 @@ export function getBuiltinAppBrowserTools(): MCPToolInfo[] {
       serverName: BUILTIN_APP_BROWSER_SERVER_NAME,
       name: 'app_browser_screenshot',
       description:
-        'Capture a PNG screenshot of the FinoCurve app window (same view as the logged-in user). Returns base64-encoded PNG and dimensions. Large windows are downscaled so the longest side is at most 1280px before scaleFactor is applied.',
+        'Capture a PNG screenshot of the FinoCurve app window (same view as the logged-in user). The image is attached for vision so you can see layout, charts, and visual appearance. Large windows are downscaled so the longest side is at most 1280px before scaleFactor is applied. Prefer app_browser_page_text when you only need exact labels or values.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -337,7 +337,7 @@ export function getBuiltinAppBrowserTools(): MCPToolInfo[] {
       serverName: BUILTIN_APP_BROWSER_SERVER_NAME,
       name: 'app_browser_page_text',
       description:
-        'Extract accessible visible text from the FinoCurve app window (same session as the user): body innerText plus optional headings and list excerpts. Prefer this over app_browser_screenshot when you need labels, headings, buttons, or form fields—screenshots omit base64 in model context.',
+        'Extract accessible visible text from the FinoCurve app window (same session as the user): body innerText plus optional headings and list excerpts. Prefer this over app_browser_screenshot when you need exact labels, headings, buttons, or form fields. Use app_browser_screenshot when you need to see layout, charts, or visual appearance.',
       inputSchema: {
         type: 'object',
         properties: {

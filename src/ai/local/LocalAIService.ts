@@ -109,21 +109,52 @@ const MAX_ATTACHMENT_TEXT_CHARS = 80_000
 /** Cap tool outputs so Bedrock/LangChain history stays under model limits (MCP screenshots, etc.). */
 const MAX_TOOL_MESSAGE_CHARS = 100_000
 
+export type ToolResultVisionImage = {
+  mimeType: string
+  base64: string
+  width?: number
+  height?: number
+}
+
 /**
- * Shrinks oversized tool outputs before they become {@link ToolMessage} content:
- * recursively strips large base64 image payloads from JSON tool results, then truncates the final string.
+ * Walks JSON tool results: pulls vision-eligible images out for a follow-up
+ * {@link HumanMessage}, and replaces raw base64 in the ToolMessage with a short note
+ * so history stays within token limits.
  */
-function redactLargeImagePayloadsInJson(value: unknown): unknown {
+function collectAndRedactToolImages(value: unknown, images: ToolResultVisionImage[]): unknown {
   if (Array.isArray(value)) {
-    return value.map(redactLargeImagePayloadsInJson)
+    return value.map((item) => collectAndRedactToolImages(item, images))
   }
   if (value !== null && typeof value === 'object') {
     const obj = value as Record<string, unknown>
     const mimeStr = typeof obj.mimeType === 'string' ? obj.mimeType : ''
     const base64Str = typeof obj.base64 === 'string' ? obj.base64 : ''
     if (mimeStr.toLowerCase().includes('image') && base64Str.length > 500) {
+      const mime = mimeStr.toLowerCase().split(';')[0].trim() || 'image/png'
+      let byteLength = 0
+      try {
+        byteLength = Buffer.from(base64Str, 'base64').length
+      } catch {
+        byteLength = 0
+      }
+      const canVision =
+        isVisionImageMime(mime) && byteLength > 0 && byteLength <= MAX_VISION_IMAGE_BYTES
+      if (canVision) {
+        images.push({
+          mimeType: mime,
+          base64: base64Str,
+          width: typeof obj.width === 'number' ? obj.width : undefined,
+          height: typeof obj.height === 'number' ? obj.height : undefined,
+        })
+      }
+      const sizeLabel =
+        typeof obj.width === 'number' && typeof obj.height === 'number'
+          ? `${obj.width}×${obj.height} `
+          : ''
       const summary: Record<string, unknown> = {
-        note: `base64 image omitted (${base64Str.length} chars) — use smaller screenshot or describe UI verbally`,
+        note: canVision
+          ? `Screenshot captured (${sizeLabel}${mime}). Image is attached for vision in the following message — inspect it directly.`
+          : `base64 image omitted (${base64Str.length} chars) — use app_browser_page_text or a smaller screenshot`,
       }
       if ('ok' in obj) summary.ok = obj.ok
       if (mimeStr) summary.mimeType = mimeStr
@@ -133,27 +164,53 @@ function redactLargeImagePayloadsInJson(value: unknown): unknown {
     }
     const out: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(obj)) {
-      out[key] = redactLargeImagePayloadsInJson(nested)
+      out[key] = collectAndRedactToolImages(nested, images)
     }
     return out
   }
   return value
 }
 
-function sanitizeToolResultForModel(text: string): string {
+/**
+ * Prepares a tool result string for the model: strip large base64 from ToolMessage
+ * text, optionally returning images to attach as vision on a follow-up user turn.
+ */
+export function prepareToolResultForModel(text: string): {
+  content: string
+  images: ToolResultVisionImage[]
+} {
+  const images: ToolResultVisionImage[] = []
   let out = text
   try {
     const parsed: unknown = JSON.parse(text)
-    const redacted = redactLargeImagePayloadsInJson(parsed)
+    const redacted = collectAndRedactToolImages(parsed, images)
     out = typeof redacted === 'string' ? redacted : JSON.stringify(redacted)
   } catch {
     /* not JSON — truncate below */
   }
 
   if (out.length > MAX_TOOL_MESSAGE_CHARS) {
-    return `${out.slice(0, MAX_TOOL_MESSAGE_CHARS)}\n… [truncated, ${out.length} chars total]`
+    out = `${out.slice(0, MAX_TOOL_MESSAGE_CHARS)}\n… [truncated, ${out.length} chars total]`
   }
-  return out
+  return { content: out, images }
+}
+
+function visionHumanMessageFromToolImages(images: ToolResultVisionImage[]): HumanMessage {
+  const dims = images
+    .map((img) => (img.width && img.height ? `${img.width}×${img.height}` : img.mimeType))
+    .join(', ')
+  return new HumanMessage({
+    content: [
+      {
+        type: 'text',
+        text: `Tool screenshot(s) attached for vision (${dims}). Describe what you see and continue helping the user.`,
+      },
+      ...images.map((img) => ({
+        type: 'image_url' as const,
+        image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+      })),
+    ],
+  })
 }
 
 /**
@@ -639,11 +696,25 @@ export class LocalAIService implements AIService {
       const peerNames = context.groupChat.participantNames.filter(
         (name) => name !== context.agentPersona?.name,
       )
+      const peerMentionList = peerNames.map((name) => `@${name}`).join(', ')
+      const handoffExample = peerNames[0] ? `@${peerNames[0]}` : '@Name'
       systemParts.push(
         `You are participating in a live group conversation${peerNames.length > 0 ? ` with ${peerNames.join(', ')}` : ''}. ` +
         'Messages prefixed with [Name]: are peer contributions from other advisors. Engage with useful peer points naturally: you may address a peer by name, agree, challenge, ask them a focused question, or build on their analysis. Add distinct value and avoid repeating what another participant already said. ' +
+        (peerNames.length > 0
+          ? (
+            'Peer handoff (built-in, not a function call): to schedule a peer to reply next in this turn, put their exact @mention in your reply text. ' +
+            `Valid handoff targets: ${peerMentionList}. ` +
+            `Syntax: write ${handoffExample} (leading @ required; match the name exactly, including spaces). ` +
+            'Example: "I covered the loan terms — ' + handoffExample + ', please challenge the risk assumptions." ' +
+            'You may @mention up to two peers when distinct expertise is needed; prefer one. ' +
+            'Writing a bare name without @ does not schedule anyone. Do not invent names, and do not use @everyone or @all (user-only). ' +
+            'Use handoffs sparingly — only when you genuinely need that peer\'s input after your answer.'
+          )
+          : 'There are no other peers available to hand off to in this room.') +
+        ' ' +
         (context.groupChat.directlyAddressed
-          ? 'The user explicitly addressed you with an @mention, so answer their request directly.'
+          ? 'You were directly addressed (by the user or a peer handoff), so answer the request directly.'
           : 'The group was addressed generally; contribute only what your perspective genuinely adds.')
       )
     }
@@ -775,7 +846,7 @@ export class LocalAIService implements AIService {
       : filterExpertTools(this.options.getMCPTools?.() ?? [], context.agentPersona)
     if (hasAppBuiltinBrowserTools(mcpTools)) {
       systemParts.push(
-        'In-app browser (FinoCurve main window tools): Whenever the user asks you to GO somewhere, OPEN a page, or NAVIGATE in the app, FIRST call app_browser_list_routes to get the exact path catalog and currentPath — never guess routes. Then call app_browser_navigate with an exact path from that list (e.g. "/main?tab=portfolio", "/settings/ai-config"). The /main shell uses query-string tabs (?tab=dashboard|portfolio|markets|news|risk|insights|reports|tracker|experts|chats|settings), not nested URLs. For in-page UI like sub-tabs (Overview, Volatility, History on Risk Analysis), buttons (Save, Add asset), or any clickable control that is NOT a route, use app_browser_click with the visible text or a CSS selector — NEVER tell the user to click it themselves; you can do it. After navigating or clicking, call app_browser_page_text to confirm and read on-screen content. Prefer app_browser_page_text over app_browser_screenshot for headings, buttons, and labels — image base64 is omitted from tool results to stay within token limits.'
+        'In-app browser (FinoCurve main window tools): Whenever the user asks you to GO somewhere, OPEN a page, or NAVIGATE in the app, FIRST call app_browser_list_routes to get the exact path catalog and currentPath — never guess routes. Then call app_browser_navigate with an exact path from that list (e.g. "/main?tab=portfolio", "/settings/ai-config"). The /main shell uses query-string tabs (?tab=dashboard|portfolio|markets|news|risk|insights|reports|tracker|experts|chats|settings), not nested URLs. For in-page UI like sub-tabs (Overview, Volatility, History on Risk Analysis), buttons (Save, Add asset), or any clickable control that is NOT a route, use app_browser_click with the visible text or a CSS selector — NEVER tell the user to click it themselves; you can do it. After navigating or clicking, call app_browser_page_text to confirm and read on-screen content. Prefer app_browser_page_text for headings, buttons, labels, and exact values. Use app_browser_screenshot when you need layout, charts, or visual appearance — the screenshot image is attached for vision after the tool result so you can see it.'
       )
     }
     const tools = [...finocurveTools, ...mcpTools]
@@ -853,6 +924,7 @@ export class LocalAIService implements AIService {
       }
 
       const toolMessages: ToolMessage[] = []
+      const visionImages: ToolResultVisionImage[] = []
       for (const tc of toolCalls) {
         if (isAborted()) return
         const tool = toolMap.get(tc.name)
@@ -876,10 +948,11 @@ export class LocalAIService implements AIService {
             tool as { invoke: (args: unknown, config?: { signal?: AbortSignal }) => Promise<unknown> }
           ).invoke(invokeArgs, signal ? { signal } : undefined)
           const result = await raceWithAbort(invokePromise, signal)
-          const resultStr = sanitizeToolResultForModel(
+          const prepared = prepareToolResultForModel(
             typeof result === 'string' ? result : JSON.stringify(result)
           )
-          toolMessages.push(new ToolMessage({ content: resultStr, tool_call_id: id }))
+          visionImages.push(...prepared.images)
+          toolMessages.push(new ToolMessage({ content: prepared.content, tool_call_id: id }))
           yield { type: 'tool_end', toolName: tc.name, status: 'success' }
         } catch (err) {
           if (isAborted() || isAbortError(err)) return
@@ -896,6 +969,11 @@ export class LocalAIService implements AIService {
       }
 
       currentMessages = [...currentMessages, aiMessage, ...toolMessages]
+      // Bedrock/OpenAI tool results are text-only; re-attach screenshots as a
+      // vision user turn (same path as chat image attachments).
+      if (visionImages.length > 0) {
+        currentMessages = [...currentMessages, visionHumanMessageFromToolImages(visionImages)]
+      }
       round++
     }
 

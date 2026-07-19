@@ -147,7 +147,10 @@ export interface ChatContext {
   /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
   groupChat?: {
     participantNames: string[]
-    /** True when the user explicitly @mentioned this turn's responder. */
+    /**
+     * True when this responder was explicitly addressed for the turn — either by a
+     * user @mention or by a peer @handoff that scheduled them mid-turn.
+     */
     directlyAddressed: boolean
   }
   /** Internal, non-conversational model pass. It never appears as a chat participant. */
