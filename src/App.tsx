@@ -21,6 +21,7 @@ import RiskAnalysisScreen from './screens/detail/RiskAnalysisScreen'
 // Standalone screens
 import NotificationsScreen from './screens/main/NotificationsScreen'
 import { usePreferences } from './store/usePreferences'
+import { EnterpriseModeProvider } from './hooks/useEnterpriseMode'
 
 function TrackerS3PrefsSync() {
   const { prefs } = usePreferences()
@@ -52,7 +53,7 @@ function LegacyLoanRedirect() {
 
 export default function App() {
   return (
-    <>
+    <EnterpriseModeProvider>
     <TrackerS3PrefsSync />
     <Routes>
       <Route path="/" element={<SplashScreen />} />
@@ -83,6 +84,6 @@ export default function App() {
     </Routes>
     <AIAppRemoteFrame />
     <AIChatBubble />
-    </>
+    </EnterpriseModeProvider>
   )
 }

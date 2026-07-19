@@ -453,6 +453,7 @@ export type MainTab =
   | 'tracker'
   | 'experts'
   | 'chats'
+  | 'enterprise'
   | 'settings'
 
 // ============================================

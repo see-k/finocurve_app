@@ -2,9 +2,11 @@ import type { Agent } from '../types/Agent'
 import type { Conversation, ConversationMessage } from '../types/Conversation'
 
 export interface GroupTurnChunk {
-  type: 'reasoning' | 'answer'
+  type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
   agentId: string
-  content: string
+  content?: string
+  toolName?: string
+  status?: 'success' | 'error'
 }
 
 export interface GroupTurnResult {
@@ -68,6 +70,78 @@ function shuffleAgentIds(agentIds: string[], random: () => number): string[] {
 }
 
 /**
+ * Resolves @mentions in free text to the agents they address, in the order the
+ * mentions appear. A full-name mention always matches; a first-name mention
+ * matches only when that first name is unique among the available agents,
+ * avoiding accidental routing in rooms with duplicate names. This powers both
+ * user routing (planGroupResponders) and agent-to-agent handoffs and never
+ * matches @everyone / @all, which are user-only broadcast keywords.
+ */
+export function findMentionedAgentIds(
+  text: string,
+  availableIds: string[],
+  agentById: Map<string, Agent>,
+): string[] {
+  const firstNameCounts = new Map<string, number>()
+  for (const agentId of availableIds) {
+    const firstName = agentById.get(agentId)?.name.trim().split(/\s+/)[0]?.toLocaleLowerCase()
+    if (firstName) firstNameCounts.set(firstName, (firstNameCounts.get(firstName) ?? 0) + 1)
+  }
+
+  return availableIds
+    .map((agentId) => {
+      const agent = agentById.get(agentId)!
+      const fullName = agent.name.trim()
+      const firstName = fullName.split(/\s+/)[0]
+      const fullNameIndex = mentionIndex(text, fullName)
+      const firstNameIndex = firstNameCounts.get(firstName.toLocaleLowerCase()) === 1
+        ? mentionIndex(text, firstName)
+        : -1
+      const indexes = [fullNameIndex, firstNameIndex].filter((index) => index >= 0)
+      return { agentId, index: indexes.length > 0 ? Math.min(...indexes) : -1 }
+    })
+    .filter((mention) => mention.index >= 0)
+    .sort((left, right) => left.index - right.index)
+    .map((mention) => mention.agentId)
+}
+
+export interface PeerMentionResult {
+  /** The remaining responder queue after applying peer handoffs. */
+  queue: string[]
+  /** Agents newly scheduled (promoted or inserted) by this peer mention, in order. */
+  scheduled: string[]
+}
+
+/**
+ * Applies agent-to-agent @mentions to the remaining responder queue without
+ * fighting the router's existing schedule. Mentioned peers are moved to the
+ * front of the queue in mention order (promoting already-scheduled agents
+ * rather than duplicating them, inserting unscheduled ones). Agents that have
+ * already spoken this turn and self-mentions are ignored, and the number of
+ * additions per reply is capped so one message cannot flood the room.
+ */
+export function applyPeerMentionsToQueue(params: {
+  remaining: string[]
+  mentioned: string[]
+  spoken: Set<string> | string[]
+  speakerId: string
+  max?: number
+}): PeerMentionResult {
+  const { remaining, mentioned, speakerId, max = 2 } = params
+  const spoken = params.spoken instanceof Set ? params.spoken : new Set(params.spoken)
+  const scheduled: string[] = []
+  for (const agentId of mentioned) {
+    if (scheduled.length >= max) break
+    if (agentId === speakerId) continue
+    if (spoken.has(agentId)) continue
+    if (scheduled.includes(agentId)) continue
+    scheduled.push(agentId)
+  }
+  const queue = [...scheduled, ...remaining.filter((id) => !scheduled.includes(id))]
+  return { queue, scheduled }
+}
+
+/**
  * Plans who responds to a group turn. A direct @mention routes the turn only
  * to those agents; otherwise the full group responds in a freshly shuffled
  * order. First-name mentions work only when that first name is unique in the
@@ -90,30 +164,11 @@ export function planGroupResponders(
     }
   }
 
-  const firstNameCounts = new Map<string, number>()
-  for (const agentId of availableIds) {
-    const firstName = agentById.get(agentId)?.name.trim().split(/\s+/)[0]?.toLocaleLowerCase()
-    if (firstName) firstNameCounts.set(firstName, (firstNameCounts.get(firstName) ?? 0) + 1)
-  }
-
-  const mentioned = availableIds
-    .map((agentId) => {
-      const agent = agentById.get(agentId)!
-      const fullName = agent.name.trim()
-      const firstName = fullName.split(/\s+/)[0]
-      const fullNameIndex = mentionIndex(userText, fullName)
-      const firstNameIndex = firstNameCounts.get(firstName.toLocaleLowerCase()) === 1
-        ? mentionIndex(userText, firstName)
-        : -1
-      const indexes = [fullNameIndex, firstNameIndex].filter((index) => index >= 0)
-      return { agentId, index: indexes.length > 0 ? Math.min(...indexes) : -1 }
-    })
-    .filter((mention) => mention.index >= 0)
-    .sort((left, right) => left.index - right.index)
+  const mentioned = findMentionedAgentIds(userText, availableIds, agentById)
 
   if (mentioned.length > 0) {
     return {
-      agentIds: mentioned.map((mention) => mention.agentId),
+      agentIds: mentioned,
       directlyAddressed: true,
       source: 'mention',
     }
@@ -363,14 +418,26 @@ export async function* runGroupTurn(
       rationale: routed.rationale,
     })
   }
+  const availableIds = conversation.participantAgentIds.filter((id) => agentById.has(id))
   const participantNames = conversation.participantAgentIds
     .map((agentId) => agentById.get(agentId)?.name)
     .filter((name): name is string => !!name)
 
-  for (const agentId of responderPlan.agentIds) {
+  // A mutable queue lets agents hand off to peers mid-turn via @mentions without
+  // fighting the router's schedule. `spoken` blocks re-entry (and A<->B loops),
+  // and `addressedByPeer` marks agents pulled in by a peer so they are treated
+  // as directly addressed for that single turn.
+  const remaining = [...responderPlan.agentIds]
+  const spoken = new Set<string>()
+  const addressedByPeer = new Set<string>()
+
+  while (remaining.length > 0) {
     if (options.signal?.aborted) return
+    const agentId = remaining.shift()!
+    if (spoken.has(agentId)) continue
     const agent = agentById.get(agentId)
     if (!agent) continue
+    spoken.add(agentId)
 
     const apiMessages = transcript.map((m) => ({
       role: m.role,
@@ -398,7 +465,7 @@ export async function* runGroupTurn(
 
     const unsubscribe = window.electronAPI?.onAiChatChunk?.((chunk) => {
       if (chunk.type === 'follow_ups') return
-      options.onChunk?.({ type: chunk.type, agentId, content: chunk.content })
+      options.onChunk?.({ agentId, ...chunk })
     })
 
     try {
@@ -424,7 +491,7 @@ export async function* runGroupTurn(
           },
           groupChat: {
             participantNames,
-            directlyAddressed: responderPlan.directlyAddressed,
+            directlyAddressed: responderPlan.directlyAddressed || addressedByPeer.has(agentId),
           },
         },
       })
@@ -452,6 +519,27 @@ export async function* runGroupTurn(
         reasoning,
         followUps,
       })
+
+      // Let the agent hand off to peers it @mentioned. Promote/insert them at
+      // the front of the remaining queue without duplicating router-scheduled
+      // agents or re-running anyone who already spoke this turn.
+      const mentioned = findMentionedAgentIds(text, availableIds, agentById)
+      if (mentioned.length > 0) {
+        const { queue, scheduled } = applyPeerMentionsToQueue({
+          remaining,
+          mentioned,
+          spoken,
+          speakerId: agentId,
+        })
+        if (scheduled.length > 0) {
+          remaining.splice(0, remaining.length, ...queue)
+          for (const scheduledId of scheduled) addressedByPeer.add(scheduledId)
+          options.onSmartRoutingUpdate?.({
+            phase: 'selected',
+            agentIds: [...spoken, ...remaining],
+          })
+        }
+      }
     } catch (err) {
       unsubscribe?.()
       yield {

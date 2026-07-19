@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams, useMatch, useLocation, Routes, Route, Nav
 import {
   LayoutDashboard, Briefcase, BarChart3, Newspaper, Shield, Landmark, FileText, Settings,
   Search, PenLine, Target, MessagesSquare, UsersRound, Workflow, WalletCards, PackagePlus,
-  EarthIcon,
+  EarthIcon, Building2,
+  BookAIcon,
+  BookOpenIcon,
 } from 'lucide-react'
 import finocurveLogo from '/images/finocurve-logo.png'
 import DashboardScreen from './DashboardScreen'
@@ -15,9 +17,11 @@ import SettingsScreen from './SettingsScreen'
 import TrackerScreen from './TrackerScreen'
 import NewsScreen from './NewsScreen'
 import ChatsScreen from './ChatsScreen'
+import EnterpriseScreen from './EnterpriseScreen'
 import RiskAnalysisScreen from '../detail/RiskAnalysisScreen'
 import LoanDetailScreen from '../detail/LoanDetailScreen'
 import AccountScreen from '../settings/AccountScreen'
+import EnterpriseServiceScreen from '../settings/EnterpriseServiceScreen'
 import CurrencyPickerScreen from '../settings/CurrencyPickerScreen'
 import CloudStorageScreen from '../settings/CloudStorageScreen'
 import TrackerStorageScreen from '../settings/TrackerStorageScreen'
@@ -32,6 +36,7 @@ import CreateEditAgentScreen from '../settings/agents/CreateEditAgentScreen'
 import { TickerTapeWidget } from '../../components/TradingViewWidgets'
 import type { MainTab } from '../../types'
 import './MainShell.css'
+import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
 
 type NavItem = { id: MainTab; label: string; icon: React.ReactNode; description?: string }
 
@@ -68,7 +73,7 @@ const navGroups: Array<{
     id: 'research',
     label: 'Research and analysis',
     description: 'Market intelligence and reporting',
-    icon: <Search size={20} />,
+    icon: <BookOpenIcon size={20} />,
     items: [
       { id: 'markets', label: 'Markets', description: 'Prices, charts and market activity', icon: <BarChart3 size={20} /> },
       { id: 'news', label: 'News & data', description: 'Financial news and disclosures', icon: <Newspaper size={20} /> },
@@ -92,10 +97,12 @@ const navGroups: Array<{
 const TAB_IDS: MainTab[] = [
   dashboardNavItem.id,
   ...navGroups.flatMap((group) => group.items.map((item) => item.id)),
+  'enterprise',
   settingsNavItem.id,
 ]
 
 export default function MainShell() {
+  const { isEnterprise } = useEnterpriseMode()
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = useMemo((): MainTab => {
     const raw = searchParams.get('tab')
@@ -118,6 +125,10 @@ export default function MainShell() {
   const showLoanDetail = !!loanDetailMatch
   const isSettingsArea = location.pathname.startsWith('/settings')
   const isExpertsArea = location.pathname.startsWith('/settings/agents')
+
+  useEffect(() => {
+    if (activeTab === 'enterprise' && !isEnterprise) setSearchParams({}, { replace: true })
+  }, [activeTab, isEnterprise, setSearchParams])
 
   const goToShellTab = useCallback(
     (tab: MainTab) => {
@@ -166,6 +177,7 @@ export default function MainShell() {
       case 'tracker': return <TrackerScreen />
       case 'experts': return <AgentsListScreen />
       case 'chats': return <ChatsScreen />
+      case 'enterprise': return isEnterprise ? <EnterpriseScreen /> : <DashboardScreen />
       case 'settings': return <SettingsScreen />
     }
   }
@@ -173,6 +185,7 @@ export default function MainShell() {
   const renderSettingsRoutes = () => (
     <Routes>
       <Route path="account" element={<AccountScreen />} />
+      <Route path="enterprise" element={<EnterpriseServiceScreen />} />
       <Route path="theme" element={<ThemeScreen />} />
       <Route path="currency" element={<CurrencyPickerScreen />} />
       <Route path="cloud-storage" element={<Navigate to="s3" replace />} />
@@ -293,6 +306,20 @@ export default function MainShell() {
           ))}
 
           <span className="nav-pill__separator" aria-hidden="true" />
+
+          {isEnterprise && <>
+            <button
+              type="button"
+              className={`nav-item nav-standalone-item ${navActiveTab === 'enterprise' ? 'nav-item--active' : ''}`}
+              onClick={() => { setOpenNavGroup(null); setShowFabMenu(false); goToShellTab('enterprise') }}
+              data-tooltip="Enterprise"
+              aria-current={navActiveTab === 'enterprise' ? 'page' : undefined}
+            >
+              <Building2 size={20} />
+              {navActiveTab === 'enterprise' && <span className="nav-item__indicator" />}
+            </button>
+            <span className="nav-pill__separator" aria-hidden="true" />
+          </>}
 
           <div className="nav-static-controls" role="group" aria-label="App controls">
             <button

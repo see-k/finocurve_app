@@ -1,4 +1,4 @@
-import { app, BrowserWindow, net, protocol } from 'electron'
+import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -15,6 +15,12 @@ import { registerCoreDataHandlers } from './coreDataHandlers'
 import { closeCoreDataDb } from './coreDataDb'
 import { stopMCPServers } from './mcpServer'
 import { setMainWindow } from './mainWindow'
+import {
+  fetchEnterprisePath,
+  normalizeEnterpriseUrl,
+  readEnterpriseServiceUrl,
+  saveEnterpriseServiceUrl,
+} from './enterpriseHandlers'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -100,6 +106,63 @@ function createWindow() {
   }
 }
 
+function registerEnterpriseHandlers() {
+  ipcMain.handle('enterprise-get-url', async () => ({ url: readEnterpriseServiceUrl() }))
+
+  ipcMain.handle('enterprise-set-url', async (_event, payload: { url?: string }) => {
+    const normalized = normalizeEnterpriseUrl(payload?.url ?? '')
+    if (normalized === null) {
+      return { ok: false, error: 'Enter a valid http:// or https:// URL' }
+    }
+    try {
+      saveEnterpriseServiceUrl(normalized)
+      return { ok: true, url: normalized }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not save the service URL' }
+    }
+  })
+
+  ipcMain.handle('enterprise-check', async (_event, payload: { url?: string }) => {
+    try {
+      const baseUrl = new URL(payload?.url?.trim() || readEnterpriseServiceUrl())
+      if (!['http:', 'https:'].includes(baseUrl.protocol)) return { available: false }
+      baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/healthz`
+      baseUrl.search = ''
+      baseUrl.hash = ''
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      try {
+        const response = await net.fetch(baseUrl.toString(), { signal: controller.signal })
+        if (!response.ok) return { available: false, status: response.status }
+        const data = await response.json() as { status?: string }
+        return { available: data.status === 'ok', status: response.status }
+      } finally {
+        clearTimeout(timeout)
+      }
+    } catch (error) {
+      return { available: false, error: error instanceof Error ? error.message : 'Service unavailable' }
+    }
+  })
+
+  const allowedEnterprisePaths = new Map<string, 'GET' | 'POST'>([
+    ['/api/reports/balances', 'GET'],
+    ['/api/balance-history', 'GET'],
+    ['/api/health/connections', 'GET'],
+    ['/api/reports/transactions', 'GET'],
+    ['/api/balance-history/snapshot', 'POST'],
+  ])
+
+  ipcMain.handle('enterprise-request', async (_event, payload: { path?: string; refresh?: boolean; method?: string }) => {
+    const pathName = payload?.path ?? ''
+    const method = payload?.method === 'POST' ? 'POST' : 'GET'
+    if (allowedEnterprisePaths.get(pathName) !== method) {
+      return { ok: false, status: 400, error: 'Enterprise API path is not allowed' }
+    }
+    return fetchEnterprisePath(pathName, method, { refresh: payload?.refresh })
+  })
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -137,6 +200,7 @@ app.whenReady().then(() => {
   registerPluginSettingsHandlers()
   registerMCPHandlers()
   registerCoreDataHandlers()
+  registerEnterpriseHandlers()
   createWindow()
 })
 

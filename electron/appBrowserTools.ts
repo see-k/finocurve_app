@@ -41,6 +41,12 @@ const APP_ROUTE_CATALOG: Array<{
   { path: '/main?tab=tracker', description: 'Main shell — Tracker tab (net worth & goals).', requiresAuth: true },
   { path: '/main?tab=experts', description: 'Main shell — AI Experts network.', requiresAuth: true },
   { path: '/main?tab=chats', description: 'Main shell — AI conversations.', requiresAuth: true },
+  {
+    path: '/main?tab=enterprise',
+    description:
+      'Main shell — Enterprise tab (consolidated balances, institutional activity, connection health). Only available when Finocurve Service is connected; otherwise the shell redirects to Dashboard.',
+    requiresAuth: true,
+  },
   { path: '/main?tab=settings', description: 'Main shell — Settings tab (links to sub-screens).', requiresAuth: true },
   {
     path: '/main/loan/:assetId',
@@ -62,6 +68,11 @@ const APP_ROUTE_CATALOG: Array<{
   { path: '/notifications', description: 'Notifications list.', requiresAuth: true },
 
   { path: '/settings/account', description: 'Settings — account.', requiresAuth: true },
+  {
+    path: '/settings/enterprise',
+    description: 'Settings — Enterprise service URL (connect/disconnect Finocurve Service for enterprise mode).',
+    requiresAuth: true,
+  },
   { path: '/settings/currency', description: 'Settings — currency picker.', requiresAuth: true },
   { path: '/settings/cloud-storage/s3', description: 'Settings — cloud (S3) storage.', requiresAuth: true },
   { path: '/settings/cloud-storage/local', description: 'Settings — local folder storage.', requiresAuth: true },
@@ -95,6 +106,12 @@ const APP_ROUTE_TOPIC_ALIASES: Array<{ topic: string; resolvesTo: string; note: 
     resolvesTo: '/main',
     note: 'The authenticated home is the Dashboard tab of /main.',
   },
+  {
+    topic: 'enterprise',
+    resolvesTo: '/main?tab=enterprise',
+    note:
+      'Enterprise consolidated view. Requires Finocurve Service to be connected; if not, send the user to /settings/enterprise first.',
+  },
 ]
 
 /** Tabs that MainShell actually recognizes; anything else falls back to dashboard. */
@@ -107,6 +124,9 @@ const KNOWN_MAIN_TABS = new Set<string>([
   'insights',
   'reports',
   'tracker',
+  'experts',
+  'chats',
+  'enterprise',
   'settings',
 ])
 
@@ -224,7 +244,7 @@ export function getBuiltinAppBrowserTools(): MCPToolInfo[] {
       serverName: BUILTIN_APP_BROWSER_SERVER_NAME,
       name: 'app_browser_screenshot',
       description:
-        'Capture a PNG screenshot of the FinoCurve app window (same view as the logged-in user). Returns base64-encoded PNG and dimensions. Large windows are downscaled so the longest side is at most 1280px before scaleFactor is applied.',
+        'Capture a PNG screenshot of the FinoCurve app window (same view as the logged-in user). The image is attached for vision so you can see layout, charts, and visual appearance. Large windows are downscaled so the longest side is at most 1280px before scaleFactor is applied. Prefer app_browser_page_text when you only need exact labels or values.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -317,7 +337,7 @@ export function getBuiltinAppBrowserTools(): MCPToolInfo[] {
       serverName: BUILTIN_APP_BROWSER_SERVER_NAME,
       name: 'app_browser_page_text',
       description:
-        'Extract accessible visible text from the FinoCurve app window (same session as the user): body innerText plus optional headings and list excerpts. Prefer this over app_browser_screenshot when you need labels, headings, buttons, or form fields—screenshots omit base64 in model context.',
+        'Extract accessible visible text from the FinoCurve app window (same session as the user): body innerText plus optional headings and list excerpts. Prefer this over app_browser_screenshot when you need exact labels, headings, buttons, or form fields. Use app_browser_screenshot when you need to see layout, charts, or visual appearance.',
       inputSchema: {
         type: 'object',
         properties: {

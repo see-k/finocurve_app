@@ -2,10 +2,11 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check } from 'lucide-react'
+import { AlertTriangle, MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
+import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { DEFAULT_AGENT_ID, isAgentActive, isDefaultAgent } from '../../types/Agent'
 import type { Agent } from '../../types/Agent'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
@@ -260,6 +261,8 @@ export default function AIChatBubble() {
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>(loadSelectedAgentId)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  const [primaryProvider, setPrimaryProvider] = useState<'ollama' | 'bedrock' | 'azure'>('ollama')
+  const [primaryModel, setPrimaryModel] = useState('')
 
   // Agents available in the switcher: the default plus every active expert.
   const selectableAgents = useMemo(
@@ -275,6 +278,30 @@ export default function AIChatBubble() {
     () => selectableAgents.find((a) => a.id === selectedAgentId) ?? defaultAgent ?? selectableAgents[0],
     [selectableAgents, selectedAgentId, defaultAgent]
   )
+  const showRetentionWarning = useMemo(
+    () => (
+      activeAgent
+        ? agentsRequiringProviderDataShare([activeAgent], primaryProvider, primaryModel).length > 0
+        : false
+    ),
+    [activeAgent, primaryProvider, primaryModel],
+  )
+
+  useEffect(() => {
+    let current = true
+    void window.electronAPI?.aiConfigGet?.().then((config) => {
+      if (!current || !config) return
+      setPrimaryProvider(config.provider)
+      setPrimaryModel(
+        config.provider === 'azure'
+          ? (config.azureDeployment || config.model || '')
+          : (config.model || ''),
+      )
+    }).catch(() => {
+      // Retention banner is best-effort when config is unavailable.
+    })
+    return () => { current = false }
+  }, [])
   const activeAgentRef = useRef<Agent | undefined>(activeAgent)
   activeAgentRef.current = activeAgent
 
@@ -426,10 +453,6 @@ export default function AIChatBubble() {
   const portfolioAudit = portfolio
     ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
     : undefined
-  const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
-    : undefined
-
   const handleNewChat = () => {
     pendingAttachments.forEach((p) => {
       if (p.objectUrl) URL.revokeObjectURL(p.objectUrl)
@@ -561,6 +584,7 @@ export default function AIChatBubble() {
         setStreamingFollowUps(chunk.items)
         return
       }
+      if (chunk.type === 'tool_start' || chunk.type === 'tool_end') return
       setStreaming((prev) =>
         chunk.type === 'reasoning'
           ? { ...prev, reasoning: prev.reasoning + chunk.content }
@@ -597,8 +621,6 @@ export default function AIChatBubble() {
             socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
             personalBio: prefs.personalBio?.trim() || undefined,
           },
-          portfolioSummary,
-          documentCount: undefined,
           portfolioContext,
           riskMetrics: undefined,
           ...(agent
@@ -790,6 +812,16 @@ export default function AIChatBubble() {
             </div>
           </div>
 
+          {showRetentionWarning && activeAgent && (
+            <div className="ai-chat-retention-banner" role="status">
+              <AlertTriangle size={14} aria-hidden />
+              <p>
+                <strong>{activeAgent.name}</strong> uses a model that shares prompts and replies with the
+                model provider (typically up to 30 days) for trust and safety.
+              </p>
+            </div>
+          )}
+
           <div ref={messagesScrollRef} className="ai-chat-messages" aria-busy={loading}>
             {messages.length === 0 && (
               <p className="ai-chat-placeholder">
@@ -815,7 +847,7 @@ export default function AIChatBubble() {
                       <img src={messageAgentAvatar} alt="" className="ai-chat-avatar-img" />
                     </button>
                   ) : (
-                    <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} />
+                    <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={28} showEnterpriseIndicator />
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>

@@ -119,9 +119,15 @@ export interface ChatContext {
     socialMediaUrl?: string
     personalBio?: string
   }
+  /**
+   * Optional legacy portfolio blurb. Chat no longer injects this into the system
+   * prompt; agents should call get_portfolio_summary (and related tools) instead.
+   * Still accepted for non-chat callers such as document insights.
+   */
   portfolioSummary?: string
+  /** @deprecated Unused by chat; document inventory comes from tools when needed. */
   documentCount?: number
-  /** Full portfolio context for tool use (passed from renderer) */
+  /** Full portfolio context for tool use (passed from renderer) — not placed in the system prompt. */
   portfolioContext?: PortfolioContext | null
   /** Risk metrics summary for tool use (passed from renderer) */
   riskMetrics?: string
@@ -147,7 +153,10 @@ export interface ChatContext {
   /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
   groupChat?: {
     participantNames: string[]
-    /** True when the user explicitly @mentioned this turn's responder. */
+    /**
+     * True when this responder was explicitly addressed for the turn — either by a
+     * user @mention or by a peer @handoff that scheduled them mid-turn.
+     */
     directlyAddressed: boolean
   }
   /** Internal, non-conversational model pass. It never appears as a chat participant. */
@@ -158,6 +167,8 @@ export interface ChatContext {
 export type ChatStreamChunk =
   | { type: 'reasoning'; content: string }
   | { type: 'answer'; content: string }
+  | { type: 'tool_start'; toolName: string }
+  | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
   | { type: 'follow_ups'; items: ChatFollowUp[] }
 
 export interface Tool {

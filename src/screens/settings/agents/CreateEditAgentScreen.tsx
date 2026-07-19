@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -38,6 +38,7 @@ import {
   type ExpertToolCategory,
 } from '../../../ai/toolCatalog'
 import { compressImageForProfile } from '../../../utils/profilePicture'
+import { useEnterpriseMode } from '../../../hooks/useEnterpriseMode'
 import AgentPrivateFiles from './AgentPrivateFiles'
 import '../SettingsSubScreen.css'
 import './AgentsScreen.css'
@@ -56,6 +57,7 @@ export default function CreateEditAgentScreen() {
   const { agentId } = useParams<{ agentId: string }>()
   const isEditing = !!agentId && agentId !== 'new'
   const { getAgent, createAgent, updateAgent, deleteAgent } = useAgents()
+  const { isEnterprise } = useEnterpriseMode()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const existing = isEditing ? getAgent(agentId!) : undefined
@@ -79,7 +81,7 @@ export default function CreateEditAgentScreen() {
   const [azureApiKey, setAzureApiKey] = useState(existing?.azureApiKey || '')
   const [toolAccess, setToolAccess] = useState<NonNullable<Agent['toolAccess']>>(existing?.toolAccess || 'all')
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(existing?.enabledToolNames || [])
-  const [availableTools, setAvailableTools] = useState(() => mergeExpertToolDefinitions([]))
+  const [runtimeTools, setRuntimeTools] = useState<{ name: string; description?: string }[]>([])
   const [toolQuery, setToolQuery] = useState('')
   const [activeToolCategory, setActiveToolCategory] = useState<ExpertToolCategory>('Portfolio')
   const [primaryConfig, setPrimaryConfig] = useState<AIConfigFromMain | null>(null)
@@ -117,12 +119,17 @@ export default function CreateEditAgentScreen() {
   useEffect(() => {
     let active = true
     void window.mcpAPI?.listTools?.().then(({ tools }) => {
-      if (active) setAvailableTools(mergeExpertToolDefinitions(tools))
+      if (active) setRuntimeTools(tools)
     }).catch(() => {
       // Built-in tools remain configurable if connected capabilities cannot be read.
     })
     return () => { active = false }
   }, [])
+
+  const availableTools = useMemo(
+    () => mergeExpertToolDefinitions(runtimeTools, { includeEnterprise: isEnterprise }),
+    [runtimeTools, isEnterprise],
+  )
 
   // Keep form in sync if navigated directly to an existing agent's id
   useEffect(() => {

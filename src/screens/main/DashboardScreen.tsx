@@ -159,7 +159,7 @@ export default function DashboardScreen() {
       {/* Greeting Header */}
       <div className="dash-greeting">
         <div className="dash-greeting__left">
-          <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={48} className="dash-avatar" />
+          <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={48} className="dash-avatar" showEnterpriseIndicator />
           <div>
             <h1 className="dash-greeting__title">{getGreeting()}, {userName}</h1>
             <p className="dash-greeting__subtitle">Here's your portfolio at a glance</p>

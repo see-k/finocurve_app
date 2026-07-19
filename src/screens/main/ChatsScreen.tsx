@@ -6,11 +6,12 @@ import {
   useState,
 } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { MessagesSquare, Plus } from 'lucide-react'
+import { AlertTriangle, MessagesSquare, Plus } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
+import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
@@ -62,6 +63,9 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const [streamingReasoning, setStreamingReasoning] = useState('')
+  const [streamingTools, setStreamingTools] = useState<{ name: string; status: 'running' | 'success' | 'error' }[]>([])
+  const [verboseStreaming, setVerboseStreaming] = useState(() => localStorage.getItem('finocurve-chat-verbose') === 'true')
   const [smartRoutingStatus, setSmartRoutingStatus] = useState<SmartRoutingStatus | null>(null)
   const [routerPresentation, setRouterPresentation] = useState<RouterPresentation>({
     showProvider: false,
@@ -168,7 +172,49 @@ export default function ChatsScreen() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [selected?.id, selected?.messages.length, streamingText, smartRoutingStatus?.phase])
+  }, [selected?.id, selected?.messages.length, streamingText, streamingReasoning, streamingTools, smartRoutingStatus?.phase])
+
+  const toggleVerboseStreaming = () => {
+    setVerboseStreaming((current) => {
+      const next = !current
+      localStorage.setItem('finocurve-chat-verbose', String(next))
+      return next
+    })
+  }
+
+  const resetStreamingActivity = () => {
+    setStreamingReasoning('')
+    setStreamingTools([])
+  }
+
+  const handleLiveChunk = (chunk: {
+    type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
+    content?: string
+    toolName?: string
+    status?: 'success' | 'error'
+  }) => {
+    if (chunk.type === 'answer' && chunk.content) {
+      setStreamingText((previous) => previous + chunk.content)
+    } else if (chunk.type === 'reasoning' && chunk.content) {
+      setStreamingReasoning((previous) => previous + chunk.content)
+    } else if (chunk.type === 'tool_start' && chunk.toolName) {
+      setStreamingTools((previous) => [...previous, { name: chunk.toolName!, status: 'running' }])
+    } else if (chunk.type === 'tool_end' && chunk.toolName) {
+      setStreamingTools((previous) => {
+        let index = -1
+        for (let toolIndex = previous.length - 1; toolIndex >= 0; toolIndex -= 1) {
+          if (previous[toolIndex].name === chunk.toolName && previous[toolIndex].status === 'running') {
+            index = toolIndex
+            break
+          }
+        }
+        if (index < 0) return previous
+        return previous.map((tool, toolIndex) => toolIndex === index
+          ? { ...tool, status: chunk.status ?? 'success' }
+          : tool)
+      })
+    }
+  }
 
   useEffect(() => {
     const textarea = composerRef.current
@@ -244,6 +290,11 @@ export default function ChatsScreen() {
         .map((id) => agentById.get(id))
         .filter((agent): agent is Agent => !!agent && isAgentActive(agent))
     : []
+  const retentionRiskAgents = agentsRequiringProviderDataShare(
+    selectedParticipants,
+    agentProviderPresentation.primaryProvider,
+    agentProviderPresentation.primaryModel,
+  )
   const latestUserMessageIndex = selected
     ? selected.messages.reduce(
         (latestIndex, message, index) => message.role === 'user' ? index : latestIndex,
@@ -289,9 +340,9 @@ export default function ChatsScreen() {
   const portfolioAudit = portfolio
     ? toFinancialAuditContext(aggregateAssetValueProvenance(portfolio.assets))
     : undefined
-  const portfolioSummary = portfolio && totalValue > 0
-    ? `Portfolio: ${portfolio.name || 'Portfolio'}, ~$${totalValue.toLocaleString()}. Source: ${portfolioAudit?.source}; as of ${portfolioAudit?.asOf}; method: ${portfolioAudit?.valuationMethod}; freshness: ${portfolioAudit?.freshness}${portfolioAudit?.estimated ? '; estimated' : ''}.`
-    : undefined
+  // Portfolio totals are no longer preloaded into the model system prompt.
+  // Agents must call tools (e.g. get_portfolio_summary); portfolioContext stays
+  // available only as the backend for those tools.
   const portfolioContext = portfolio && totalValue >= 0
     ? {
         portfolioName: portfolio.name || 'Portfolio',
@@ -311,7 +362,7 @@ export default function ChatsScreen() {
     socialMediaUrl: prefs.socialMediaUrl?.trim() || undefined,
     personalBio: prefs.personalBio?.trim() || undefined,
   }
-  const baseContext = { currentRoute: location.pathname, portfolioSummary, portfolioContext, userProfile }
+  const baseContext = { currentRoute: location.pathname, portfolioContext, userProfile }
 
   const handleStop = () => {
     stoppedRef.current = true
@@ -361,9 +412,10 @@ export default function ChatsScreen() {
         streamingAgentIdRef.current = agent.id
         setStreamingAgentId(agent.id)
         setStreamingText('')
+        resetStreamingActivity()
 
         const unsubscribe = window.electronAPI.onAiChatChunk?.((chunk) => {
-          if (chunk.type === 'answer') setStreamingText((previous) => previous + chunk.content)
+          if (chunk.type !== 'follow_ups') handleLiveChunk(chunk)
         })
 
         try {
@@ -428,16 +480,16 @@ export default function ChatsScreen() {
             streamingAgentIdRef.current = agentId
             setStreamingAgentId(agentId)
             setStreamingText('')
+            resetStreamingActivity()
           },
           onChunk: (chunk) => {
-            if (chunk.type !== 'answer') return
-            if (streamingAgentIdRef.current === chunk.agentId) {
-              setStreamingText((previous) => previous + chunk.content)
-            } else {
+            if (streamingAgentIdRef.current !== chunk.agentId) {
               streamingAgentIdRef.current = chunk.agentId
               setStreamingAgentId(chunk.agentId)
-              setStreamingText(chunk.content)
+              setStreamingText('')
+              resetStreamingActivity()
             }
+            handleLiveChunk(chunk)
           },
         })) {
           if (stoppedRef.current) break
@@ -459,6 +511,7 @@ export default function ChatsScreen() {
       streamingAgentIdRef.current = null
       setStreamingAgentId(null)
       setStreamingText('')
+      resetStreamingActivity()
       setSmartRoutingStatus(null)
       setLoading(false)
       abortRef.current = null
@@ -647,10 +700,30 @@ export default function ChatsScreen() {
             }}
           />
 
+          {retentionRiskAgents.length > 0 && (
+            <div className="chats-screen__retention-banner" role="status">
+              <AlertTriangle size={16} aria-hidden />
+              <div className="chats-screen__retention-banner-copy">
+                <strong>Provider data retention</strong>
+                <span>
+                  {retentionRiskAgents.length === 1
+                    ? `${retentionRiskAgents[0].name} uses`
+                    : `${retentionRiskAgents.map((agent) => agent.name).join(', ')} use`}{' '}
+                  a model that shares prompts and replies with the model provider (typically up to 30 days)
+                  for trust and safety. Avoid highly sensitive data, or switch these experts to another model
+                  in Settings.
+                </span>
+              </div>
+            </div>
+          )}
+
           <ChatMessages
             conversation={selected}
             streamingAgentId={streamingAgentId}
             streamingText={streamingText}
+            streamingReasoning={streamingReasoning}
+            streamingTools={streamingTools}
+            verboseStreaming={verboseStreaming}
             smartRoutingStatus={smartRoutingStatus}
             routerPresentation={routerPresentation}
             agentById={agentById}
@@ -692,6 +765,8 @@ export default function ChatsScreen() {
             isReadingAttachments={isReadingAttachments}
             isDraggingFiles={isDraggingFiles}
             loading={loading}
+            verboseStreaming={verboseStreaming}
+            onToggleVerbose={toggleVerboseStreaming}
             onDragEnter={handleComposerDragEnter}
             onDragOver={handleComposerDragOver}
             onDragLeave={handleComposerDragLeave}

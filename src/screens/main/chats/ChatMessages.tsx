@@ -12,6 +12,9 @@ interface ChatMessagesProps {
   conversation: Conversation
   streamingAgentId: string | null
   streamingText: string
+  streamingReasoning: string
+  streamingTools: { name: string; status: 'running' | 'success' | 'error' }[]
+  verboseStreaming: boolean
   smartRoutingStatus: SmartRoutingStatus | null
   routerPresentation: RouterPresentation
   agentById: Map<string, Agent>
@@ -30,6 +33,9 @@ export default function ChatMessages({
   conversation,
   streamingAgentId,
   streamingText,
+  streamingReasoning,
+  streamingTools,
+  verboseStreaming,
   smartRoutingStatus,
   routerPresentation,
   agentById,
@@ -200,6 +206,22 @@ export default function ChatMessages({
                 {renderAgentProvider(streamingAgentId)}
               </div>
               <div className="chats-screen__message-bubble">
+                {verboseStreaming && (streamingReasoning || streamingTools.length > 0) && (
+                  <div className="chats-screen__live-activity" aria-label="Live model activity">
+                    {streamingReasoning && (
+                      <div className="chats-screen__live-reasoning">
+                        <strong>Reasoning</strong>
+                        <span>{streamingReasoning}</span>
+                      </div>
+                    )}
+                    {streamingTools.map((tool, index) => (
+                      <div key={`${tool.name}-${index}`} className={`chats-screen__tool-call chats-screen__tool-call--${tool.status}`}>
+                        <i aria-hidden="true" />
+                        <span>{tool.status === 'running' ? 'Using' : tool.status === 'success' ? 'Used' : 'Failed'} {tool.name.replace(/_/g, ' ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {streamingText ? (
                   <ChatMessageContent role="assistant" content={streamingText} />
                 ) : (

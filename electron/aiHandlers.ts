@@ -35,6 +35,12 @@ import {
   trackerCreateGoalAI,
   trackerUpdateGoalAI,
 } from './trackerHandlers'
+import {
+  enterpriseGetBalancesSummary,
+  enterpriseGetTransactionsSummary,
+  enterpriseGetConnectionHealthSummary,
+  enterpriseGetBalanceHistorySummary,
+} from './enterpriseHandlers'
 
 const CONFIG_FILENAME = 'finocurve-local-storage.json'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
@@ -83,12 +89,8 @@ function savePortfolioCache(ctx: PortfolioContext | null): void {
 /** Build ChatContext from main-process-available data (for A2A) */
 function getAIContextForA2A(): ChatContext {
   const portfolio = loadPortfolioCache()
-  const docs = listDocumentsFromLocal()
   return {
-    portfolioSummary: portfolio
-      ? `Portfolio: ${portfolio.portfolioName}, ~$${portfolio.totalValue.toLocaleString()}`
-      : undefined,
-    documentCount: docs.length,
+    // Portfolio totals are available via tools (get_portfolio_summary), not preloaded into prompts.
     portfolioContext: portfolio ?? undefined,
     riskMetrics: undefined,
   }
@@ -377,6 +379,10 @@ export function registerAIHandlers(): void {
           ...args,
           portfolio: loadPortfolioCache(),
         }),
+      getEnterpriseBalances: enterpriseGetBalancesSummary,
+      getEnterpriseTransactions: enterpriseGetTransactionsSummary,
+      getEnterpriseConnectionHealth: enterpriseGetConnectionHealthSummary,
+      getEnterpriseBalanceHistory: enterpriseGetBalanceHistorySummary,
       config: storedConfigToAIConfig(stored),
     })
   }
@@ -650,9 +656,11 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'follow_ups') {
           followUps = chunk.items
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'follow_ups', items: chunk.items })
-        } else {
+        } else if (chunk.type === 'answer') {
           answer += chunk.content
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
+        } else {
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', chunk)
         }
       }
     } catch (err) {

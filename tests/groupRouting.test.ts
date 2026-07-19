@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyPeerMentionsToQueue,
+  findMentionedAgentIds,
   parseSmartRoutingDecision,
   planGroupResponders,
   rankAgentsByRelevance,
@@ -105,5 +107,76 @@ describe('smart routing output', () => {
       : agent)
 
     expect(rankAgentsByRelevance('Help me with tax-loss harvesting', specialists)).toEqual(['risk'])
+  })
+})
+
+describe('agent-to-agent peer mentions', () => {
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]))
+  const availableIds = agents.map((agent) => agent.id)
+
+  it('resolves peer @mentions in order and never matches @everyone', () => {
+    expect(findMentionedAgentIds('@Josh please weigh in, then @Anna', availableIds, agentById))
+      .toEqual(['loans', 'risk'])
+    expect(findMentionedAgentIds('@everyone should look at this', availableIds, agentById))
+      .toEqual([])
+  })
+
+  it('does not resolve an ambiguous first-name mention', () => {
+    const duplicateAnna: Agent = { ...agents[2], id: 'risk-two', name: 'Anna Smith' }
+    const ambiguous = new Map([[agents[0].id, agents[0]], ['risk-two', duplicateAnna]])
+    expect(findMentionedAgentIds('@Anna take a look', ['risk', 'risk-two'], ambiguous)).toEqual([])
+    expect(findMentionedAgentIds('@Anna Smith take a look', ['risk', 'risk-two'], ambiguous))
+      .toEqual(['risk-two'])
+  })
+
+  it('promotes an already-scheduled peer to the front without duplicating', () => {
+    const result = applyPeerMentionsToQueue({
+      remaining: ['risk', 'filings'],
+      mentioned: ['filings'],
+      spoken: new Set(['loans']),
+      speakerId: 'loans',
+    })
+
+    expect(result.queue).toEqual(['filings', 'risk'])
+    expect(result.scheduled).toEqual(['filings'])
+  })
+
+  it('inserts an unscheduled peer next while preserving the remaining order', () => {
+    const result = applyPeerMentionsToQueue({
+      remaining: ['risk'],
+      mentioned: ['filings'],
+      spoken: new Set(['loans']),
+      speakerId: 'loans',
+    })
+
+    expect(result.queue).toEqual(['filings', 'risk'])
+    expect(result.scheduled).toEqual(['filings'])
+  })
+
+  it('ignores self-mentions and peers that already spoke', () => {
+    const result = applyPeerMentionsToQueue({
+      remaining: ['filings'],
+      mentioned: ['loans', 'risk'],
+      spoken: new Set(['loans', 'risk']),
+      speakerId: 'loans',
+    })
+
+    expect(result.scheduled).toEqual([])
+    expect(result.queue).toEqual(['filings'])
+  })
+
+  it('caps the number of peers a single reply can schedule', () => {
+    const extra: Agent = { ...agents[0], id: 'tax', name: 'Dana Wells' }
+    const result = applyPeerMentionsToQueue({
+      remaining: [],
+      mentioned: ['risk', 'filings', 'tax'],
+      spoken: new Set(['loans']),
+      speakerId: 'loans',
+      max: 2,
+    })
+
+    expect(result.scheduled).toEqual(['risk', 'filings'])
+    expect(result.queue).toEqual(['risk', 'filings'])
+    expect(extra.id).toBe('tax')
   })
 })

@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_VERSION: string
+  readonly VITE_FINOCURVE_SERVICE_URL?: string
 }
 
 declare module '*.json' {
@@ -56,6 +57,10 @@ interface ElectronAPI {
   }
   send: (channel: string, data: unknown) => void
   receive: (channel: string, func: (...args: unknown[]) => void) => void
+  enterpriseCheck?: (payload: { url?: string }) => Promise<{ available: boolean; status?: number; error?: string }>
+  enterpriseRequest?: <T>(payload: { path: string; refresh?: boolean; method?: 'GET' | 'POST' }) => Promise<{ ok: boolean; status?: number; data?: T; error?: string }>
+  enterpriseGetUrl?: () => Promise<{ url: string }>
+  enterpriseSetUrl?: (payload: { url: string }) => Promise<{ ok: boolean; url?: string; error?: string }>
   // S3 cloud storage (user-owned bucket)
   s3SaveCredentials?: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) => Promise<{ ok: boolean }>
   s3ClearCredentials?: () => Promise<{ ok: boolean }>
@@ -134,6 +139,8 @@ interface ElectronAPI {
     callback: (
       chunk:
         | { type: 'reasoning' | 'answer'; content: string }
+        | { type: 'tool_start'; toolName: string }
+        | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
         | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
     ) => void
   ) => () => void

@@ -122,6 +122,35 @@
   margin-bottom: 12px;
 }
 
+.ai-chat-retention-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--status-warning) 34%, var(--glass-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+}
+
+.ai-chat-retention-banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--status-warning);
+}
+
+.ai-chat-retention-banner p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.ai-chat-retention-banner strong {
+  color: var(--status-warning);
+  font-weight: 650;
+}
+
 /* Typing/thinking strip sits above the live assistant bubble, column-aligned */
 .ai-chat-streaming-turn {
   margin-bottom: 12px;
