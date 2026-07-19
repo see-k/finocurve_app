@@ -6,11 +6,12 @@ import {
   useState,
 } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { MessagesSquare, Plus } from 'lucide-react'
+import { AlertTriangle, MessagesSquare, Plus } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
+import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
@@ -289,6 +290,11 @@ export default function ChatsScreen() {
         .map((id) => agentById.get(id))
         .filter((agent): agent is Agent => !!agent && isAgentActive(agent))
     : []
+  const retentionRiskAgents = agentsRequiringProviderDataShare(
+    selectedParticipants,
+    agentProviderPresentation.primaryProvider,
+    agentProviderPresentation.primaryModel,
+  )
   const latestUserMessageIndex = selected
     ? selected.messages.reduce(
         (latestIndex, message, index) => message.role === 'user' ? index : latestIndex,
@@ -693,6 +699,23 @@ export default function ChatsScreen() {
               setDeleteTarget(selected)
             }}
           />
+
+          {retentionRiskAgents.length > 0 && (
+            <div className="chats-screen__retention-banner" role="status">
+              <AlertTriangle size={16} aria-hidden />
+              <div className="chats-screen__retention-banner-copy">
+                <strong>Provider data retention</strong>
+                <span>
+                  {retentionRiskAgents.length === 1
+                    ? `${retentionRiskAgents[0].name} uses`
+                    : `${retentionRiskAgents.map((agent) => agent.name).join(', ')} use`}{' '}
+                  a model that shares prompts and replies with the model provider (typically up to 30 days)
+                  for trust and safety. Avoid highly sensitive data, or switch these experts to another model
+                  in Settings.
+                </span>
+              </div>
+            </div>
+          )}
 
           <ChatMessages
             conversation={selected}
