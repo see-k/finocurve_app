@@ -1,5 +1,12 @@
 # Changelog
 
+# [1.4.0](https://github.com/see-k/finocurve_app/compare/v1.3.1...v1.4.0) (2026-07-19)
+
+
+### Features
+
+* add enterprise mode with connections, balances, and transactions overview ([#81](https://github.com/see-k/finocurve_app/issues/81)) ([cff5de3](https://github.com/see-k/finocurve_app/commit/cff5de3208fa260723da1ede05808370544c8865))
+
 ## [1.3.1](https://github.com/see-k/finocurve_app/compare/v1.3.0...v1.3.1) (2026-07-18)
 
 # [1.3.0](https://github.com/see-k/finocurve_app/compare/v1.2.2...v1.3.0) (2026-05-05)
