@@ -149,6 +149,8 @@ export interface ChatContext {
     /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
     toolAccess?: 'all' | 'selected' | 'none'
     enabledToolNames?: string[]
+    /** Per-tool result caps (Enterprise max transactions, etc.). */
+    toolLimits?: Record<string, number>
   }
   /** Group-chat context that helps an agent participate as a peer instead of a standalone bot. */
   groupChat?: {

@@ -48,6 +48,7 @@ export default function ChatsScreen() {
     renameConversation,
     setParticipants,
     setSmartRouting,
+    deleteMessage,
     deleteConversation,
   } = useConversations()
   const { portfolio, totalValue, totalGainLossPercent } = usePortfolio()
@@ -447,6 +448,7 @@ export default function ChatsScreen() {
                 azureApiKey: agent.azureApiKey,
                 toolAccess: agent.toolAccess,
                 enabledToolNames: agent.enabledToolNames,
+                toolLimits: agent.toolLimits,
               },
             },
           })
@@ -733,6 +735,10 @@ export default function ChatsScreen() {
             mentionNames={mentionNames}
             loading={loading}
             onFollowUp={handleFollowUp}
+            onDeleteMessage={(index) => {
+              if (!selected || loading) return
+              deleteMessage(selected.id, index)
+            }}
             onEditAgent={(agentId) => navigate(`/settings/agents/${agentId}`)}
             renderAgentProvider={renderAgentProvider}
             messagesEndRef={messagesEndRef}

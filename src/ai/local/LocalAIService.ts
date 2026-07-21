@@ -831,6 +831,7 @@ export class LocalAIService implements AIService {
       getEnterpriseTransactions: this.options.getEnterpriseTransactions,
       getEnterpriseConnectionHealth: this.options.getEnterpriseConnectionHealth,
       getEnterpriseBalanceHistory: this.options.getEnterpriseBalanceHistory,
+      toolLimits: context.agentPersona?.toolLimits,
       recordSuggestedFollowUps: (items: { label: string; prompt: string }[]) => {
         followUpRoundRef.items = normalizeChatFollowUps(items)
       },

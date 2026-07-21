@@ -108,9 +108,15 @@ function formatMoney(n: number): string {
 const NOT_CONFIGURED_MESSAGE =
   'Enterprise mode is not configured. Ask the user to add the Finocurve Service URL in Settings → Enterprise service.'
 
+function clampMaxResults(value: number | undefined, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(500, Math.max(1, Math.round(value)))
+}
+
 /** AI tool: summarize consolidated balances by source. */
-export async function enterpriseGetBalancesSummary(): Promise<string> {
+export async function enterpriseGetBalancesSummary(maxResults?: number): Promise<string> {
   if (!readEnterpriseServiceUrl()) return NOT_CONFIGURED_MESSAGE
+  const limit = clampMaxResults(maxResults, 50)
   const result = await fetchEnterprisePath('/api/reports/balances', 'GET')
   if (!result.ok) {
     return `[Source: Finocurve Service — balances]\nError: ${result.error}`
@@ -120,18 +126,23 @@ export async function enterpriseGetBalancesSummary(): Promise<string> {
     aggregate?: { total_usd?: number }
   }
   const byProduct = data.by_product ?? []
-  const lines = byProduct.map((p) => {
+  const shown = byProduct.slice(0, limit)
+  const lines = shown.map((p) => {
     const label = p.institution_name || p.product
     return p.error
       ? `- ${label} (${p.product}): error — ${String(p.error)}`
       : `- ${label} (${p.product}): ${formatMoney(p.total_usd ?? 0)}`
   })
-  return `[Source: Finocurve Service — consolidated balances]\nConsolidated total: ${formatMoney(data.aggregate?.total_usd ?? 0)}\nBy source:\n${lines.join('\n') || 'No sources reporting.'}`
+  const truncated = byProduct.length > shown.length
+    ? `\nShowing ${shown.length} of ${byProduct.length} sources (expert max ${limit}).`
+    : ''
+  return `[Source: Finocurve Service — consolidated balances]\nConsolidated total: ${formatMoney(data.aggregate?.total_usd ?? 0)}\nBy source:\n${lines.join('\n') || 'No sources reporting.'}${truncated}`
 }
 
 /** AI tool: summarize the most recent institutional transactions. */
-export async function enterpriseGetTransactionsSummary(): Promise<string> {
+export async function enterpriseGetTransactionsSummary(maxResults?: number): Promise<string> {
   if (!readEnterpriseServiceUrl()) return NOT_CONFIGURED_MESSAGE
+  const limit = clampMaxResults(maxResults, 25)
   const result = await fetchEnterprisePath('/api/reports/transactions', 'GET')
   if (!result.ok) {
     return `[Source: Finocurve Service — institutional activity]\nError: ${result.error}`
@@ -148,17 +159,18 @@ export async function enterpriseGetTransactionsSummary(): Promise<string> {
   const errorNotes = groups.filter((g) => g.error).map((g) => `${g.institution_name || g.product}: ${String(g.error)}`)
   const flattened = groups.flatMap((g) => (g.transactions ?? []).map((t) => ({ ...t, institution: g.institution_name || g.product })))
   flattened.sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')))
-  const recent = flattened.slice(0, 25)
+  const recent = flattened.slice(0, limit)
   const lines = recent.map((t) =>
     `- ${t.date ?? '—'} · ${t.institution} · ${t.description || t.counterparty || 'Transaction'} · ${t.category || 'uncategorized'} · ${formatMoney(Number(t.amount) || 0)}`)
   const header = `[Source: Finocurve Service — institutional activity]\n${flattened.length} transactions across ${groups.length} accounts.`
   const errorLine = errorNotes.length ? `\nCould not load activity for: ${errorNotes.join('; ')}` : ''
-  return `${header}${errorLine}\nMost recent (up to 25):\n${lines.join('\n') || 'No transactions reported.'}`
+  return `${header}${errorLine}\nMost recent (up to ${limit}):\n${lines.join('\n') || 'No transactions reported.'}`
 }
 
 /** AI tool: summarize live connection health per provider. */
-export async function enterpriseGetConnectionHealthSummary(): Promise<string> {
+export async function enterpriseGetConnectionHealthSummary(maxResults?: number): Promise<string> {
   if (!readEnterpriseServiceUrl()) return NOT_CONFIGURED_MESSAGE
+  const limit = clampMaxResults(maxResults, 50)
   const result = await fetchEnterprisePath('/api/health/connections', 'GET')
   if (!result.ok) {
     return `[Source: Finocurve Service — connection health]\nError: ${result.error}`
@@ -167,23 +179,28 @@ export async function enterpriseGetConnectionHealthSummary(): Promise<string> {
     products?: Array<{ product: string; label?: string; status: string; institution_name?: string; last_sync?: string | null; error?: string }>
   }
   const products = data.products ?? []
-  const lines = products.map((p) => {
+  const shown = products.slice(0, limit)
+  const lines = shown.map((p) => {
     const label = p.institution_name || p.label || p.product
     const detail = p.error ? `(${p.error})` : p.last_sync ? `(last checked ${p.last_sync})` : ''
     return `- ${label}: ${p.status} ${detail}`.trimEnd()
   })
-  return `[Source: Finocurve Service — connection health]\n${lines.join('\n') || 'No providers configured.'}`
+  const truncated = products.length > shown.length
+    ? `\nShowing ${shown.length} of ${products.length} providers (expert max ${limit}).`
+    : ''
+  return `[Source: Finocurve Service — connection health]\n${lines.join('\n') || 'No providers configured.'}${truncated}`
 }
 
 /** AI tool: summarize recorded consolidated balance snapshots over time. */
-export async function enterpriseGetBalanceHistorySummary(): Promise<string> {
+export async function enterpriseGetBalanceHistorySummary(maxResults?: number): Promise<string> {
   if (!readEnterpriseServiceUrl()) return NOT_CONFIGURED_MESSAGE
+  const limit = clampMaxResults(maxResults, 30)
   const result = await fetchEnterprisePath('/api/balance-history', 'GET')
   if (!result.ok) {
     return `[Source: Finocurve Service — balance history]\nError: ${result.error}`
   }
   const data = result.data as { history?: Array<{ snapshot_date: string; total_usd: number; source: string }> }
-  const history = (data.history ?? []).slice(-30)
+  const history = (data.history ?? []).slice(-limit)
   const lines = history.map((h) => `- ${h.snapshot_date}: ${formatMoney(h.total_usd)} (${h.source})`)
-  return `[Source: Finocurve Service — balance history]\nRecorded snapshots (up to 30 most recent):\n${lines.join('\n') || 'No snapshots recorded yet.'}`
+  return `[Source: Finocurve Service — balance history]\nRecorded snapshots (up to ${limit} most recent):\n${lines.join('\n') || 'No snapshots recorded yet.'}`
 }

@@ -97,6 +97,17 @@ export function useConversations() {
     )))
   }, [])
 
+  const deleteMessage = useCallback((id: string, index: number) => {
+    setConversations((prev) => prev.map((c) => {
+      if (c.id !== id || index < 0 || index >= c.messages.length) return c
+      return {
+        ...c,
+        messages: c.messages.filter((_, i) => i !== index),
+        updatedAt: new Date().toISOString(),
+      }
+    }))
+  }, [])
+
   const setSmartRouting = useCallback((id: string, enabled: boolean) => {
     setConversations((prev) => prev.map((c) => (
       c.id === id
@@ -133,6 +144,7 @@ export function useConversations() {
     renameConversation,
     appendMessage,
     replaceMessages,
+    deleteMessage,
     setSmartRouting,
     setParticipants,
     deleteConversation,

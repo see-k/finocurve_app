@@ -930,6 +930,40 @@
   letter-spacing: 0.015em;
 }
 
+.chats-screen__message-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.chats-screen__message:hover .chats-screen__message-delete,
+.chats-screen__message:focus-within .chats-screen__message-delete {
+  opacity: 0.72;
+}
+
+.chats-screen__message-delete:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--status-error) 28%, var(--glass-border));
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  color: var(--status-error);
+  opacity: 1;
+}
+
+.chats-screen__message-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
 .chats-screen__expert-link {
   margin: 0;
   padding: 0;

@@ -59,6 +59,7 @@ export function useAgents() {
       azureApiKey: input.azureApiKey,
       toolAccess: input.toolAccess ?? 'all',
       enabledToolNames: input.enabledToolNames,
+      toolLimits: input.toolLimits,
       createdAt: now,
       updatedAt: now,
     }

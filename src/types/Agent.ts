@@ -28,6 +28,11 @@ export interface Agent {
   /** Tool allowlist used when toolAccess is selected. */
   enabledToolNames?: string[]
   /**
+   * Optional per-tool result caps (e.g. Enterprise max transactions).
+   * Keys are tool names; omitted tools use catalog defaults.
+   */
+  toolLimits?: Record<string, number>
+  /**
    * True for the app's built-in default assistant (the one that powers the floating chat bubble).
    * There is always exactly one default agent; it is editable but cannot be deleted or deactivated.
    */
@@ -53,6 +58,7 @@ export type AgentInput = Pick<Agent, 'name' | 'systemPrompt'> &
     | 'azureApiKey'
     | 'toolAccess'
     | 'enabledToolNames'
+    | 'toolLimits'
   >>
 
 /** Stable id of the built-in default assistant that powers the floating chat bubble. */
