@@ -488,6 +488,7 @@ export async function* runGroupTurn(
             azureApiKey: agent.azureApiKey,
             toolAccess: agent.toolAccess,
             enabledToolNames: agent.enabledToolNames,
+            toolLimits: agent.toolLimits,
           },
           groupChat: {
             participantNames,

@@ -5,6 +5,7 @@
 
 import { z } from 'zod'
 import { tool, type StructuredToolInterface } from '@langchain/core/tools'
+import { resolveToolResultLimit } from '../../toolCatalog'
 import type { DocumentRef, PortfolioContext } from '../../types'
 
 export interface CongressCache {
@@ -66,13 +67,15 @@ export interface FinocurveToolContext {
   /** Called when the model uses suggest_conversation_follow_ups so the UI can show clickable chips. */
   recordSuggestedFollowUps?: (items: { label: string; prompt: string }[]) => void
   /** Desktop, Enterprise mode: consolidated balances by source from Finocurve Service. */
-  getEnterpriseBalances?: () => Promise<string>
+  getEnterpriseBalances?: (maxResults?: number) => Promise<string>
   /** Desktop, Enterprise mode: recent institutional transactions from Finocurve Service. */
-  getEnterpriseTransactions?: () => Promise<string>
+  getEnterpriseTransactions?: (maxResults?: number) => Promise<string>
   /** Desktop, Enterprise mode: live per-provider connection status from Finocurve Service. */
-  getEnterpriseConnectionHealth?: () => Promise<string>
+  getEnterpriseConnectionHealth?: (maxResults?: number) => Promise<string>
   /** Desktop, Enterprise mode: recorded consolidated balance snapshots over time from Finocurve Service. */
-  getEnterpriseBalanceHistory?: () => Promise<string>
+  getEnterpriseBalanceHistory?: (maxResults?: number) => Promise<string>
+  /** Per-expert caps for list-returning tools (tool name → max results). */
+  toolLimits?: Record<string, number>
 }
 
 export function createFinocurveTools(ctx: FinocurveToolContext) {
@@ -778,17 +781,20 @@ ${topHoldingsBlock}${more}`
     }
   )
 
+  const enterpriseLimit = (toolName: string) =>
+    resolveToolResultLimit(toolName, ctx.toolLimits?.[toolName])
+
   const getEnterpriseBalances = tool(
     async () => {
       if (!ctx.getEnterpriseBalances) {
         return 'Enterprise balances are only available when Enterprise mode is connected to a Finocurve Service.'
       }
-      return ctx.getEnterpriseBalances()
+      return ctx.getEnterpriseBalances(enterpriseLimit('get_enterprise_balances'))
     },
     {
       name: 'get_enterprise_balances',
       description:
-        'Read consolidated institutional account balances by source (bank, brokerage, crypto exchange, etc.) from Finocurve Service. This is separate from the user\'s personal FinoCurve portfolio. Use when the user asks about enterprise, institutional, or consolidated balances.',
+        `Read consolidated institutional account balances by source (bank, brokerage, crypto exchange, etc.) from Finocurve Service (up to ${enterpriseLimit('get_enterprise_balances') ?? 50} sources). This is separate from the user's personal FinoCurve portfolio. Use when the user asks about enterprise, institutional, or consolidated balances.`,
     }
   )
 
@@ -797,12 +803,12 @@ ${topHoldingsBlock}${more}`
       if (!ctx.getEnterpriseTransactions) {
         return 'Enterprise activity is only available when Enterprise mode is connected to a Finocurve Service.'
       }
-      return ctx.getEnterpriseTransactions()
+      return ctx.getEnterpriseTransactions(enterpriseLimit('get_enterprise_transactions'))
     },
     {
       name: 'get_enterprise_transactions',
       description:
-        'Read the most recent institutional transactions across enrolled accounts from Finocurve Service. Use when the user asks about enterprise or institutional activity, spending, or recent transactions across connected accounts.',
+        `Read the most recent institutional transactions across enrolled accounts from Finocurve Service (up to ${enterpriseLimit('get_enterprise_transactions') ?? 25} transactions; this expert's configured upper limit). Use when the user asks about enterprise or institutional activity, spending, or recent transactions across connected accounts. This tool does not support date-range filtering — raise the expert's Max transactions setting if more rows are needed.`,
     }
   )
 
@@ -811,12 +817,12 @@ ${topHoldingsBlock}${more}`
       if (!ctx.getEnterpriseConnectionHealth) {
         return 'Enterprise connection health is only available when Enterprise mode is connected to a Finocurve Service.'
       }
-      return ctx.getEnterpriseConnectionHealth()
+      return ctx.getEnterpriseConnectionHealth(enterpriseLimit('get_enterprise_connection_health'))
     },
     {
       name: 'get_enterprise_connection_health',
       description:
-        'Check the live connection status of each Finocurve Service data provider (connected, error, or not configured). Use when the user asks whether an institution or provider is connected or having issues.',
+        `Check the live connection status of each Finocurve Service data provider (up to ${enterpriseLimit('get_enterprise_connection_health') ?? 50} providers). Use when the user asks whether an institution or provider is connected or having issues.`,
     }
   )
 
@@ -825,12 +831,12 @@ ${topHoldingsBlock}${more}`
       if (!ctx.getEnterpriseBalanceHistory) {
         return 'Enterprise balance history is only available when Enterprise mode is connected to a Finocurve Service.'
       }
-      return ctx.getEnterpriseBalanceHistory()
+      return ctx.getEnterpriseBalanceHistory(enterpriseLimit('get_enterprise_balance_history'))
     },
     {
       name: 'get_enterprise_balance_history',
       description:
-        'Read recorded consolidated balance snapshots over time from Finocurve Service (daily and manual snapshots). Use when the user asks how their enterprise/institutional balance has trended over time.',
+        `Read recorded consolidated balance snapshots over time from Finocurve Service (up to ${enterpriseLimit('get_enterprise_balance_history') ?? 30} most recent snapshots). Use when the user asks how their enterprise/institutional balance has trended over time.`,
     }
   )
 

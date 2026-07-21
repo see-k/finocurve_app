@@ -35,6 +35,7 @@ import type { Agent } from '../../../types/Agent'
 import {
   EXPERT_TOOL_CATEGORIES,
   mergeExpertToolDefinitions,
+  resolveToolResultLimit,
   type ExpertToolCategory,
 } from '../../../ai/toolCatalog'
 import { compressImageForProfile } from '../../../utils/profilePicture'
@@ -81,6 +82,7 @@ export default function CreateEditAgentScreen() {
   const [azureApiKey, setAzureApiKey] = useState(existing?.azureApiKey || '')
   const [toolAccess, setToolAccess] = useState<NonNullable<Agent['toolAccess']>>(existing?.toolAccess || 'all')
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(existing?.enabledToolNames || [])
+  const [toolLimits, setToolLimits] = useState<Record<string, number>>(existing?.toolLimits || {})
   const [runtimeTools, setRuntimeTools] = useState<{ name: string; description?: string }[]>([])
   const [toolQuery, setToolQuery] = useState('')
   const [activeToolCategory, setActiveToolCategory] = useState<ExpertToolCategory>('Portfolio')
@@ -151,6 +153,7 @@ export default function CreateEditAgentScreen() {
       setAzureApiKey(existing.azureApiKey || primaryConfig?.azureApiKey || '')
       setToolAccess(existing.toolAccess || 'all')
       setEnabledToolNames(existing.enabledToolNames || [])
+      setToolLimits(existing.toolLimits || {})
       setToolQuery('')
       setActiveToolCategory('Portfolio')
       setConnectionStatus(null)
@@ -274,6 +277,30 @@ export default function CreateEditAgentScreen() {
       : [...current, toolName])
   }
 
+  const setToolLimit = (toolName: string, raw: string, bounds: { min: number; max: number; default: number }) => {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      setToolLimits((current) => {
+        const next = { ...current }
+        delete next[toolName]
+        return next
+      })
+      return
+    }
+    const parsed = Number(trimmed)
+    if (!Number.isFinite(parsed)) return
+    const clamped = Math.min(bounds.max, Math.max(bounds.min, Math.round(parsed)))
+    setToolLimits((current) => (
+      clamped === bounds.default
+        ? (() => {
+          const next = { ...current }
+          delete next[toolName]
+          return next
+        })()
+        : { ...current, [toolName]: clamped }
+    ))
+  }
+
   const toggleToolCategory = (category: ExpertToolCategory) => {
     const categoryNames = availableTools
       .filter((tool) => tool.category === category)
@@ -346,6 +373,7 @@ export default function CreateEditAgentScreen() {
       azureApiKey: providerOverride === 'azure' ? azureApiKey || undefined : undefined,
       toolAccess,
       enabledToolNames: toolAccess === 'selected' ? enabledToolNames : undefined,
+      toolLimits: Object.keys(toolLimits).length > 0 ? toolLimits : undefined,
     }
     if (isEditing && existing) {
       updateAgent(existing.id, input)
@@ -914,6 +942,10 @@ export default function CreateEditAgentScreen() {
                             const enabled = toolAccess === 'all' || (
                               toolAccess === 'selected' && enabledToolNames.includes(tool.name)
                             )
+                            const limitMeta = tool.resultLimit
+                            const effectiveLimit = limitMeta
+                              ? (resolveToolResultLimit(tool.name, toolLimits[tool.name]) ?? limitMeta.default)
+                              : undefined
                             return (
                               <div key={tool.name} className={`agent-tool-row ${enabled ? 'agent-tool-row--enabled' : ''}`}>
                                 <span className="agent-tool-row__icon">
@@ -925,6 +957,22 @@ export default function CreateEditAgentScreen() {
                                     {tool.mutatesData && <em>Can make changes</em>}
                                   </span>
                                   <small>{tool.description}</small>
+                                  {limitMeta && (
+                                    <label className={`agent-tool-row__limit ${enabled ? '' : 'agent-tool-row__limit--disabled'}`}>
+                                      <span>{limitMeta.label}</span>
+                                      <input
+                                        type="number"
+                                        min={limitMeta.min}
+                                        max={limitMeta.max}
+                                        step={1}
+                                        value={effectiveLimit}
+                                        disabled={!enabled}
+                                        onChange={(event) => setToolLimit(tool.name, event.target.value, limitMeta)}
+                                        aria-label={`${tool.label} ${limitMeta.label}`}
+                                      />
+                                      <em>{limitMeta.min}–{limitMeta.max}</em>
+                                    </label>
+                                  )}
                                 </span>
                                 <button
                                   type="button"

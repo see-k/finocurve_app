@@ -478,6 +478,63 @@
   flex-direction: row-reverse;
 }
 
+.ai-chat-msg__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  margin-bottom: 4px;
+}
+
+.ai-chat-msg-wrap--user .ai-chat-msg__meta {
+  flex-direction: row-reverse;
+}
+
+.ai-chat-msg__you {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ai-chat-msg-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.ai-chat-msg-wrap--user .ai-chat-msg-delete {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.ai-chat-msg-wrap:hover .ai-chat-msg-delete,
+.ai-chat-msg-wrap:focus-within .ai-chat-msg-delete {
+  opacity: 0.75;
+}
+
+.ai-chat-msg-delete:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--status-error) 28%, var(--glass-border));
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  color: var(--status-error);
+  opacity: 1;
+}
+
+.ai-chat-msg-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
 .ai-chat-msg-avatar {
   flex-shrink: 0;
 }
@@ -510,7 +567,7 @@
 
 .ai-chat-expert-link--name {
   display: block;
-  margin-bottom: 4px;
+  margin: 0;
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;

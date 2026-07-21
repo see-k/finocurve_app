@@ -8,6 +8,15 @@ export type ExpertToolCategory =
   | 'Enterprise'
   | 'Connected'
 
+/** Optional per-expert upper bound for list-returning tools (Enterprise, etc.). */
+export interface ExpertToolResultLimit {
+  default: number
+  min: number
+  max: number
+  /** Short label shown next to the number input, e.g. "Max transactions". */
+  label: string
+}
+
 export interface ExpertToolDefinition {
   name: string
   label: string
@@ -15,6 +24,8 @@ export interface ExpertToolDefinition {
   category: ExpertToolCategory
   /** Tools with side effects are called out explicitly in the expert editor. */
   mutatesData?: boolean
+  /** When set, the expert editor shows a max/upper-limit control for this tool. */
+  resultLimit?: ExpertToolResultLimit
 }
 
 /**
@@ -164,24 +175,28 @@ export const BUILT_IN_EXPERT_TOOLS: ExpertToolDefinition[] = [
     label: 'Enterprise balances',
     description: 'Read consolidated account balances across connected institutions from Finocurve Service.',
     category: 'Enterprise',
+    resultLimit: { default: 50, min: 1, max: 200, label: 'Max sources' },
   },
   {
     name: 'get_enterprise_transactions',
     label: 'Enterprise activity',
     description: 'Read recent institutional transactions across enrolled accounts from Finocurve Service.',
     category: 'Enterprise',
+    resultLimit: { default: 25, min: 1, max: 200, label: 'Max transactions' },
   },
   {
     name: 'get_enterprise_connection_health',
     label: 'Enterprise connection health',
     description: 'Check live status of each Finocurve Service data provider.',
     category: 'Enterprise',
+    resultLimit: { default: 50, min: 1, max: 200, label: 'Max providers' },
   },
   {
     name: 'get_enterprise_balance_history',
     label: 'Enterprise balance history',
     description: 'Read recorded consolidated balance snapshots over time from Finocurve Service.',
     category: 'Enterprise',
+    resultLimit: { default: 30, min: 1, max: 365, label: 'Max snapshots' },
   },
 ]
 
@@ -228,4 +243,16 @@ export function mergeExpertToolDefinitions(
     }))
 
   return [...builtIns, ...connected]
+}
+
+/** Clamp a stored or typed limit to the catalog bounds for a tool. */
+export function resolveToolResultLimit(
+  toolName: string,
+  configured: number | undefined,
+  catalog: ExpertToolDefinition[] = BUILT_IN_EXPERT_TOOLS,
+): number | undefined {
+  const meta = catalog.find((tool) => tool.name === toolName)?.resultLimit
+  if (!meta) return undefined
+  const raw = typeof configured === 'number' && Number.isFinite(configured) ? configured : meta.default
+  return Math.min(meta.max, Math.max(meta.min, Math.round(raw)))
 }

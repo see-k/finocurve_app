@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { AlertTriangle, MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check } from 'lucide-react'
+import { AlertTriangle, MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check, Trash2 } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
@@ -477,6 +477,13 @@ export default function AIChatBubble() {
     })
   }
 
+  const deleteMessageAt = (index: number) => {
+    if (loading || index < 0 || index >= messagesRef.current.length) return
+    const next = messagesRef.current.filter((_, i) => i !== index)
+    messagesRef.current = next
+    setMessages(next)
+  }
+
   const onAttachmentFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // FileList is live: clearing the input empties it. Snapshot files before reset.
     const files = e.target.files ? Array.from(e.target.files) : []
@@ -639,6 +646,7 @@ export default function AIChatBubble() {
                   azureApiKey: agent.azureApiKey,
                   toolAccess: agent.toolAccess,
                   enabledToolNames: agent.enabledToolNames,
+                  toolLimits: agent.toolLimits,
                 },
               }
             : {}),
@@ -851,17 +859,31 @@ export default function AIChatBubble() {
                   )}
                 </div>
                 <div className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
-                  {msg.role === 'assistant' && (
+                  <div className="ai-chat-msg__meta">
+                    {msg.role === 'assistant' ? (
+                      <button
+                        type="button"
+                        className="ai-chat-expert-link ai-chat-expert-link--name"
+                        onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
+                        disabled={!msg.senderAgentId}
+                        title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                      >
+                        {messageAgentName}
+                      </button>
+                    ) : (
+                      <span className="ai-chat-msg__you">You</span>
+                    )}
                     <button
                       type="button"
-                      className="ai-chat-expert-link ai-chat-expert-link--name"
-                      onClick={() => msg.senderAgentId && navigate(`/settings/agents/${msg.senderAgentId}`)}
-                      disabled={!msg.senderAgentId}
-                      title={msg.senderAgentId ? `Edit ${messageAgentName}` : undefined}
+                      className="ai-chat-msg-delete"
+                      onClick={() => deleteMessageAt(i)}
+                      disabled={loading}
+                      aria-label="Delete message"
+                      title="Delete message"
                     >
-                      {messageAgentName}
+                      <Trash2 size={12} />
                     </button>
-                  )}
+                  </div>
                   <ChatMessageContent
                     role={msg.role}
                     content={msg.content}

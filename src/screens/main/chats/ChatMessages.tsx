@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, type RefObject } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Trash2 } from 'lucide-react'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import ChatMessageContent from '../../../components/ai/ChatMessageContent'
 import type { Agent } from '../../../types/Agent'
@@ -24,6 +24,7 @@ interface ChatMessagesProps {
   mentionNames: string[]
   loading: boolean
   onFollowUp: (prompt: string) => void
+  onDeleteMessage: (index: number) => void
   onEditAgent: (agentId: string) => void
   renderAgentProvider: (agentId?: string) => ReactNode
   messagesEndRef: RefObject<HTMLDivElement | null>
@@ -45,6 +46,7 @@ export default function ChatMessages({
   mentionNames,
   loading,
   onFollowUp,
+  onDeleteMessage,
   onEditAgent,
   renderAgentProvider,
   messagesEndRef,
@@ -104,6 +106,16 @@ export default function ChatMessages({
                     {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
                     {message.role === 'assistant' && renderAgentProvider(message.senderAgentId)}
                     {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
+                    <button
+                      type="button"
+                      className="chats-screen__message-delete"
+                      onClick={() => onDeleteMessage(index)}
+                      disabled={loading}
+                      aria-label="Delete message"
+                      title="Delete message"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                   <div className="chats-screen__message-bubble">
                     <ChatMessageContent
