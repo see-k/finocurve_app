@@ -10,7 +10,8 @@ describe('resolveToolResultLimit', () => {
   it('clamps configured values to catalog bounds', () => {
     expect(resolveToolResultLimit('get_enterprise_transactions', 5)).toBe(5)
     expect(resolveToolResultLimit('get_enterprise_transactions', 0)).toBe(1)
-    expect(resolveToolResultLimit('get_enterprise_transactions', 999)).toBe(200)
+    expect(resolveToolResultLimit('get_enterprise_transactions', 999)).toBe(999)
+    expect(resolveToolResultLimit('get_enterprise_transactions', 5000)).toBe(2000)
     expect(resolveToolResultLimit('get_enterprise_balance_history', 400)).toBe(365)
   })
 

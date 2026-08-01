@@ -110,7 +110,7 @@ const NOT_CONFIGURED_MESSAGE =
 
 function clampMaxResults(value: number | undefined, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
-  return Math.min(500, Math.max(1, Math.round(value)))
+  return Math.min(2000, Math.max(1, Math.round(value)))
 }
 
 /** AI tool: summarize consolidated balances by source. */
