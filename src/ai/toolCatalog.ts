@@ -182,7 +182,7 @@ export const BUILT_IN_EXPERT_TOOLS: ExpertToolDefinition[] = [
     label: 'Enterprise activity',
     description: 'Read recent institutional transactions across enrolled accounts from Finocurve Service.',
     category: 'Enterprise',
-    resultLimit: { default: 25, min: 1, max: 200, label: 'Max transactions' },
+    resultLimit: { default: 25, min: 1, max: 2000, label: 'Max transactions' },
   },
   {
     name: 'get_enterprise_connection_health',
