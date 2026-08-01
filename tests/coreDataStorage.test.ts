@@ -119,6 +119,8 @@ describe('core data renderer compatibility cache', () => {
 
     expect(isCoreDataStorageKey(PORTFOLIO_STORAGE_KEY)).toBe(true)
     expect(isCoreDataStorageKey('finocurve-portfolio:user:a@example.com')).toBe(true)
+    expect(isCoreDataStorageKey('finocurve-conversations:user:a@example.com')).toBe(true)
+    expect(isCoreDataStorageKey('finocurve-agents:user:a@example.com')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-ai-chat-messages-a@example.com')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-preferences')).toBe(false)
     setCoreDataItem('finocurve-preferences', '{"theme":"dark"}')

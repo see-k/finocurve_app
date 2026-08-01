@@ -10,6 +10,11 @@ export const ACTIVE_SESSION_DATA_KEYS = [
   'finocurve-watchlist',
   'finocurve-notifications',
   'finocurve-portfolio-value-history',
+  // Chats and the experts they reference are per-profile: without archiving them
+  // here, the previous profile's threads/agents stay in the active key and leak
+  // to the next profile that signs in on this device.
+  'finocurve-conversations',
+  'finocurve-agents',
 ] as const
 
 const ACTIVE_KEYS = ACTIVE_SESSION_DATA_KEYS

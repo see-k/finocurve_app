@@ -12,8 +12,7 @@ import { THEME_OPTIONS } from '../../theme/themes'
 import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
 import { removeSavedLocalAccount, upsertSavedLocalAccount } from '../../lib/savedLocalAccounts'
-import { archiveActiveSessionForEmail, removeArchivedSessionForEmail } from '../../lib/perUserLocalArchive'
-import { PORTFOLIO_STORAGE_KEY, removeCoreDataItem } from '../../lib/coreDataStorage'
+import { archiveActiveSessionForEmail, clearActiveUserDataStorage, removeArchivedSessionForEmail } from '../../lib/perUserLocalArchive'
 import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
 import './SettingsScreen.css'
 import { APP_VERSION } from '../../constants/appVersion'
@@ -49,10 +48,7 @@ export default function SettingsScreen() {
       })
       archiveActiveSessionForEmail(em)
     } else {
-      removeCoreDataItem(PORTFOLIO_STORAGE_KEY)
-      localStorage.removeItem('finocurve-watchlist')
-      localStorage.removeItem('finocurve-notifications')
-      localStorage.removeItem('finocurve-portfolio-value-history')
+      clearActiveUserDataStorage()
     }
     resetPreferences()
     navigate('/', { replace: true })
@@ -99,10 +95,7 @@ export default function SettingsScreen() {
       removeArchivedSessionForEmail(em)
     }
     resetPreferences()
-    removeCoreDataItem(PORTFOLIO_STORAGE_KEY)
-    localStorage.removeItem('finocurve-watchlist')
-    localStorage.removeItem('finocurve-notifications')
-    localStorage.removeItem('finocurve-portfolio-value-history')
+    clearActiveUserDataStorage()
     navigate('/', { replace: true })
   }
 

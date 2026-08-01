@@ -40,6 +40,8 @@ export function coreDataKindForKey(storageKey: string): CoreDataKind | null {
   const exact = STATIC_KEYS.get(storageKey)
   if (exact) return exact
   if (storageKey.startsWith('finocurve-portfolio:user:')) return 'portfolio'
+  if (storageKey.startsWith('finocurve-conversations:user:')) return 'conversations'
+  if (storageKey.startsWith('finocurve-agents:user:')) return 'agents'
   if (storageKey.startsWith('finocurve-ai-chat-messages-')) return 'assistant_chat'
   return null
 }

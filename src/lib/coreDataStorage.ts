@@ -40,6 +40,8 @@ interface PersistedJournalEntry {
 export function isCoreDataStorageKey(storageKey: string): boolean {
   return STATIC_CORE_KEYS.includes(storageKey as (typeof STATIC_CORE_KEYS)[number]) ||
     storageKey.startsWith('finocurve-portfolio:user:') ||
+    storageKey.startsWith('finocurve-conversations:user:') ||
+    storageKey.startsWith('finocurve-agents:user:') ||
     storageKey.startsWith('finocurve-ai-chat-messages-')
 }
 

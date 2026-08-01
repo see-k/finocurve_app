@@ -29,6 +29,8 @@ describe('core data migration model', () => {
     expect(coreDataKindForKey('finocurve-agents')).toBe('agents')
     expect(coreDataKindForKey('finocurve-conversations')).toBe('conversations')
     expect(coreDataKindForKey('finocurve-portfolio:user:person@example.com')).toBe('portfolio')
+    expect(coreDataKindForKey('finocurve-conversations:user:person@example.com')).toBe('conversations')
+    expect(coreDataKindForKey('finocurve-agents:user:person@example.com')).toBe('agents')
     expect(coreDataKindForKey('finocurve-ai-chat-messages-person@example.com')).toBe('assistant_chat')
     expect(coreDataKindForKey('finocurve-preferences')).toBeNull()
     expect(isCoreDataStorageKey('finocurve-preferences')).toBe(false)
