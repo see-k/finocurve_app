@@ -20,6 +20,7 @@ import {
   hasArchivedSessionForEmail,
   restoreActiveSessionForEmail,
 } from '../lib/perUserLocalArchive'
+import { restoreOrClearTrackerSessionForEmail } from '../lib/trackerSessionArchive'
 import { prepareStorageForNewAccountSignup } from '../lib/prepareNewAccountSession'
 import {
   hashPassword,
@@ -167,6 +168,9 @@ export default function LoginScreen() {
       } else {
         clearActiveUserDataStorage()
       }
+      // Tracker goals/net-worth live in a device SQLite DB — swap/clear so this
+      // profile never sees another account's goals.
+      await restoreOrClearTrackerSessionForEmail(targetEmail)
       upsertSavedLocalAccount({
         email: targetEmail,
         userName: merged.userName,

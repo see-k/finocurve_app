@@ -15,6 +15,9 @@ export const ACTIVE_SESSION_DATA_KEYS = [
   // to the next profile that signs in on this device.
   'finocurve-conversations',
   'finocurve-agents',
+  // Tracker goal card expand/collapse overrides (UI chrome keyed by goal id).
+  // The goals themselves live in Electron SQLite and are swapped separately.
+  'finocurve-tracker-goal-expanded-overrides',
 ] as const
 
 const ACTIVE_KEYS = ACTIVE_SESSION_DATA_KEYS

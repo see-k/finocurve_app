@@ -35,9 +35,10 @@ afterEach(() => {
 })
 
 describe('per-user local archive', () => {
-  it('treats chats and agents as session-scoped keys', () => {
+  it('treats chats, agents, and tracker expand overrides as session-scoped keys', () => {
     expect(ACTIVE_SESSION_DATA_KEYS).toContain(CONVERSATIONS)
     expect(ACTIVE_SESSION_DATA_KEYS).toContain(AGENTS)
+    expect(ACTIVE_SESSION_DATA_KEYS).toContain('finocurve-tracker-goal-expanded-overrides')
   })
 
   it('archives chats and agents per email and clears the active keys', () => {

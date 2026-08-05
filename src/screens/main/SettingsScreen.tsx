@@ -13,6 +13,11 @@ import { usePreferences } from '../../store/usePreferences'
 import { usePortfolio } from '../../store/usePortfolio'
 import { removeSavedLocalAccount, upsertSavedLocalAccount } from '../../lib/savedLocalAccounts'
 import { archiveActiveSessionForEmail, clearActiveUserDataStorage, removeArchivedSessionForEmail } from '../../lib/perUserLocalArchive'
+import {
+  archiveTrackerSessionForEmail,
+  clearActiveTrackerSession,
+  removeArchivedTrackerSessionForEmail,
+} from '../../lib/trackerSessionArchive'
 import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
 import './SettingsScreen.css'
 import { APP_VERSION } from '../../constants/appVersion'
@@ -47,8 +52,10 @@ export default function SettingsScreen() {
         hasCompletedOnboarding: prefs.hasCompletedOnboarding,
       })
       archiveActiveSessionForEmail(em)
+      await archiveTrackerSessionForEmail(em)
     } else {
       clearActiveUserDataStorage()
+      await clearActiveTrackerSession()
     }
     resetPreferences()
     navigate('/', { replace: true })
@@ -93,9 +100,11 @@ export default function SettingsScreen() {
       const em = prefs.userEmail.trim()
       removeSavedLocalAccount(em)
       removeArchivedSessionForEmail(em)
+      await removeArchivedTrackerSessionForEmail(em)
     }
     resetPreferences()
     clearActiveUserDataStorage()
+    await clearActiveTrackerSession()
     navigate('/', { replace: true })
   }
 
