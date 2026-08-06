@@ -22,7 +22,8 @@ const reportDownloads = [
 ]
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })
 const categoryLabel = (category: string) => category.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
-const ENTERPRISE_BANNER_BG = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1287&auto=format&fit=crop'
+/** Page-level hero treatment — skyline, distinct from the mountain used on portfolio surfaces */
+const ENTERPRISE_BG = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1600&auto=format&fit=crop'
 
 function Citation({ path, label }: { path: string; label: string }) {
   const source = getEnterpriseSource(path, label)
@@ -194,15 +195,17 @@ export default function EnterpriseScreen() {
 
   return (
     <div className="enterprise-screen">
-      <section className="enterprise-banner" aria-label="Enterprise overview">
-        <img src={ENTERPRISE_BANNER_BG} alt="" />
-        <div className="enterprise-banner-content">
+      <div className="enterprise-bg" aria-hidden>
+        <img src={ENTERPRISE_BG} alt="" className="enterprise-bg__img" />
+        <div className="enterprise-bg__overlay" />
+      </div>
+
+      <header className="enterprise-header">
+        <div>
           <span className="enterprise-eyebrow"><Building2 size={13} /> Enterprise</span>
           <h1>Institutional intelligence</h1>
           <p>Consolidated balances, activity, and connection health from Finocurve Service.</p>
         </div>
-      </section>
-      <header className="enterprise-header">
         <button className="enterprise-refresh" onClick={() => void load(page, true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />Refresh</button>
       </header>
 
