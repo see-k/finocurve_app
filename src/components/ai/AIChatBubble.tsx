@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { AlertTriangle, MessageCircle, X, Send, Square, Maximize2, Minimize2, MessageSquarePlus, MessagesSquare, Paperclip, ChevronDown, Check, Trash2 } from 'lucide-react'
 import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
@@ -13,6 +11,7 @@ import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
 import ChatMessageContent, { FollowUpsRow } from './ChatMessageContent'
+import { AssistantMarkdown } from './assistantMarkdown'
 import { getCoreDataItem, removeCoreDataItem, setCoreDataItem } from '../../lib/coreDataStorage'
 import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
 import './AIChatBubble.css'
@@ -950,9 +949,7 @@ export default function AIChatBubble() {
                     )}
                     <div className={streaming.answer ? 'ai-chat-markdown' : 'ai-chat-msg--loading'}>
                       {streaming.answer ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {streaming.answer}
-                        </ReactMarkdown>
+                        <AssistantMarkdown content={streaming.answer} />
                       ) : (
                         'Thinking...'
                       )}

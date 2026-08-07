@@ -49,7 +49,7 @@ This repository is intended as a **source-available trust surface** for the Fino
 - **Markets & News** — TradingView charting, market widgets, and financial news
 - **Enterprise mode** — consolidated institutional balances, activity, and connection health via Finocurve Service
 - **Reports & Documents** — generate and review financial reports and uploaded documents
-- **Optional Local AI Assistant** — ask questions about your portfolio and analyze documents locally or with configured providers
+- **Optional Local AI Assistant** — ask questions about your portfolio and analyze documents locally or with configured providers; replies can include Mermaid diagrams and bar/line/pie charts inline in chat
 - **Optional MCP / A2A hooks** — connect the app to local agent tooling workflows
 
 ## Tech stack
@@ -58,7 +58,7 @@ This repository is intended as a **source-available trust surface** for the Fino
 - **Desktop runtime:** Electron 41
 - **Build tool:** Vite 8
 - **Language:** TypeScript
-- **Charts / visualization:** Recharts
+- **Charts / visualization:** Recharts, Mermaid (in-chat AI diagrams)
 - **Icons:** Lucide React
 
 ## Getting started

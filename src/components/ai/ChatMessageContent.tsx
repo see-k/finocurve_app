@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
+import { AssistantMarkdown } from './assistantMarkdown'
 import './ChatMessageContent.css'
 
 function escapeMentionRegExp(value: string): string {
@@ -112,7 +111,7 @@ export default function ChatMessageContent({
       <>
         {reasoning && <div className="ai-chat-reasoning">{reasoning}</div>}
         <div className="ai-chat-markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <AssistantMarkdown content={content} />
         </div>
         <FollowUpsRow
           items={followUps ?? []}
