@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import DOMPurify from 'dompurify'
 
 type RenderState =
   | { status: 'loading' }
@@ -23,6 +24,13 @@ async function getMermaid() {
   return mermaidInit
 }
 
+/** Sanitize Mermaid SVG before DOM injection; library strict mode alone is not enough. */
+function sanitizeMermaidSvg(svg: string): string {
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+  })
+}
+
 /**
  * Renders a Mermaid diagram from source text. Shared by bubble + main chat via markdown.
  */
@@ -44,7 +52,11 @@ export default function ChatMermaid({ source }: { source: string }) {
         const mermaid = await getMermaid()
         const id = `ai-mermaid-${reactId}-${Math.random().toString(36).slice(2, 8)}`
         const { svg } = await mermaid.render(id, diagram)
-        if (!cancelled) setState({ status: 'ready', svg })
+        const cleanSvg = sanitizeMermaidSvg(svg)
+        if (!cleanSvg.trim()) {
+          throw new Error('Diagram produced empty sanitized SVG')
+        }
+        if (!cancelled) setState({ status: 'ready', svg: cleanSvg })
       } catch (err) {
         if (!cancelled) {
           setState({

@@ -28,15 +28,31 @@ function getArchivedSyncMetaPath(email: string, userDataDir: string): string {
   return path.join(userDataDir, `finocurve-tracker-sync-meta.user.${emailSuffix(email)}.json`)
 }
 
-/** Active DB path + WAL/SHM sidecars that must move/delete with it. */
-function activeDbArtifacts(userDataDir: string): string[] {
-  const dbPath = getActiveTrackerDbPathForDir(userDataDir)
+/** Main DB path plus WAL/SHM sidecars that must move/delete with it. */
+function dbArtifacts(dbPath: string): string[] {
   return [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]
+}
+
+function activeDbArtifacts(userDataDir: string): string[] {
+  return dbArtifacts(getActiveTrackerDbPathForDir(userDataDir))
+}
+
+function archivedDbArtifacts(email: string, userDataDir: string): string[] {
+  return dbArtifacts(getArchivedTrackerDbPath(email, userDataDir))
 }
 
 function removeIfExists(filePath: string): void {
   try {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+  } catch {
+    /* ignore */
+  }
+}
+
+function copyIfExists(from: string, to: string): void {
+  if (!fs.existsSync(from)) return
+  try {
+    fs.copyFileSync(from, to)
   } catch {
     /* ignore */
   }
@@ -51,23 +67,13 @@ export function archiveTrackerSessionAt(userDataDir: string, email: string): voi
   const em = email.trim()
   if (!em) return
 
-  const activeDb = getActiveTrackerDbPathForDir(userDataDir)
-  if (fs.existsSync(activeDb)) {
-    try {
-      fs.copyFileSync(activeDb, getArchivedTrackerDbPath(em, userDataDir))
-    } catch {
-      /* ignore */
-    }
+  const active = activeDbArtifacts(userDataDir)
+  const archived = archivedDbArtifacts(em, userDataDir)
+  for (let i = 0; i < active.length; i++) {
+    copyIfExists(active[i], archived[i])
   }
 
-  const activeMeta = getActiveSyncMetaPath(userDataDir)
-  if (fs.existsSync(activeMeta)) {
-    try {
-      fs.copyFileSync(activeMeta, getArchivedSyncMetaPath(em, userDataDir))
-    } catch {
-      /* ignore */
-    }
-  }
+  copyIfExists(getActiveSyncMetaPath(userDataDir), getArchivedSyncMetaPath(em, userDataDir))
 
   clearActiveTrackerFiles(userDataDir)
 }
@@ -88,29 +94,19 @@ export function restoreTrackerSessionAt(userDataDir: string, email: string): voi
 
   clearActiveTrackerFiles(userDataDir)
 
-  const archivedDb = getArchivedTrackerDbPath(em, userDataDir)
-  if (fs.existsSync(archivedDb)) {
-    try {
-      fs.copyFileSync(archivedDb, getActiveTrackerDbPathForDir(userDataDir))
-    } catch {
-      /* ignore */
-    }
+  const active = activeDbArtifacts(userDataDir)
+  const archived = archivedDbArtifacts(em, userDataDir)
+  for (let i = 0; i < archived.length; i++) {
+    copyIfExists(archived[i], active[i])
   }
 
-  const archivedMeta = getArchivedSyncMetaPath(em, userDataDir)
-  if (fs.existsSync(archivedMeta)) {
-    try {
-      fs.copyFileSync(archivedMeta, getActiveSyncMetaPath(userDataDir))
-    } catch {
-      /* ignore */
-    }
-  }
+  copyIfExists(getArchivedSyncMetaPath(em, userDataDir), getActiveSyncMetaPath(userDataDir))
 }
 
 export function removeArchivedTrackerSessionAt(userDataDir: string, email: string): void {
   const em = email.trim()
   if (!em) return
-  removeIfExists(getArchivedTrackerDbPath(em, userDataDir))
+  for (const p of archivedDbArtifacts(em, userDataDir)) removeIfExists(p)
   removeIfExists(getArchivedSyncMetaPath(em, userDataDir))
 }
 

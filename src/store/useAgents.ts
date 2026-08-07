@@ -44,7 +44,7 @@ export function useAgents() {
   // When the signed-in profile changes, the active storage key has already been
   // swapped by archive/restore. Reload from it instead of persisting the
   // previous profile's in-memory experts back over the freshly scoped data.
-  const lastHandledIdentityRef = useRef<string | null>(null)
+  const lastHandledIdentityRef = useRef(identity)
 
   useEffect(() => {
     if (lastHandledIdentityRef.current !== identity) {

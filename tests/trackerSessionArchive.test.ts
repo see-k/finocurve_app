@@ -30,13 +30,20 @@ describe('tracker session archive', () => {
   it('archives active tracker DB per email and clears the active path', () => {
     const active = getActiveTrackerDbPathForDir(tempDir)
     fs.writeFileSync(active, 'goals-for-a')
+    fs.writeFileSync(`${active}-wal`, 'wal-for-a')
+    fs.writeFileSync(`${active}-shm`, 'shm-for-a')
     fs.writeFileSync(path.join(tempDir, 'finocurve-tracker-sync-meta.json'), '{"lastLocalMutationAt":"t1"}')
 
     archiveTrackerSessionAt(tempDir, 'A@Example.com')
 
+    const archived = getArchivedTrackerDbPath('a@example.com', tempDir)
     expect(fs.existsSync(active)).toBe(false)
-    expect(fs.existsSync(getArchivedTrackerDbPath('a@example.com', tempDir))).toBe(true)
+    expect(fs.existsSync(`${active}-wal`)).toBe(false)
+    expect(fs.existsSync(`${active}-shm`)).toBe(false)
+    expect(fs.existsSync(archived)).toBe(true)
     expect(fs.readFileSync(getArchivedTrackerDbPath('A@Example.com', tempDir), 'utf-8')).toBe('goals-for-a')
+    expect(fs.readFileSync(`${archived}-wal`, 'utf-8')).toBe('wal-for-a')
+    expect(fs.readFileSync(`${archived}-shm`, 'utf-8')).toBe('shm-for-a')
     expect(hasArchivedTrackerSessionAt(tempDir, 'a@example.com')).toBe(true)
     expect(
       fs.readFileSync(path.join(tempDir, 'finocurve-tracker-sync-meta.user.a@example.com.json'), 'utf-8'),
@@ -46,6 +53,7 @@ describe('tracker session archive', () => {
   it('does not leak one profile goals into another profile session', () => {
     const active = getActiveTrackerDbPathForDir(tempDir)
     fs.writeFileSync(active, 'goals-for-a')
+    fs.writeFileSync(`${active}-wal`, 'wal-for-a')
     archiveTrackerSessionAt(tempDir, 'a@example.com')
 
     // Profile B signs in with no archive — active must stay empty.
@@ -53,22 +61,29 @@ describe('tracker session archive', () => {
     clearActiveTrackerSessionAt(tempDir)
     restoreTrackerSessionAt(tempDir, 'b@example.com')
     expect(fs.existsSync(active)).toBe(false)
+    expect(fs.existsSync(`${active}-wal`)).toBe(false)
 
-    // Switching back to A restores only A's tracker DB.
+    // Switching back to A restores only A's tracker DB + WAL sidecars.
     clearActiveTrackerSessionAt(tempDir)
     restoreTrackerSessionAt(tempDir, 'a@example.com')
     expect(fs.readFileSync(active, 'utf-8')).toBe('goals-for-a')
+    expect(fs.readFileSync(`${active}-wal`, 'utf-8')).toBe('wal-for-a')
   })
 
   it('removes archived tracker DB when an account is deleted', () => {
     const active = getActiveTrackerDbPathForDir(tempDir)
     fs.writeFileSync(active, 'goals-for-a')
+    fs.writeFileSync(`${active}-wal`, 'wal-for-a')
+    fs.writeFileSync(`${active}-shm`, 'shm-for-a')
     archiveTrackerSessionAt(tempDir, 'a@example.com')
 
+    const archived = getArchivedTrackerDbPath('a@example.com', tempDir)
     removeArchivedTrackerSessionAt(tempDir, 'a@example.com')
 
     expect(hasArchivedTrackerSessionAt(tempDir, 'a@example.com')).toBe(false)
-    expect(fs.existsSync(getArchivedTrackerDbPath('a@example.com', tempDir))).toBe(false)
+    expect(fs.existsSync(archived)).toBe(false)
+    expect(fs.existsSync(`${archived}-wal`)).toBe(false)
+    expect(fs.existsSync(`${archived}-shm`)).toBe(false)
   })
 
   it('clears active tracker without touching archives', () => {
