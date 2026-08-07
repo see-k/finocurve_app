@@ -11,10 +11,95 @@ type EnterprisePage = 'overview' | 'balances' | 'transactions' | 'connections'
 type TransactionsResponse = { by_product: Array<{ product: string; institution_name?: string; account_name?: string; transactions?: Omit<EnterpriseTransaction, 'product' | 'institution' | 'account'>[]; error?: unknown }> }
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+const moneyExact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const compactMoney = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 })
 const quantity = new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 })
 const TX_PAGE_SIZE = 25
-const productNames: Record<string, string> = { teller: 'Teller', schwab: 'Charles Schwab', coinbase: 'Coinbase', alpaca: 'Alpaca', binance_us: 'Binance US', kalshi: 'Kalshi' }
+const productNames: Record<string, string> = {
+  simplefin: 'SimpleFIN',
+  teller: 'Teller',
+  schwab: 'Charles Schwab',
+  coinbase: 'Coinbase',
+  alpaca: 'Alpaca',
+  binance_us: 'Binance US',
+  kalshi: 'Kalshi',
+}
+
+type BalanceColumn = {
+  label: string
+  align?: 'numeric'
+  format: (row: Record<string, unknown>) => string
+}
+
+const formatUsd = (value: unknown) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? moneyExact.format(n) : '—'
+}
+
+const formatQty = (value: unknown) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? quantity.format(n) : '—'
+}
+
+const textField = (value: unknown, fallback = '—') => {
+  if (value == null || value === '') return fallback
+  return String(value)
+}
+
+/** Provider-specific account columns — same field map as Finocurve Service Aggregate Balance. */
+function balanceColumnsFor(product: string): BalanceColumn[] {
+  switch (product) {
+    case 'simplefin':
+    case 'teller':
+      return [
+        { label: 'Account', format: row => textField(row.account_name ?? row.account_id) },
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance) },
+        { label: 'Available', align: 'numeric', format: row => (row.available == null ? '—' : formatUsd(row.available)) },
+        { label: 'Currency', format: row => textField(row.currency) },
+      ]
+    case 'schwab':
+      return [
+        { label: 'Account', format: row => textField(row.account_number) },
+        { label: 'Type', format: row => textField(row.account_type) },
+        { label: 'Equity', align: 'numeric', format: row => formatUsd(row.equity) },
+        { label: 'Cash', align: 'numeric', format: row => formatUsd(row.cash_balance) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'alpaca':
+      return [
+        { label: 'Account', format: row => textField(row.account_number) },
+        { label: 'Portfolio', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
+        { label: 'Cash', align: 'numeric', format: row => formatUsd(row.cash) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'kalshi':
+      return [
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance) },
+        { label: 'Portfolio value', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'binance_us':
+      return [
+        { label: 'Asset', format: row => textField(row.asset) },
+        { label: 'Available', align: 'numeric', format: row => formatQty(row.free) },
+        { label: 'Locked/Hold', align: 'numeric', format: row => formatQty(row.locked) },
+        { label: 'Total', align: 'numeric', format: row => formatQty(row.total) },
+      ]
+    case 'coinbase':
+      return [
+        { label: 'Asset', format: row => textField(row.currency) },
+        { label: 'Available', align: 'numeric', format: row => formatQty(row.available) },
+        { label: 'Locked/Hold', align: 'numeric', format: row => formatQty(row.hold) },
+        { label: 'Total', align: 'numeric', format: row => formatQty(row.total) },
+      ]
+    default:
+      return [
+        { label: 'Account', format: row => textField(row.account_name ?? row.account_id ?? row.account_number ?? row.asset ?? row.currency) },
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance ?? row.total ?? row.equity ?? row.portfolio_value) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+  }
+}
 const reportDownloads = [
   { path: '/api/reports/balances.pdf', title: 'Balances report', detail: 'Consolidated balance summary (PDF)' },
   { path: '/api/reports/transactions.pdf', title: 'Transactions report', detail: 'Institutional activity export (PDF)' },
@@ -237,7 +322,115 @@ export default function EnterpriseScreen() {
         </section>
       </>}
 
-      {page === 'balances' && balances && <section className="enterprise-card"><div className="enterprise-card-title"><div><span>Balances by source</span><small>Cash and portfolio values returned by connected products</small></div><Citation path="/api/reports/balances" label="Balance report" /></div><div className="enterprise-table-wrap"><table><thead><tr><th>Product</th><th>Institution</th><th>Accounts</th><th>Status</th><th className="numeric">Reported value</th></tr></thead><tbody>{products.map((product, index) => <tr key={`${product.product}-${index}`}><td>{productNames[product.product] ?? product.product}</td><td>{product.institution_name ?? '—'}</td><td>{product.balances.length}</td><td><span className={`status ${product.error ? 'error' : 'connected'}`}>{product.error ? 'Issue' : 'Reporting'}</span></td><td className="numeric"><strong>{money.format(product.total_usd)}</strong></td></tr>)}</tbody></table></div><p className="enterprise-description">Values are direct responses from each configured financial provider. Crypto quantities without a USD valuation are listed separately by the service.</p></section>}
+      {page === 'balances' && balances && (
+        <section className="enterprise-card">
+          <div className="enterprise-card-title">
+            <div>
+              <span>Balances by source</span>
+              <small>Cash and portfolio values returned by connected products</small>
+            </div>
+            <Citation path="/api/reports/balances" label="Balance report" />
+          </div>
+
+          {products.length === 0 ? (
+            <div className="enterprise-empty">No balance sources were reported.</div>
+          ) : (
+            <div className="enterprise-balance-sections">
+              {products.map((product, index) => {
+                const label = productNames[product.product] ?? product.product
+                const title = product.institution_name ? `${label} — ${product.institution_name}` : label
+                const columns = balanceColumnsFor(product.product)
+                const rows = product.balances ?? []
+                const cryptoRows = product.crypto ?? []
+                const subtotalLabel = product.product === 'coinbase' || product.product === 'binance_us'
+                  ? `${formatUsd(product.total_usd)} (USD)`
+                  : formatUsd(product.total_usd)
+
+                return (
+                  <article key={`${product.product}-${product.institution_name ?? ''}-${index}`} className="enterprise-balance-section">
+                    <div className="enterprise-balance-section__header">
+                      <div>
+                        <h3 className="enterprise-balance-section__title">{title}</h3>
+                        <span className={`status ${product.error ? 'error' : 'connected'}`}>
+                          {product.error ? 'Issue' : 'Reporting'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {product.error ? (
+                      <div className="enterprise-inline-warning">
+                        <strong>Provider request failed</strong>
+                        <span>{String(product.error)}</span>
+                      </div>
+                    ) : (
+                      <>
+                        {product.exclude_from_totals ? (
+                          <div className="enterprise-inline-warning">
+                            <strong>Excluded from the total below</strong>
+                            <span>This source is shown for reference but omitted from the consolidated USD total.</span>
+                          </div>
+                        ) : null}
+
+                        {rows.length > 0 ? (
+                          <div className="enterprise-table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  {columns.map(column => (
+                                    <th key={column.label} className={column.align === 'numeric' ? 'numeric' : undefined}>
+                                      {column.label}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((row, rowIndex) => (
+                                  <tr key={`${product.product}-${rowIndex}`}>
+                                    {columns.map((column, columnIndex) => (
+                                      <td
+                                        key={`${column.label}-${columnIndex}`}
+                                        className={column.align === 'numeric' ? 'numeric' : undefined}
+                                      >
+                                        {columnIndex === 0 ? <strong>{column.format(row)}</strong> : column.format(row)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="enterprise-balance-section__empty">No balances</p>
+                        )}
+
+                        {cryptoRows.length > 0 ? (
+                          <ul className="enterprise-balance-crypto">
+                            {cryptoRows.map((holding, holdingIndex) => (
+                              <li key={`${holding.asset}-${holdingIndex}`}>
+                                {holding.asset}: {formatQty(holding.amount)}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+
+                        <div className="enterprise-balance-section__subtotal">Subtotal: {subtotalLabel}</div>
+                      </>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="enterprise-balance-total">
+            <span>Total USD balance</span>
+            <strong>{formatUsd(balances.aggregate.total_usd)}</strong>
+          </div>
+          <p className="enterprise-description">
+            Values are direct responses from each configured financial provider. Crypto quantities without a USD valuation are listed separately by the service.
+          </p>
+        </section>
+      )}
 
       {page === 'balances' && balances && cryptoHoldings.length > 0 && <section className="enterprise-card enterprise-stack-card"><div className="enterprise-card-title"><div><span>Crypto holdings</span><small>Asset quantities reported without a USD valuation</small></div><Coins size={18} /></div><div className="enterprise-table-wrap"><table><thead><tr><th>Asset</th><th>Source</th><th className="numeric">Quantity</th></tr></thead><tbody>{cryptoHoldings.map((holding, index) => <tr key={`${holding.product}-${holding.asset}-${index}`}><td><strong>{holding.asset}</strong></td><td>{productNames[holding.product] ?? holding.product}</td><td className="numeric">{quantity.format(Number(holding.amount) || 0)}</td></tr>)}</tbody></table></div><p className="enterprise-description">The service reports these quantities as-is; valuing them would require a market data source.</p></section>}
 
