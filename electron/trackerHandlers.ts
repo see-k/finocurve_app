@@ -20,6 +20,13 @@ import {
   ensureLocalMutationFromFileMtime,
   type TrackerS3Options,
 } from './trackerS3'
+import {
+  archiveTrackerSessionForEmail,
+  clearActiveTrackerSession,
+  hasArchivedTrackerSessionForEmail,
+  removeArchivedTrackerSessionForEmail,
+  restoreTrackerSessionForEmail,
+} from './tracker/sessionArchive'
 import type { PortfolioContext } from '../src/ai/types'
 import {
   currentValueForGoalSourceFromContext,
@@ -207,6 +214,31 @@ export function registerTrackerHandlers(): void {
       lastSyncError = r.reason ?? null
     }
     return r
+  })
+
+  // Per-profile tracker DB swap (goals + net worth) — same session boundary as portfolio/chats.
+  ipcMain.handle('tracker-archive-for-email', async (_e, email: string) => {
+    archiveTrackerSessionForEmail(typeof email === 'string' ? email : '')
+    return { ok: true }
+  })
+
+  ipcMain.handle('tracker-has-archive-for-email', async (_e, email: string) => {
+    return { ok: true, hasArchive: hasArchivedTrackerSessionForEmail(typeof email === 'string' ? email : '') }
+  })
+
+  ipcMain.handle('tracker-restore-for-email', async (_e, email: string) => {
+    restoreTrackerSessionForEmail(typeof email === 'string' ? email : '')
+    return { ok: true }
+  })
+
+  ipcMain.handle('tracker-clear-active', async () => {
+    clearActiveTrackerSession()
+    return { ok: true }
+  })
+
+  ipcMain.handle('tracker-remove-archive-for-email', async (_e, email: string) => {
+    removeArchivedTrackerSessionForEmail(typeof email === 'string' ? email : '')
+    return { ok: true }
   })
 }
 

@@ -718,9 +718,18 @@ export class LocalAIService implements AIService {
           : 'The group was addressed generally; contribute only what your perspective genuinely adds.')
       )
     }
+    if (!isGroupRouting) {
+      systemParts.push(
+        'Inline visuals in chat: when a diagram or chart helps, embed it in your markdown reply (bubble and main chat both render these). ' +
+        'For process/structure diagrams, use a fenced code block with language mermaid (flowchart, sequence, mindmap, etc.). ' +
+        'For numeric comparisons, use a fenced code block with language chart containing JSON of shape ' +
+        '{"type":"bar"|"line"|"pie","title":"optional","labels":["A","B"],"values":[1,2]} — labels and values must be the same length. ' +
+        'Prefer mermaid for relationships/flows and chart for quantitative series. Do not invent fake precision; use tool-sourced numbers when available.'
+      )
+    }
     if (!isGroupRouting && this.options.saveCustomBrandedReport && toolIsAllowed('save_custom_branded_report_pdf')) {
       systemParts.push(
-        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. The PDF uses FinoCurve branding and saves to documents when storage is configured.'
+        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. Use the same chart JSON shape as inline ```chart blocks. The PDF uses FinoCurve branding and saves to documents when storage is configured.'
       )
     }
     if (!isGroupRouting && this.options.saveCustomCsvDocument && toolIsAllowed('save_custom_csv_document')) {

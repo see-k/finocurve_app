@@ -10,6 +10,7 @@ import {
   ComposableMap,
   Geographies,
   Geography,
+  type PreparedFeature,
 } from '@vnedyalk0v/react19-simple-maps'
 import { Tooltip as ReactTooltip } from 'react-tooltip'
 import geographyData from '@/data/countries-110m.json'
@@ -183,7 +184,7 @@ export default function WorldMap({ countryExposure, totalValue, onCountryClick }
       >
         <Geographies geography={GEO_DATA}>
           {({ geographies }) =>
-            geographies.map((geo) => {
+            (geographies as PreparedFeature[]).map((geo) => {
               const numId = geo.id || geo.properties?.['ISO_A3_EH']
               const entry = numericExposure[numId]
               const pct = entry?.pct ?? 0

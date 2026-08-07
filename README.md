@@ -46,9 +46,10 @@ This repository is intended as a **source-available trust surface** for the Fino
 - **Portfolio Dashboard** — track assets, allocations, and performance in one place
 - **Risk Analysis** — explore concentration, risk-adjusted performance, and portfolio blindspots
 - **Asset & Loan Tracking** — manage both investments and liabilities
+- **Markets & News** — TradingView charting, market widgets, and financial news
+- **Enterprise mode** — consolidated institutional balances, activity, and connection health via Finocurve Service
 - **Reports & Documents** — generate and review financial reports and uploaded documents
-- **Markets & News** — stay current with financial news and charting workflows
-- **Optional Local AI Assistant** — ask questions about your portfolio and analyze documents locally or with configured providers
+- **Optional Local AI Assistant** — ask questions about your portfolio and analyze documents locally or with configured providers; replies can include Mermaid diagrams and bar/line/pie charts inline in chat
 - **Optional MCP / A2A hooks** — connect the app to local agent tooling workflows
 
 ## Tech stack
@@ -57,7 +58,7 @@ This repository is intended as a **source-available trust surface** for the Fino
 - **Desktop runtime:** Electron 41
 - **Build tool:** Vite 8
 - **Language:** TypeScript
-- **Charts / visualization:** Recharts
+- **Charts / visualization:** Recharts, Mermaid (in-chat AI diagrams)
 - **Icons:** Lucide React
 
 ## Getting started
@@ -192,13 +193,17 @@ You usually only lose data if:
 
 ## Screenshots
 
-| Dashboard | Market Analysis |
-|-----------|-----------------|
-| ![Dashboard](public/images/dashboard-two-col.png) | ![Markets](public/images/markets-tradingview.png) |
+| Dashboard | Portfolio |
+|-----------|-----------|
+| ![Dashboard](public/images/dashboard.png) | ![Portfolio](public/images/portfolio.png) |
 
-| Portfolio | News |
-|-----------|------|
-| ![Portfolio](public/images/portfolio-with-bg.png) | ![News](public/images/markets-news-tab.png) |
+| Markets | Risk Analysis |
+|---------|---------------|
+| ![Markets](public/images/markets-chart.png) | ![Risk Analysis](public/images/risk.png) |
+
+| News & Data |
+|-------------|
+| ![News](public/images/news.png) |
 
 ## Current status
 

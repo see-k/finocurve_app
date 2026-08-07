@@ -62,6 +62,8 @@ export type EnterpriseBalanceProduct = {
   balances: Array<Record<string, unknown>>
   crypto?: Array<{ asset: string; amount: number; product: string }>
   error?: unknown
+  /** When true, product is shown but omitted from aggregate.total_usd. */
+  exclude_from_totals?: boolean
 }
 
 export type EnterpriseBalances = {

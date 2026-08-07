@@ -1,10 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Conversation, ConversationInput, ConversationMessage } from '../types/Conversation'
 import {
   CONVERSATIONS_STORAGE_KEY,
   getCoreDataItem,
   setCoreDataItem,
 } from '../lib/coreDataStorage'
+import { usePreferences } from './usePreferences'
+
+/** Stable id for the signed-in profile; conversations are archived/restored per identity on sign-in/out. */
+function currentIdentity(userEmail?: string, isGuest?: boolean): string {
+  const email = userEmail?.trim().toLowerCase()
+  if (email) return email
+  return isGuest ? 'guest' : 'local'
+}
 
 function load(): Conversation[] {
   try {
@@ -46,9 +54,22 @@ function makeId(): string {
 
 /** SQLite-backed CRUD store with a synchronous local compatibility cache. */
 export function useConversations() {
+  const { prefs } = usePreferences()
+  const identity = currentIdentity(prefs.userEmail, prefs.isGuest)
   const [conversations, setConversations] = useState<Conversation[]>(load)
+  // When the signed-in profile changes, the active storage key has already been
+  // swapped by archive/restore. Reload from it instead of persisting the
+  // previous profile's in-memory threads back over the freshly scoped data.
+  const lastHandledIdentityRef = useRef(identity)
 
-  useEffect(() => { save(conversations) }, [conversations])
+  useEffect(() => {
+    if (lastHandledIdentityRef.current !== identity) {
+      lastHandledIdentityRef.current = identity
+      setConversations(load())
+      return
+    }
+    save(conversations)
+  }, [identity, conversations])
 
   const getConversation = useCallback(
     (id: string) => conversations.find((c) => c.id === id),

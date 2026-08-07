@@ -164,6 +164,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   trackerBackupNow: () => ipcRenderer.invoke('tracker-backup-now'),
   trackerSyncNow: () => ipcRenderer.invoke('tracker-sync-now'),
   trackerRunStartupSync: () => ipcRenderer.invoke('tracker-run-startup-sync'),
+  trackerArchiveForEmail: (email: string) => ipcRenderer.invoke('tracker-archive-for-email', email),
+  trackerHasArchiveForEmail: (email: string) =>
+    ipcRenderer.invoke('tracker-has-archive-for-email', email),
+  trackerRestoreForEmail: (email: string) => ipcRenderer.invoke('tracker-restore-for-email', email),
+  trackerClearActive: () => ipcRenderer.invoke('tracker-clear-active'),
+  trackerRemoveArchiveForEmail: (email: string) =>
+    ipcRenderer.invoke('tracker-remove-archive-for-email', email),
 })
 
 // Expose MCP API for Model Context Protocol server management

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Building2, Camera, CircleDollarSign, Coins, Database, ExternalLink, FileText, RefreshCw, ScrollText, Search, ShieldCheck } from 'lucide-react'
+import { Activity, Building2, Camera, ChevronLeft, ChevronRight, CircleDollarSign, Coins, Database, ExternalLink, FileText, RefreshCw, ScrollText, Search, ShieldCheck } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   enterpriseFetch, getEnterpriseSource, type BalanceSnapshot, type EnterpriseBalances,
@@ -11,9 +11,95 @@ type EnterprisePage = 'overview' | 'balances' | 'transactions' | 'connections'
 type TransactionsResponse = { by_product: Array<{ product: string; institution_name?: string; account_name?: string; transactions?: Omit<EnterpriseTransaction, 'product' | 'institution' | 'account'>[]; error?: unknown }> }
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+const moneyExact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const compactMoney = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 })
 const quantity = new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 })
-const productNames: Record<string, string> = { teller: 'Teller', schwab: 'Charles Schwab', coinbase: 'Coinbase', alpaca: 'Alpaca', binance_us: 'Binance US', kalshi: 'Kalshi' }
+const TX_PAGE_SIZE = 25
+const productNames: Record<string, string> = {
+  simplefin: 'SimpleFIN',
+  teller: 'Teller',
+  schwab: 'Charles Schwab',
+  coinbase: 'Coinbase',
+  alpaca: 'Alpaca',
+  binance_us: 'Binance US',
+  kalshi: 'Kalshi',
+}
+
+type BalanceColumn = {
+  label: string
+  align?: 'numeric'
+  format: (row: Record<string, unknown>) => string
+}
+
+const formatUsd = (value: unknown) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? moneyExact.format(n) : '—'
+}
+
+const formatQty = (value: unknown) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? quantity.format(n) : '—'
+}
+
+const textField = (value: unknown, fallback = '—') => {
+  if (value == null || value === '') return fallback
+  return String(value)
+}
+
+/** Provider-specific account columns — same field map as Finocurve Service Aggregate Balance. */
+function balanceColumnsFor(product: string): BalanceColumn[] {
+  switch (product) {
+    case 'simplefin':
+    case 'teller':
+      return [
+        { label: 'Account', format: row => textField(row.account_name ?? row.account_id) },
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance) },
+        { label: 'Available', align: 'numeric', format: row => (row.available == null ? '—' : formatUsd(row.available)) },
+        { label: 'Currency', format: row => textField(row.currency) },
+      ]
+    case 'schwab':
+      return [
+        { label: 'Account', format: row => textField(row.account_number) },
+        { label: 'Type', format: row => textField(row.account_type) },
+        { label: 'Equity', align: 'numeric', format: row => formatUsd(row.equity) },
+        { label: 'Cash', align: 'numeric', format: row => formatUsd(row.cash_balance) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'alpaca':
+      return [
+        { label: 'Account', format: row => textField(row.account_number) },
+        { label: 'Portfolio', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
+        { label: 'Cash', align: 'numeric', format: row => formatUsd(row.cash) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'kalshi':
+      return [
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance) },
+        { label: 'Portfolio value', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'binance_us':
+      return [
+        { label: 'Asset', format: row => textField(row.asset) },
+        { label: 'Available', align: 'numeric', format: row => formatQty(row.free) },
+        { label: 'Locked/Hold', align: 'numeric', format: row => formatQty(row.locked) },
+        { label: 'Total', align: 'numeric', format: row => formatQty(row.total) },
+      ]
+    case 'coinbase':
+      return [
+        { label: 'Asset', format: row => textField(row.currency) },
+        { label: 'Available', align: 'numeric', format: row => formatQty(row.available) },
+        { label: 'Locked/Hold', align: 'numeric', format: row => formatQty(row.hold) },
+        { label: 'Total', align: 'numeric', format: row => formatQty(row.total) },
+      ]
+    default:
+      return [
+        { label: 'Account', format: row => textField(row.account_name ?? row.account_id ?? row.account_number ?? row.asset ?? row.currency) },
+        { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance ?? row.total ?? row.equity ?? row.portfolio_value) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+  }
+}
 const reportDownloads = [
   { path: '/api/reports/balances.pdf', title: 'Balances report', detail: 'Consolidated balance summary (PDF)' },
   { path: '/api/reports/transactions.pdf', title: 'Transactions report', detail: 'Institutional activity export (PDF)' },
@@ -21,7 +107,8 @@ const reportDownloads = [
 ]
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })
 const categoryLabel = (category: string) => category.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
-const ENTERPRISE_BANNER_BG = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1287&auto=format&fit=crop'
+/** Page-level hero treatment — skyline, distinct from the mountain used on portfolio surfaces */
+const ENTERPRISE_BG = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1600&auto=format&fit=crop'
 
 function Citation({ path, label }: { path: string; label: string }) {
   const source = getEnterpriseSource(path, label)
@@ -39,6 +126,7 @@ export default function EnterpriseScreen() {
   const [error, setError] = useState('')
   const [txQuery, setTxQuery] = useState('')
   const [txInstitution, setTxInstitution] = useState('all')
+  const [txPage, setTxPage] = useState(0)
   const [snapshotting, setSnapshotting] = useState(false)
   const requestSeq = useRef(0)
 
@@ -66,9 +154,10 @@ export default function EnterpriseScreen() {
         if (seq !== requestSeq.current) return
         const groups = data.by_product ?? []
         setTransactionIssues(groups.filter(group => group.error).map(group => `${group.institution_name ?? productNames[group.product] ?? group.product}: provider request failed`))
+        // API returns per-product groups; flatten then sort so newest dates win across institutions.
         setTransactions(groups.flatMap(group => (group.transactions ?? []).map(transaction => ({
           ...transaction, product: group.product, institution: group.institution_name ?? '—', account: group.account_name ?? '—',
-        }))))
+        }))).sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? ''))))
       }
     } catch (reason) {
       if (seq !== requestSeq.current) return
@@ -106,9 +195,23 @@ export default function EnterpriseScreen() {
   const cryptoHoldings = balances?.aggregate.crypto ?? []
   const pageDataReady = page === 'transactions' ? transactions !== null : page === 'connections' ? connections !== null : balances !== null
 
+  const institutions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const transaction of transactions ?? []) {
+      const name = transaction.institution
+      if (!name || name === '—') continue
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [transactions])
+
+  const institutionTransactions = useMemo(() =>
+    (transactions ?? []).filter(transaction => txInstitution === 'all' || transaction.institution === txInstitution),
+  [transactions, txInstitution])
+
   const cashFlow = useMemo(() => {
     const months = new Map<string, { inflow: number; outflow: number }>()
-    for (const transaction of transactions ?? []) {
+    for (const transaction of institutionTransactions) {
       const amount = Number(transaction.amount) || 0
       const month = (transaction.date || '').slice(0, 7)
       if (!/^\d{4}-\d{2}$/.test(month)) continue
@@ -121,29 +224,40 @@ export default function EnterpriseScreen() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-6)
       .map(([month, totals]) => ({ month, inflow: Math.round(totals.inflow * 100) / 100, outflow: Math.round(totals.outflow * 100) / 100 }))
-  }, [transactions])
+  }, [institutionTransactions])
 
   const topCategories = useMemo(() => {
     const totals = new Map<string, number>()
-    for (const transaction of transactions ?? []) {
+    for (const transaction of institutionTransactions) {
       const amount = Number(transaction.amount) || 0
       if (amount >= 0) continue
       const category = transaction.category || 'uncategorized'
       totals.set(category, (totals.get(category) ?? 0) + -amount)
     }
     return Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6)
-  }, [transactions])
-
-  const institutions = useMemo(() =>
-    Array.from(new Set((transactions ?? []).map(transaction => transaction.institution).filter(name => name && name !== '—'))).sort(),
-  [transactions])
+  }, [institutionTransactions])
 
   const visibleTransactions = useMemo(() => {
     const query = txQuery.trim().toLowerCase()
-    return (transactions ?? []).filter(transaction =>
-      (txInstitution === 'all' || transaction.institution === txInstitution) &&
-      (!query || [transaction.description, transaction.counterparty, transaction.category, transaction.account, transaction.institution].join(' ').toLowerCase().includes(query)))
-  }, [transactions, txQuery, txInstitution])
+    return institutionTransactions.filter(transaction =>
+      !query || [transaction.description, transaction.counterparty, transaction.category, transaction.account, transaction.institution].join(' ').toLowerCase().includes(query))
+  }, [institutionTransactions, txQuery])
+
+  const txTotalPages = Math.max(1, Math.ceil(visibleTransactions.length / TX_PAGE_SIZE))
+  const safeTxPage = Math.min(txPage, txTotalPages - 1)
+  const pagedTransactions = useMemo(() => {
+    const start = safeTxPage * TX_PAGE_SIZE
+    return visibleTransactions.slice(start, start + TX_PAGE_SIZE)
+  }, [visibleTransactions, safeTxPage])
+
+  useEffect(() => { setTxPage(0) }, [txInstitution, txQuery])
+  useEffect(() => {
+    if (txPage > txTotalPages - 1) setTxPage(Math.max(0, txTotalPages - 1))
+  }, [txPage, txTotalPages])
+
+  const selectInstitution = useCallback((name: string) => {
+    setTxInstitution(name)
+  }, [])
 
   const recordSnapshot = useCallback(async () => {
     setSnapshotting(true)
@@ -166,15 +280,17 @@ export default function EnterpriseScreen() {
 
   return (
     <div className="enterprise-screen">
-      <section className="enterprise-banner" aria-label="Enterprise overview">
-        <img src={ENTERPRISE_BANNER_BG} alt="" />
-        <div className="enterprise-banner-content">
+      <div className="enterprise-bg" aria-hidden>
+        <img src={ENTERPRISE_BG} alt="" className="enterprise-bg__img" />
+        <div className="enterprise-bg__overlay" />
+      </div>
+
+      <header className="enterprise-header">
+        <div>
           <span className="enterprise-eyebrow"><Building2 size={13} /> Enterprise</span>
           <h1>Institutional intelligence</h1>
           <p>Consolidated balances, activity, and connection health from Finocurve Service.</p>
         </div>
-      </section>
-      <header className="enterprise-header">
         <button className="enterprise-refresh" onClick={() => void load(page, true)} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} />Refresh</button>
       </header>
 
@@ -206,29 +322,180 @@ export default function EnterpriseScreen() {
         </section>
       </>}
 
-      {page === 'balances' && balances && <section className="enterprise-card"><div className="enterprise-card-title"><div><span>Balances by source</span><small>Cash and portfolio values returned by connected products</small></div><Citation path="/api/reports/balances" label="Balance report" /></div><div className="enterprise-table-wrap"><table><thead><tr><th>Product</th><th>Institution</th><th>Accounts</th><th>Status</th><th className="numeric">Reported value</th></tr></thead><tbody>{products.map((product, index) => <tr key={`${product.product}-${index}`}><td>{productNames[product.product] ?? product.product}</td><td>{product.institution_name ?? '—'}</td><td>{product.balances.length}</td><td><span className={`status ${product.error ? 'error' : 'connected'}`}>{product.error ? 'Issue' : 'Reporting'}</span></td><td className="numeric"><strong>{money.format(product.total_usd)}</strong></td></tr>)}</tbody></table></div><p className="enterprise-description">Values are direct responses from each configured financial provider. Crypto quantities without a USD valuation are listed separately by the service.</p></section>}
+      {page === 'balances' && balances && (
+        <section className="enterprise-card">
+          <div className="enterprise-card-title">
+            <div>
+              <span>Balances by source</span>
+              <small>Cash and portfolio values returned by connected products</small>
+            </div>
+            <Citation path="/api/reports/balances" label="Balance report" />
+          </div>
+
+          {products.length === 0 ? (
+            <div className="enterprise-empty">No balance sources were reported.</div>
+          ) : (
+            <div className="enterprise-balance-sections">
+              {products.map((product, index) => {
+                const label = productNames[product.product] ?? product.product
+                const title = product.institution_name ? `${label} — ${product.institution_name}` : label
+                const columns = balanceColumnsFor(product.product)
+                const rows = product.balances ?? []
+                const cryptoRows = product.crypto ?? []
+                const subtotalLabel = product.product === 'coinbase' || product.product === 'binance_us'
+                  ? `${formatUsd(product.total_usd)} (USD)`
+                  : formatUsd(product.total_usd)
+
+                return (
+                  <article key={`${product.product}-${product.institution_name ?? ''}-${index}`} className="enterprise-balance-section">
+                    <div className="enterprise-balance-section__header">
+                      <div>
+                        <h3 className="enterprise-balance-section__title">{title}</h3>
+                        <span className={`status ${product.error ? 'error' : 'connected'}`}>
+                          {product.error ? 'Issue' : 'Reporting'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {product.error ? (
+                      <div className="enterprise-inline-warning">
+                        <strong>Provider request failed</strong>
+                        <span>{String(product.error)}</span>
+                      </div>
+                    ) : (
+                      <>
+                        {product.exclude_from_totals ? (
+                          <div className="enterprise-inline-warning">
+                            <strong>Excluded from the total below</strong>
+                            <span>This source is shown for reference but omitted from the consolidated USD total.</span>
+                          </div>
+                        ) : null}
+
+                        {rows.length > 0 ? (
+                          <div className="enterprise-table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  {columns.map(column => (
+                                    <th key={column.label} className={column.align === 'numeric' ? 'numeric' : undefined}>
+                                      {column.label}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((row, rowIndex) => (
+                                  <tr key={`${product.product}-${rowIndex}`}>
+                                    {columns.map((column, columnIndex) => (
+                                      <td
+                                        key={`${column.label}-${columnIndex}`}
+                                        className={column.align === 'numeric' ? 'numeric' : undefined}
+                                      >
+                                        {columnIndex === 0 ? <strong>{column.format(row)}</strong> : column.format(row)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="enterprise-balance-section__empty">No balances</p>
+                        )}
+
+                        {cryptoRows.length > 0 ? (
+                          <ul className="enterprise-balance-crypto">
+                            {cryptoRows.map((holding, holdingIndex) => (
+                              <li key={`${holding.asset}-${holdingIndex}`}>
+                                {holding.asset}: {formatQty(holding.amount)}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+
+                        <div className="enterprise-balance-section__subtotal">Subtotal: {subtotalLabel}</div>
+                      </>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="enterprise-balance-total">
+            <span>Total USD balance</span>
+            <strong>{formatUsd(balances.aggregate.total_usd)}</strong>
+          </div>
+          <p className="enterprise-description">
+            Values are direct responses from each configured financial provider. Crypto quantities without a USD valuation are listed separately by the service.
+          </p>
+        </section>
+      )}
 
       {page === 'balances' && balances && cryptoHoldings.length > 0 && <section className="enterprise-card enterprise-stack-card"><div className="enterprise-card-title"><div><span>Crypto holdings</span><small>Asset quantities reported without a USD valuation</small></div><Coins size={18} /></div><div className="enterprise-table-wrap"><table><thead><tr><th>Asset</th><th>Source</th><th className="numeric">Quantity</th></tr></thead><tbody>{cryptoHoldings.map((holding, index) => <tr key={`${holding.product}-${holding.asset}-${index}`}><td><strong>{holding.asset}</strong></td><td>{productNames[holding.product] ?? holding.product}</td><td className="numeric">{quantity.format(Number(holding.amount) || 0)}</td></tr>)}</tbody></table></div><p className="enterprise-description">The service reports these quantities as-is; valuing them would require a market data source.</p></section>}
 
-      {page === 'transactions' && transactions && <>
-        {transactions.length > 0 && <section className="enterprise-insights">
-          <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Monthly cash flow</span><small>Money in vs money out from reported activity</small></div><Activity size={18} /></div>
-            {cashFlow.length ? <ResponsiveContainer width="100%" height={220}><BarChart data={cashFlow} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} barGap={2}><CartesianGrid stroke="var(--divider)" vertical={false} /><XAxis dataKey="month" tickFormatter={monthLabel} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tickFormatter={value => compactMoney.format(Number(value))} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={70} /><Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--divider)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-secondary)' }} labelFormatter={value => monthLabel(String(value))} formatter={(value, name) => [money.format(Number(value)), name]} /><Legend iconType="circle" iconSize={8} formatter={value => <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{value}</span>} /><Bar dataKey="inflow" name="Money in" fill="var(--enterprise-inflow)" radius={[4, 4, 0, 0]} maxBarSize={26} /><Bar dataKey="outflow" name="Money out" fill="var(--enterprise-outflow)" radius={[4, 4, 0, 0]} maxBarSize={26} /></BarChart></ResponsiveContainer> : <div className="enterprise-empty">No dated activity to chart.</div>}
-          </article>
-          <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Top spending categories</span><small>Outflows grouped by reported category</small></div><CircleDollarSign size={18} /></div>
-            {topCategories.length ? <div className="enterprise-allocation">{topCategories.map(([category, total]) => <div key={category}><div><span>{categoryLabel(category)}</span><strong>{money.format(total)}</strong></div><i><b style={{ width: `${Math.max(3, total / topCategories[0][1] * 100)}%` }} /></i></div>)}</div> : <div className="enterprise-empty">No categorized outflows yet.</div>}
-          </article>
-        </section>}
-        <section className="enterprise-card"><div className="enterprise-card-title"><div><span>Institutional activity</span><small>Latest normalized transactions across enrolled accounts</small></div><Citation path="/api/reports/transactions" label="Transaction report" /></div>
-          {transactionIssues.length > 0 && <div className="enterprise-inline-warning"><strong>Some institutions could not return activity</strong><span>{transactionIssues.join(' · ')}</span></div>}
-          {transactions.length > 0 && <div className="enterprise-filters">
-            <div className="enterprise-search"><Search size={14} /><input value={txQuery} onChange={event => setTxQuery(event.target.value)} placeholder="Search description, counterparty, category…" aria-label="Search transactions" /></div>
-            <select value={txInstitution} onChange={event => setTxInstitution(event.target.value)} aria-label="Filter by institution"><option value="all">All institutions</option>{institutions.map(name => <option key={name} value={name}>{name}</option>)}</select>
-            <span className="enterprise-filter-count">{visibleTransactions.length.toLocaleString()} of {transactions.length.toLocaleString()}</span>
-          </div>}
-          <div className="enterprise-table-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Institution</th><th>Category</th><th>Status</th><th className="numeric">Amount</th></tr></thead><tbody>{visibleTransactions.length ? visibleTransactions.map((transaction, index) => <tr key={transaction.id || index}><td>{transaction.date}</td><td><strong>{transaction.description || transaction.counterparty || 'Transaction'}</strong><small>{transaction.account}</small></td><td>{transaction.institution}</td><td>{transaction.category || '—'}</td><td><span className="status connected">{transaction.status || 'posted'}</span></td><td className="numeric">{money.format(Number(transaction.amount) || 0)}</td></tr>) : <tr><td colSpan={6} className="enterprise-empty">{transactions.length ? 'No transactions match your filters.' : transactionIssues.length ? 'No activity could be loaded from the available institutions.' : 'No transactions were reported by connected accounts.'}</td></tr>}</tbody></table></div>
-        </section>
-      </>}
+      {page === 'transactions' && transactions && (
+        <div className="enterprise-tx-layout">
+          <aside className="enterprise-tx-nav" aria-label="Institutions">
+            <div className="enterprise-tx-nav__header">
+              <Building2 size={14} />
+              <span>Institutions</span>
+            </div>
+            <nav className="enterprise-tx-nav__list">
+              <button
+                type="button"
+                className={`enterprise-tx-nav__item${txInstitution === 'all' ? ' active' : ''}`}
+                aria-current={txInstitution === 'all' ? 'true' : undefined}
+                onClick={() => selectInstitution('all')}
+              >
+                <span className="enterprise-tx-nav__label">All institutions</span>
+                <span className="enterprise-tx-nav__count">{(transactions?.length ?? 0).toLocaleString()}</span>
+              </button>
+              {institutions.map(([name, count]) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`enterprise-tx-nav__item${txInstitution === name ? ' active' : ''}`}
+                  aria-current={txInstitution === name ? 'true' : undefined}
+                  onClick={() => selectInstitution(name)}
+                >
+                  <span className="enterprise-tx-nav__label">{name}</span>
+                  <span className="enterprise-tx-nav__count">{count.toLocaleString()}</span>
+                </button>
+              ))}
+            </nav>
+          </aside>
+
+          <div className="enterprise-tx-main">
+            {institutionTransactions.length > 0 && <section className="enterprise-insights">
+              <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Monthly cash flow</span><small>Money in vs money out from reported activity</small></div><Activity size={18} /></div>
+                {cashFlow.length ? <ResponsiveContainer width="100%" height={220}><BarChart data={cashFlow} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} barGap={2}><CartesianGrid stroke="var(--divider)" vertical={false} /><XAxis dataKey="month" tickFormatter={monthLabel} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tickFormatter={value => compactMoney.format(Number(value))} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={70} /><Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--divider)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-secondary)' }} labelFormatter={value => monthLabel(String(value))} formatter={(value, name) => [money.format(Number(value)), name]} /><Legend iconType="circle" iconSize={8} formatter={value => <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{value}</span>} /><Bar dataKey="inflow" name="Money in" fill="var(--enterprise-inflow)" radius={[4, 4, 0, 0]} maxBarSize={26} /><Bar dataKey="outflow" name="Money out" fill="var(--enterprise-outflow)" radius={[4, 4, 0, 0]} maxBarSize={26} /></BarChart></ResponsiveContainer> : <div className="enterprise-empty">No dated activity to chart.</div>}
+              </article>
+              <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Top spending categories</span><small>Outflows grouped by reported category</small></div><CircleDollarSign size={18} /></div>
+                {topCategories.length ? <div className="enterprise-allocation">{topCategories.map(([category, total]) => <div key={category}><div><span>{categoryLabel(category)}</span><strong>{money.format(total)}</strong></div><i><b style={{ width: `${Math.max(3, total / topCategories[0][1] * 100)}%` }} /></i></div>)}</div> : <div className="enterprise-empty">No categorized outflows yet.</div>}
+              </article>
+            </section>}
+            <section className="enterprise-card"><div className="enterprise-card-title"><div><span>Institutional activity</span><small>{txInstitution === 'all' ? 'Latest normalized transactions across enrolled accounts' : `Latest activity for ${txInstitution}`}</small></div><Citation path="/api/reports/transactions" label="Transaction report" /></div>
+              {transactionIssues.length > 0 && <div className="enterprise-inline-warning"><strong>Some institutions could not return activity</strong><span>{transactionIssues.join(' · ')}</span></div>}
+              {transactions.length > 0 && <div className="enterprise-filters">
+                <div className="enterprise-search"><Search size={14} /><input value={txQuery} onChange={event => setTxQuery(event.target.value)} placeholder="Search description, counterparty, category…" aria-label="Search transactions" /></div>
+                <span className="enterprise-filter-count">{visibleTransactions.length.toLocaleString()} of {institutionTransactions.length.toLocaleString()}</span>
+              </div>}
+              <div className="enterprise-table-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Institution</th><th>Category</th><th>Status</th><th className="numeric">Amount</th></tr></thead><tbody>{pagedTransactions.length ? pagedTransactions.map((transaction, index) => <tr key={transaction.id || `${safeTxPage}-${index}`}><td>{transaction.date}</td><td><strong>{transaction.description || transaction.counterparty || 'Transaction'}</strong><small>{transaction.account}</small></td><td>{transaction.institution}</td><td>{transaction.category || '—'}</td><td><span className="status connected">{transaction.status || 'posted'}</span></td><td className="numeric">{money.format(Number(transaction.amount) || 0)}</td></tr>) : <tr><td colSpan={6} className="enterprise-empty">{transactions.length ? 'No transactions match your filters.' : transactionIssues.length ? 'No activity could be loaded from the available institutions.' : 'No transactions were reported by connected accounts.'}</td></tr>}</tbody></table></div>
+              {visibleTransactions.length > 0 && <div className="enterprise-pagination">
+                <span className="enterprise-pagination__meta">
+                  {`${(safeTxPage * TX_PAGE_SIZE) + 1}–${Math.min((safeTxPage + 1) * TX_PAGE_SIZE, visibleTransactions.length)} of ${visibleTransactions.length.toLocaleString()}`}
+                </span>
+                <div className="enterprise-pagination__controls">
+                  <button type="button" onClick={() => setTxPage(current => Math.max(0, current - 1))} disabled={safeTxPage <= 0} aria-label="Previous page"><ChevronLeft size={15} /></button>
+                  <span>Page {safeTxPage + 1} of {txTotalPages}</span>
+                  <button type="button" onClick={() => setTxPage(current => Math.min(txTotalPages - 1, current + 1))} disabled={safeTxPage >= txTotalPages - 1} aria-label="Next page"><ChevronRight size={15} /></button>
+                </div>
+              </div>}
+            </section>
+          </div>
+        </div>
+      )}
 
       {page === 'connections' && connections && <section className="enterprise-card"><div className="enterprise-card-title"><div><span>Connection health</span><small>Live availability of enterprise data providers</small></div><ShieldCheck size={18} /></div><div className="enterprise-connections">{connections.map(connection => <article key={`${connection.product}-${connection.institution_name ?? ''}`}><span className={`connection-dot ${connection.status}`} /><div><strong>{connection.institution_name ?? connection.label}</strong><small title={connection.error ? String(connection.error) : undefined}>{connectionMessage(connection)}</small></div><span className={`status ${connection.status}`}>{connection.status.replace('_', ' ')}</span></article>)}</div><p className="enterprise-description"><ScrollText size={13} /> Status is checked live through Finocurve Service. A provider issue does not disable enterprise mode while the service itself remains reachable. <Citation path="/api/health/connections" label="Connection health" /></p></section>}
     </div>

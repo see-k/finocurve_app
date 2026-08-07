@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line,
@@ -178,10 +178,19 @@ export default function TrackerScreen() {
   const [editGoalDate, setEditGoalDate] = useState('')
   const [editGoalSource, setEditGoalSource] = useState<TrackerGoalProgressSource>('net_worth')
   const [goalExpandOverrides, setGoalExpandOverrides] = useState<Record<string, boolean>>(loadGoalExpandOverrides)
+  // Expand overrides are archived per profile with session keys. Reload when the
+  // signed-in identity changes so we don't persist another profile's map.
+  const expandIdentity = (prefs.userEmail?.trim().toLowerCase() || (prefs.isGuest ? 'guest' : 'local'))
+  const lastExpandIdentityRef = useRef<string | null>(null)
 
   useEffect(() => {
+    if (lastExpandIdentityRef.current !== expandIdentity) {
+      lastExpandIdentityRef.current = expandIdentity
+      setGoalExpandOverrides(loadGoalExpandOverrides())
+      return
+    }
     saveGoalExpandOverrides(goalExpandOverrides)
-  }, [goalExpandOverrides])
+  }, [expandIdentity, goalExpandOverrides])
 
   useEffect(() => {
     const ids = new Set(goals.map((x) => x.id))

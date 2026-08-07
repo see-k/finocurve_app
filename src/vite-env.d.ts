@@ -215,6 +215,11 @@ interface ElectronAPI {
   trackerBackupNow?: () => Promise<{ ok: boolean; error?: string }>
   trackerSyncNow?: () => Promise<{ ok: boolean; reason?: string }>
   trackerRunStartupSync?: () => Promise<{ ok: boolean; reason?: string }>
+  trackerArchiveForEmail?: (email: string) => Promise<{ ok: boolean }>
+  trackerHasArchiveForEmail?: (email: string) => Promise<{ ok: boolean; hasArchive: boolean }>
+  trackerRestoreForEmail?: (email: string) => Promise<{ ok: boolean }>
+  trackerClearActive?: () => Promise<{ ok: boolean }>
+  trackerRemoveArchiveForEmail?: (email: string) => Promise<{ ok: boolean }>
 }
 
 interface TrackerNetWorthEntryPayload {

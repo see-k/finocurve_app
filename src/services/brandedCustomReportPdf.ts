@@ -2,9 +2,11 @@
  * Branded custom report PDF for AI-generated content.
  * Visual language matches riskReportPdf (letterhead, logo placement, palette).
  * Uses named jsPDF import for Electron main / Node resolution.
+ * Chart payloads share ChartSpec with in-chat ```chart blocks.
  */
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import type { ChartSpec } from '../ai/chartSpec'
 
 const C = {
   brand: [99, 102, 241] as [number, number, number],
@@ -33,10 +35,7 @@ export interface BrandedCustomReportTable {
   rows: string[][]
 }
 
-export type BrandedCustomReportChart =
-  | { type: 'bar'; title?: string; labels: string[]; values: number[] }
-  | { type: 'line'; title?: string; labels: string[]; values: number[] }
-  | { type: 'pie'; title?: string; labels: string[]; values: number[] }
+export type BrandedCustomReportChart = ChartSpec
 
 export interface BrandedCustomReportSection {
   heading: string

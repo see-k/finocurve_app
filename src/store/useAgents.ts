@@ -1,7 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Agent, AgentInput } from '../types/Agent'
 import { createDefaultAgent, isDefaultAgent } from '../types/Agent'
 import { AGENTS_STORAGE_KEY, getCoreDataItem, setCoreDataItem } from '../lib/coreDataStorage'
+import { usePreferences } from './usePreferences'
+
+/** Stable id for the signed-in profile; agents are archived/restored per identity on sign-in/out. */
+function currentIdentity(userEmail?: string, isGuest?: boolean): string {
+  const email = userEmail?.trim().toLowerCase()
+  if (email) return email
+  return isGuest ? 'guest' : 'local'
+}
 
 /**
  * Guarantee the built-in default assistant always exists (fresh installs and migration for existing
@@ -30,9 +38,22 @@ function makeId(): string {
 
 /** SQLite-backed CRUD store with a synchronous local compatibility cache. */
 export function useAgents() {
+  const { prefs } = usePreferences()
+  const identity = currentIdentity(prefs.userEmail, prefs.isGuest)
   const [agents, setAgents] = useState<Agent[]>(load)
+  // When the signed-in profile changes, the active storage key has already been
+  // swapped by archive/restore. Reload from it instead of persisting the
+  // previous profile's in-memory experts back over the freshly scoped data.
+  const lastHandledIdentityRef = useRef(identity)
 
-  useEffect(() => { save(agents) }, [agents])
+  useEffect(() => {
+    if (lastHandledIdentityRef.current !== identity) {
+      lastHandledIdentityRef.current = identity
+      setAgents(load())
+      return
+    }
+    save(agents)
+  }, [identity, agents])
 
   const getAgent = useCallback(
     (id: string) => agents.find((a) => a.id === id),

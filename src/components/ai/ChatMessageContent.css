@@ -131,6 +131,51 @@
   background: var(--glass-bg);
 }
 
+/* Shared inline visuals (```chart / ```mermaid) for bubble + main chat */
+.ai-chat-chart,
+.ai-chat-mermaid {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  overflow: auto;
+  max-width: 100%;
+}
+.ai-chat-chart__title {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ai-chat-chart__plot {
+  width: 100%;
+  min-width: 0;
+}
+.ai-chat-chart--error .ai-chat-chart__fallback-label,
+.ai-chat-mermaid--error .ai-chat-mermaid__fallback-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.ai-chat-mermaid--loading {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.ai-chat-mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.ai-chat-mermaid__fallback {
+  margin: 0;
+  padding: 8px;
+  background: var(--glass-bg-strong);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 11px;
+}
+
 .ai-chat-user-turn {
   display: flex;
   flex-direction: column;
