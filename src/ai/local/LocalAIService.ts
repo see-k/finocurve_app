@@ -729,7 +729,7 @@ export class LocalAIService implements AIService {
     }
     if (!isGroupRouting && this.options.saveCustomBrandedReport && toolIsAllowed('save_custom_branded_report_pdf')) {
       systemParts.push(
-        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. Use the same chart JSON shape as inline ```chart blocks. The PDF uses FinoCurve branding and saves to documents when storage is configured.'
+        'When the user asks for a PDF report, formal memo, or downloadable write-up, use save_custom_branded_report_pdf with a clear title and well-structured sections. You may attach tables (headers + row arrays) and charts (type bar, line, or pie with matching labels and numeric values) inside each section so figures appear after that section\'s narrative. Use the same chart JSON shape as inline ```chart blocks. The PDF uses the configured document branding (logo and company name) and saves to documents when storage is configured.'
       )
     }
     if (!isGroupRouting && this.options.saveCustomCsvDocument && toolIsAllowed('save_custom_csv_document')) {

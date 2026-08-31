@@ -29,6 +29,12 @@ import { buildCsvDocument, safeCsvBaseName } from '../src/services/csvDocumentEx
 import { writeLocalStorageFile } from './localStorageHandlers'
 import { uploadS3IfConfigured } from './s3Handlers'
 import {
+  readDocumentBranding,
+  resolveFooterLabel,
+  brandFileSlug,
+  hexToRgbTuple,
+} from './documentBranding'
+import {
   trackerAppendNetWorthAI,
   trackerGetNetWorthLogSummary,
   trackerGetGoalsSummary,
@@ -242,16 +248,25 @@ async function saveCustomBrandedReportForChat(payload: {
     )[]
   }[]
 }): Promise<string> {
-  const logo = getFinocurveLogoDataUrlForMain()
+  const branding = readDocumentBranding()
+  const logo = branding.logoPngDataUrl ?? getFinocurveLogoDataUrlForMain()
+  const coverNote = branding.companyName
+    ? `Prepared by ${branding.companyName}. Generated with FinoCurve.`
+    : undefined
   const pdf = generateBrandedCustomReportPdf({
     title: payload.title,
     subtitle: payload.subtitle,
     sections: payload.sections,
     logoDataUrl: logo,
+    footerLabel: resolveFooterLabel(branding),
+    brandColor: hexToRgbTuple(branding.accentColor) ?? undefined,
+    coverNote,
   })
   const dateStr = new Date().toISOString().slice(0, 10)
   const slug = safeReportFileSlug(payload.title)
-  const fileName = `FinoCurve_AI_Report_${dateStr}_${slug}.pdf`
+  const brandSlug = brandFileSlug(branding.companyName)
+  const prefix = brandSlug || 'FinoCurve'
+  const fileName = `${prefix}_AI_Report_${dateStr}_${slug}.pdf`
   const key = `${DOCUMENTS_PREFIX}${fileName}`
 
   const notes: string[] = []
@@ -276,8 +291,11 @@ async function saveCustomBrandedReportForChat(payload: {
   if (!savedAny) {
     return `Could not save the PDF. ${notes.join(' ')} Ask the user to configure local storage and/or S3 under Settings > Cloud Storage.`
   }
+  const brandingNote = branding.companyName
+    ? `Custom report PDF created with ${branding.companyName} branding.`
+    : 'Custom report PDF created with FinoCurve letterhead and branding.'
   return [
-    'Custom report PDF created with FinoCurve letterhead and branding.',
+    brandingNote,
     ...notes,
     'The file is listed under finocurve/documents/ in the app.',
   ].join('\n')
@@ -298,7 +316,9 @@ async function saveCustomCsvForChat(payload: {
   const bytes = new TextEncoder().encode(csvText)
   const dateStr = new Date().toISOString().slice(0, 10)
   const slug = safeCsvBaseName(payload.fileBaseName)
-  const fileName = `FinoCurve_AI_Data_${dateStr}_${slug}.csv`
+  const brandSlug = brandFileSlug(readDocumentBranding().companyName)
+  const prefix = brandSlug || 'FinoCurve'
+  const fileName = `${prefix}_AI_Data_${dateStr}_${slug}.csv`
   const key = `${DOCUMENTS_PREFIX}${fileName}`
 
   const notes: string[] = []

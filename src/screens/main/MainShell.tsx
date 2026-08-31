@@ -22,6 +22,7 @@ import RiskAnalysisScreen from '../detail/RiskAnalysisScreen'
 import LoanDetailScreen from '../detail/LoanDetailScreen'
 import AccountScreen from '../settings/AccountScreen'
 import EnterpriseServiceScreen from '../settings/EnterpriseServiceScreen'
+import DocumentBrandingScreen from '../settings/DocumentBrandingScreen'
 import CurrencyPickerScreen from '../settings/CurrencyPickerScreen'
 import CloudStorageScreen from '../settings/CloudStorageScreen'
 import TrackerStorageScreen from '../settings/TrackerStorageScreen'
@@ -186,6 +187,7 @@ export default function MainShell() {
     <Routes>
       <Route path="account" element={<AccountScreen />} />
       <Route path="enterprise" element={<EnterpriseServiceScreen />} />
+      <Route path="branding" element={<DocumentBrandingScreen />} />
       <Route path="theme" element={<ThemeScreen />} />
       <Route path="currency" element={<CurrencyPickerScreen />} />
       <Route path="cloud-storage" element={<Navigate to="s3" replace />} />

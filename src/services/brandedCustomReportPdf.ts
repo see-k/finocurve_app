@@ -54,6 +54,10 @@ export interface BrandedCustomReportOptions {
   logoDataUrl?: string | null
   /** Left footer text (default: FinoCurve Report) */
   footerLabel?: string
+  /** Accent color for document chrome (stripe, underlines, charts). Defaults to app brand. */
+  brandColor?: [number, number, number]
+  /** Cover-page info line. Defaults to the standard FinoCurve preparation note. */
+  coverNote?: string
 }
 
 function normalizeRow(headers: string[], row: string[]): string[] {
@@ -150,7 +154,8 @@ function renderBarChart(
   y: number,
   margin: number,
   cw: number,
-  chart: { title?: string; labels: string[]; values: number[] }
+  chart: { title?: string; labels: string[]; values: number[] },
+  brand: [number, number, number]
 ): number {
   let yy = y
   if (chart.title?.trim()) {
@@ -189,7 +194,7 @@ function renderBarChart(
     const top = Math.min(zeroY, yVal)
     const h = Math.abs(yVal - zeroY)
     if (h > 0.05) {
-      doc.setFillColor(...C.brand)
+      doc.setFillColor(...brand)
       doc.rect(x, top, barW, h, 'F')
     }
     doc.setFontSize(6)
@@ -211,7 +216,8 @@ function renderLineChart(
   y: number,
   margin: number,
   cw: number,
-  chart: { title?: string; labels: string[]; values: number[] }
+  chart: { title?: string; labels: string[]; values: number[] },
+  brand: [number, number, number]
 ): number {
   let yy = y
   if (chart.title?.trim()) {
@@ -253,12 +259,12 @@ function renderLineChart(
     pts.push({ x: px, y: py })
   }
 
-  doc.setDrawColor(...C.brand)
+  doc.setDrawColor(...brand)
   doc.setLineWidth(0.6)
   for (let i = 0; i < pts.length - 1; i++) {
     doc.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y)
   }
-  doc.setFillColor(...C.brand)
+  doc.setFillColor(...brand)
   for (const p of pts) {
     doc.circle(p.x, p.y, 0.9, 'F')
   }
@@ -342,16 +348,20 @@ function renderChartBlock(
   y: number,
   margin: number,
   cw: number,
-  chart: BrandedCustomReportChart
+  chart: BrandedCustomReportChart,
+  brand: [number, number, number]
 ): number {
-  if (chart.type === 'bar') return renderBarChart(doc, y, margin, cw, chart)
-  if (chart.type === 'line') return renderLineChart(doc, y, margin, cw, chart)
+  if (chart.type === 'bar') return renderBarChart(doc, y, margin, cw, chart, brand)
+  if (chart.type === 'line') return renderLineChart(doc, y, margin, cw, chart, brand)
   return renderPieChart(doc, y, margin, cw, chart)
 }
 
 export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions): Uint8Array {
   const { title, subtitle, sections, logoDataUrl: logoData } = opts
   const footerLabel = opts.footerLabel ?? 'FinoCurve Report'
+  const brand: [number, number, number] = opts.brandColor ?? C.brand
+  const coverNote = opts.coverNote
+    ?? 'This document was prepared in FinoCurve with the same branding as standard app reports.'
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()
@@ -385,7 +395,7 @@ export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions)
     doc.setTextColor(...C.dark)
     doc.text(sectionHeading, margin, y)
     y += 2
-    doc.setDrawColor(...C.brand)
+    doc.setDrawColor(...brand)
     doc.setLineWidth(0.8)
     doc.line(margin, y, margin + 40, y)
     y += 8
@@ -408,7 +418,7 @@ export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions)
   // ── Cover (aligned with risk report) ──
   doc.setFillColor(...C.dark)
   doc.rect(0, 0, pw, 80, 'F')
-  doc.setFillColor(...C.brand)
+  doc.setFillColor(...brand)
   doc.rect(0, 80, pw, 3, 'F')
 
   if (logoData) {
@@ -448,7 +458,7 @@ export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...C.muted)
-  doc.text('This document was prepared in FinoCurve with the same branding as standard app reports.', margin + 6, y + 6)
+  doc.text(coverNote.slice(0, 160), margin + 6, y + 6)
   doc.text('Content below reflects the analysis requested; review figures and assumptions before acting.', margin + 6, y + 14)
   y = 132
 
@@ -469,7 +479,7 @@ export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions)
     for (const c of charts) {
       if (!c.labels?.length || !c.values?.length || c.labels.length !== c.values.length) continue
       checkSpace(estimateChartHeight(c))
-      y = renderChartBlock(doc, y, margin, cw, c)
+      y = renderChartBlock(doc, y, margin, cw, c, brand)
     }
 
     y += 4
@@ -486,6 +496,7 @@ export function generateBrandedCustomReportPdf(opts: BrandedCustomReportOptions)
   const disclaimers = [
     'This report is for informational purposes only and does not constitute financial, investment, or tax advice.',
     'You should consult a qualified professional before making investment decisions.',
+    'Generated with FinoCurve.',
   ]
   for (const d of disclaimers) {
     const lines = doc.splitTextToSize(`• ${d}`, cw)

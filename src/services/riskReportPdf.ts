@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable'
 import type { RiskAnalysisResult, Asset, FinancialValueProvenance } from '../types'
 import { assetCurrentValue, assetGainLoss, assetGainLossPercent, isLoan, ASSET_TYPE_LABELS, SECTOR_LABELS } from '../types'
 import { formatProvenanceAsOf, getFinancialFreshness, VALUATION_METHOD_LABELS } from '../lib/financialProvenance'
+import { type DocumentBranding, resolveFooterLabel, hexToRgbTuple, brandFileSlug } from './documentBranding'
 
 // ── Colors ──
 const C = {
@@ -77,6 +78,8 @@ interface ReportOptions {
   documentInsights?: DocumentInsight[]
   /** Professional advanced analysis sections (no AI wording) */
   advancedAnalysis?: { sections: { title: string; content: string }[] }
+  /** Installation-level branding (logo, company name, accent). Falls back to FinoCurve identity. */
+  branding?: DocumentBranding
   /** When true, returns PDF as Uint8Array instead of triggering download */
   returnBlob?: boolean
 }
@@ -91,12 +94,21 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   let y = 0
 
   const riskColor = RISK_COLORS[risk.riskLevel] || C.brand
+  const branding = opts.branding
+  // Chrome accent (section underlines, progress bars) follows the client brand;
+  // risk-severity colors stay fixed/semantic.
+  const accent: [number, number, number] = hexToRgbTuple(branding?.accentColor) ?? C.brand
+  const footerLabel = resolveFooterLabel(branding)
 
-  // ── Load company logo ──
+  // ── Load logo (client brand logo when configured, else FinoCurve) ──
   let logoData: string | null = null
-  try {
-    logoData = await loadImageAsBase64('/images/finocurve-logo-transparent.png')
-  } catch { /* ignore */ }
+  if (branding?.logoPngDataUrl) {
+    logoData = branding.logoPngDataUrl
+  } else {
+    try {
+      logoData = await loadImageAsBase64('/images/finocurve-logo-transparent.png')
+    } catch { /* ignore */ }
+  }
 
   // ────────────────────────────────────
   // Helper functions
@@ -104,7 +116,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
   function addFooter() {
     doc.setFontSize(8)
     doc.setTextColor(...C.muted)
-    doc.text('FinoCurve Risk Report', margin, ph - 8)
+    doc.text(footerLabel, margin, ph - 8)
     doc.text(`Page ${doc.getNumberOfPages()}`, pw - margin, ph - 8, { align: 'right' })
   }
 
@@ -125,7 +137,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     doc.setTextColor(...C.dark)
     doc.text(title, margin, y)
     y += 2
-    doc.setDrawColor(...C.brand)
+    doc.setDrawColor(...accent)
     doc.setLineWidth(0.8)
     doc.line(margin, y, margin + 40, y)
     y += 8
@@ -354,7 +366,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C.text)
     doc.text(type, margin, y)
-    drawProgressBar(margin + 50, y - 3, 80, pct, C.brand)
+    drawProgressBar(margin + 50, y - 3, 80, pct, accent)
     doc.setFont('helvetica', 'bold')
     doc.text(`${pct}%`, margin + 135, y)
     y += 7
@@ -465,7 +477,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C.text)
     doc.text(lbl, margin, y)
-    drawProgressBar(margin + 50, y - 3, 80, pct, C.brand)
+    drawProgressBar(margin + 50, y - 3, 80, pct, accent)
     doc.setFont('helvetica', 'bold')
     doc.text(`${pct.toFixed(1)}%`, margin + 135, y)
     y += 7
@@ -802,7 +814,7 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
         doc.text(`${m.label} (${typeof m.value === 'number' ? m.value : m.value})`, margin, y)
         doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        doc.setTextColor(...C.brand)
+        doc.setTextColor(...accent)
         doc.text(`Confidence: ${m.explainable.confidence}`, margin + 120, y)
         y += 5
         doc.setFont('helvetica', 'normal')
@@ -881,7 +893,9 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     'Past performance is not indicative of future results. All metrics are based on historical data and simplified models.',
     'Risk metrics are estimates based on asset-class averages and may not reflect the actual risk profile of individual securities.',
     'You should consult a qualified financial advisor before making any investment decisions based on this report.',
-    `Report generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} by FinoCurve Desktop.`,
+    branding?.companyName
+      ? `Report generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} for ${branding.companyName}. Generated with FinoCurve.`
+      : `Report generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} by FinoCurve Desktop.`,
   ]
 
   disclaimers.forEach(d => {
@@ -900,5 +914,9 @@ export async function generateRiskReportPdf(opts: ReportOptions) {
     const arr = doc.output('arraybuffer')
     return new Uint8Array(arr)
   }
-  doc.save(`FinoCurve_Risk_Report_${dateStr}.pdf`)
+  const slug = brandFileSlug(branding?.companyName)
+  const fileName = slug
+    ? `${slug}_Risk_Report_${dateStr}.pdf`
+    : `FinoCurve_Risk_Report_${dateStr}.pdf`
+  doc.save(fileName)
 }

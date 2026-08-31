@@ -48,6 +48,13 @@ type AIConfigPayload = Omit<
   'secretStorageEncryptionAvailable' | 'secretStorageWarning'
 >
 
+interface DocumentBranding {
+  companyName: string
+  logoPngDataUrl?: string
+  accentColor?: string
+  footerLabel?: string
+}
+
 interface ElectronAPI {
   platform: string
   versions: {
@@ -61,6 +68,8 @@ interface ElectronAPI {
   enterpriseRequest?: <T>(payload: { path: string; refresh?: boolean; method?: 'GET' | 'POST' }) => Promise<{ ok: boolean; status?: number; data?: T; error?: string }>
   enterpriseGetUrl?: () => Promise<{ url: string }>
   enterpriseSetUrl?: (payload: { url: string }) => Promise<{ ok: boolean; url?: string; error?: string }>
+  brandingGet?: () => Promise<{ branding: DocumentBranding }>
+  brandingSet?: (payload: DocumentBranding) => Promise<{ ok: boolean; branding?: DocumentBranding; error?: string }>
   // S3 cloud storage (user-owned bucket)
   s3SaveCredentials?: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) => Promise<{ ok: boolean }>
   s3ClearCredentials?: () => Promise<{ ok: boolean }>

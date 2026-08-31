@@ -501,7 +501,7 @@ ${topHoldingsBlock}${more}`
     {
       name: 'save_custom_branded_report_pdf',
       description:
-        'Create a PDF with FinoCurve letterhead, logo, and brand styling (same look as app risk reports). Each section is heading + narrative body, optionally plus tables (headers + rows of strings) and/or charts (bar, line, or pie) with numeric series. Chart objects use the same JSON shape as inline chat ```chart blocks (type, optional title, labels, values). Tables and charts render after that section\'s text. Saves to the user\'s documents folder (local and/or S3 when configured). Use for downloadable reports, memos, or briefs. Use plain text in bodies; double newlines between paragraphs.',
+        'Create a PDF with the installation\'s document branding (company logo, name, and accent color when configured under Settings → Document branding; otherwise FinoCurve letterhead). Same layout as app risk reports. Each section is heading + narrative body, optionally plus tables (headers + rows of strings) and/or charts (bar, line, or pie) with numeric series. Chart objects use the same JSON shape as inline chat ```chart blocks (type, optional title, labels, values). Tables and charts render after that section\'s text. Saves to the user\'s documents folder (local and/or S3 when configured). Use for downloadable reports, memos, or briefs. Use plain text in bodies; double newlines between paragraphs.',
       schema: z.object({
         title: z.string().min(1).max(200).describe('Main title on the cover'),
         subtitle: z.string().max(400).optional().describe('Optional subtitle shown under the title'),

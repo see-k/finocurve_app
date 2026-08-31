@@ -14,6 +14,7 @@ import { getSharedDocumentInsights } from '../../store/useDocumentInsights'
 import { useRiskSnapshots, computeChangeSummary, snapshotToMinimalRisk } from '../../store/useRiskSnapshots'
 import { analyzePortfolio } from '../../services/riskAnalysis'
 import { generateRiskReportPdf } from '../../services/riskReportPdf'
+import { ensureDocumentBranding, brandFileSlug } from '../../services/documentBranding'
 import type { Asset, RiskSnapshot } from '../../types'
 import { assetCurrentValue, isLoan } from '../../types'
 import { RISK_LEVEL_META } from '../../constants/riskMeta'
@@ -293,6 +294,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
     setGeneratingPdf(true)
     if (!loadedAnalysis) addSnapshot(effectiveRisk, effectiveInvestableAssets, effectiveTotalValue)
     try {
+      const branding = await ensureDocumentBranding()
       await generateRiskReportPdf({
         risk: effectiveRisk, assets: effectiveInvestableAssets, totalValue: effectiveTotalValue, totalGainLossPercent: effectiveGainLossPercent,
         portfolioName: loadedAnalysis?.portfolioName ?? portfolio?.name ?? 'My Portfolio',
@@ -300,6 +302,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
         valuationProvenance: riskValuation,
+        branding,
       })
     } finally {
       setGeneratingPdf(false)
@@ -312,6 +315,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
     setCloudMessage(null)
     setSavingToCloud(true)
     try {
+      const branding = await ensureDocumentBranding()
       const pdfBytes = await generateRiskReportPdf({
         risk: effectiveRisk, assets: effectiveInvestableAssets, totalValue: effectiveTotalValue, totalGainLossPercent: effectiveGainLossPercent,
         portfolioName: loadedAnalysis?.portfolioName ?? portfolio?.name ?? 'My Portfolio',
@@ -319,11 +323,13 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
         valuationProvenance: riskValuation,
+        branding,
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
       const dateStr = new Date().toISOString().slice(0, 10)
-      const pdfKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.pdf`
+      const reportBase = `${brandFileSlug(branding.companyName) || 'FinoCurve'}_Risk_Report_${dateStr}`
+      const pdfKey = `finocurve/reports/${reportBase}.pdf`
       await window.electronAPI.s3Upload({
         key: pdfKey,
         buffer: Array.from(pdfBytes),
@@ -343,7 +349,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
         valuationProvenance: riskValuation,
       }
-      const jsonKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.json`
+      const jsonKey = `finocurve/reports/${reportBase}.json`
       await window.electronAPI.s3Upload({
         key: jsonKey,
         buffer: Array.from(new TextEncoder().encode(JSON.stringify(analysisJson))),
@@ -364,6 +370,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
     setCloudMessage(null)
     setSavingToDevice(true)
     try {
+      const branding = await ensureDocumentBranding()
       const pdfBytes = await generateRiskReportPdf({
         risk: effectiveRisk, assets: effectiveInvestableAssets, totalValue: effectiveTotalValue, totalGainLossPercent: effectiveGainLossPercent,
         portfolioName: loadedAnalysis?.portfolioName ?? portfolio?.name ?? 'My Portfolio',
@@ -371,11 +378,13 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         documentInsights: getSharedDocumentInsights(),
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
         valuationProvenance: riskValuation,
+        branding,
         returnBlob: true,
       })
       if (!pdfBytes) throw new Error('Failed to generate PDF')
       const dateStr = new Date().toISOString().slice(0, 10)
-      const pdfKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.pdf`
+      const reportBase = `${brandFileSlug(branding.companyName) || 'FinoCurve'}_Risk_Report_${dateStr}`
+      const pdfKey = `finocurve/reports/${reportBase}.pdf`
       await window.electronAPI.localStorageSaveFile({
         key: pdfKey,
         buffer: Array.from(pdfBytes),
@@ -394,7 +403,7 @@ export default function RiskAnalysisScreen({ embeddedInShell = false }: RiskAnal
         advancedAnalysis: (loadedAnalysis?.advancedAnalysis ?? advancedAnalysis) ?? undefined,
         valuationProvenance: riskValuation,
       }
-      const jsonKey = `finocurve/reports/FinoCurve_Risk_Report_${dateStr}.json`
+      const jsonKey = `finocurve/reports/${reportBase}.json`
       await window.electronAPI.localStorageSaveFile({
         key: jsonKey,
         buffer: Array.from(new TextEncoder().encode(JSON.stringify(analysisJson))),

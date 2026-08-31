@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DollarSign, Bell, HelpCircle, Info,
-  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Target, Bot, Palette, Building2,
+  LogOut, ChevronRight, Download, RefreshCw, Trash2, Shield, Cloud, Cpu, Plug, Target, Bot, Palette, Building2, Image,
 } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
@@ -142,6 +142,7 @@ export default function SettingsScreen() {
         <h2 className="settings-section__title">Preferences</h2>
         <GlassContainer padding="0" borderRadius={16} className="settings-group">
           <SettingsRow icon={<Palette size={18} />} label="Theme" value={currentThemeLabel} onClick={() => navigate('/settings/theme')} />
+          <SettingsRow icon={<Image size={18} />} label="Document branding" value="Logo & company name" onClick={() => navigate('/settings/branding')} />
           <SettingsRow icon={<DollarSign size={18} />} label="Currency" value={prefs.defaultCurrency} onClick={() => navigate('/settings/currency')} />
           <SettingsRow icon={<Bell size={18} />} label="Notifications" value={prefs.notificationsEnabled ? 'On' : 'Off'}
             toggle toggled={prefs.notificationsEnabled}

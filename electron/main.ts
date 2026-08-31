@@ -21,6 +21,11 @@ import {
   readEnterpriseServiceUrl,
   saveEnterpriseServiceUrl,
 } from './enterpriseHandlers'
+import {
+  normalizeDocumentBranding,
+  readDocumentBranding,
+  saveDocumentBranding,
+} from './documentBranding'
 
 const APP_PROTOCOL_SCHEME = 'app'
 const APP_PROTOCOL_HOST = 'local'
@@ -163,6 +168,23 @@ function registerEnterpriseHandlers() {
   })
 }
 
+function registerBrandingHandlers() {
+  ipcMain.handle('branding-get', async () => ({ branding: readDocumentBranding() }))
+
+  ipcMain.handle('branding-set', async (_event, payload: unknown) => {
+    const normalized = normalizeDocumentBranding(payload)
+    if (normalized === null) {
+      return { ok: false, error: 'Invalid branding: check the logo, accent color, and text fields.' }
+    }
+    try {
+      saveDocumentBranding(normalized)
+      return { ok: true, branding: normalized }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not save branding' }
+    }
+  })
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -201,6 +223,7 @@ app.whenReady().then(() => {
   registerMCPHandlers()
   registerCoreDataHandlers()
   registerEnterpriseHandlers()
+  registerBrandingHandlers()
   createWindow()
 })
 
