@@ -1,0 +1,199 @@
+.fin-landscape {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.fin-landscape__stage {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--fin-radius-sm);
+  background:
+    radial-gradient(
+      110% 80% at 50% 12%,
+      color-mix(in srgb, var(--brand-primary) 7%, transparent) 0%,
+      transparent 68%
+    );
+  overflow: hidden;
+}
+
+.fin-landscape__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+.fin-landscape__svg:active {
+  cursor: grabbing;
+}
+
+.fin-landscape__svg:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -2px;
+  border-radius: var(--fin-radius-sm);
+}
+
+/* ── Floor ────────────────────────────────── */
+
+.fin-landscape__floor {
+  fill: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+  stroke: var(--fin-rule);
+  stroke-width: 1;
+}
+
+.fin-landscape__gridline {
+  stroke: var(--fin-rule-soft);
+  stroke-width: 1;
+}
+
+/* ── Bars ─────────────────────────────────── */
+
+.fin-landscape__bar {
+  transition: opacity 0.12s ease;
+}
+
+.fin-landscape__face {
+  stroke: var(--fin-surface);
+  stroke-width: 0.75;
+  stroke-linejoin: round;
+}
+
+.fin-landscape__value {
+  fill: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--fin-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* ── Axis labels ──────────────────────────── */
+
+.fin-landscape__axis-label {
+  fill: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.fin-landscape__axis-label--exposure {
+  fill: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+
+/* ── Hover readout ────────────────────────── */
+
+.fin-landscape__readout {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 13px;
+  max-width: 260px;
+  border: 1px solid var(--fin-rule-strong);
+  border-radius: var(--fin-radius-sm);
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--glass-shadow);
+  pointer-events: none;
+}
+
+.fin-landscape__readout-institution {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.fin-landscape__readout-exposure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.fin-landscape__readout-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fin-landscape__readout-value {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+}
+
+.fin-landscape__readout-weight {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.fin-landscape__controls {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.fin-landscape__controls .fin-btn--icon {
+  width: 28px;
+  height: 28px;
+}
+
+.fin-landscape__controls .fin-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fin-landscape__zoom {
+  min-width: 44px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.fin-landscape__reset {
+  height: 28px;
+}
+
+/* ── Footer ───────────────────────────────── */
+
+.fin-landscape__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-landscape__bar { transition: none; }
+}
+
+@media (max-width: 760px) {
+  .fin-landscape__readout {
+    position: static;
+    max-width: none;
+    margin-bottom: 10px;
+  }
+}

@@ -1,0 +1,103 @@
+.fin-alloc {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.fin-alloc__chart {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.fin-alloc__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+  text-align: center;
+  padding: 0 18%;
+}
+
+.fin-alloc__center-value {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  word-break: break-all;
+}
+
+.fin-alloc__table {
+  flex: 1;
+  min-width: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+
+.fin-alloc__col-value { width: 38%; }
+.fin-alloc__col-weight { width: 52px; }
+
+.fin-alloc__table td {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--fin-rule-soft);
+  vertical-align: middle;
+}
+
+.fin-alloc__table tr:last-child td { border-bottom: none; }
+
+.fin-alloc__name-cell {
+  padding-right: 12px;
+  overflow: hidden;
+}
+
+/* Flex lives on an inner span so the cell keeps its table-layout width. */
+.fin-alloc__name-inner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.fin-alloc__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fin-alloc__name {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-alloc__value {
+  text-align: right;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 14px;
+}
+
+.fin-alloc__weight {
+  text-align: right;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .fin-alloc {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fin-alloc__chart { align-self: center; }
+}

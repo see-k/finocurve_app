@@ -1,481 +1,413 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
-  ComposedChart, Line,
-} from 'recharts'
-import {
-  TrendingUp, TrendingDown, DollarSign, BarChart3,
-  ArrowUpRight, ArrowDownRight, Activity, Bell, Shield,
-  Newspaper, ChevronRight,
+  Bell, BriefcaseBusiness, ChevronRight, Landmark, Newspaper, PieChart as PieIcon,
+  Shield, TrendingDown, TrendingUp,
 } from 'lucide-react'
 import { analyzePortfolio } from '../../services/riskAnalysis'
 import { RISK_LEVEL_META } from '../../constants/riskMeta'
-import GlassContainer from '../../components/glass/GlassContainer'
-import GlassIconButton from '../../components/glass/GlassIconButton'
 import AssetLogo from '../../components/AssetLogo'
-import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import UserAvatar, { getInitials } from '../../components/UserAvatar'
+import EnterpriseSection from '../../components/financial/EnterpriseSection'
+import PageGround from '../../components/financial/PageGround'
+import Panel from '../../components/financial/Panel'
+import KeyFigures from '../../components/financial/KeyFigures'
+import Delta from '../../components/financial/Delta'
+import PortfolioAnalysis from '../../components/financial/PortfolioAnalysis'
+import AllocationBreakdown from '../../components/financial/AllocationBreakdown'
+import HoldingsTable from '../../components/financial/HoldingsTable'
+import LiabilitiesTable from '../../components/financial/LiabilitiesTable'
+import ValuationDisclosure from '../../components/financial/ValuationDisclosure'
 import { usePortfolio } from '../../store/usePortfolio'
-import { usePortfolioValueHistory } from '../../store/usePortfolioValueHistory'
-import { useHistoricalPrices } from '../../hooks/useHistoricalPrices'
 import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
-import { getPerformanceChartData } from '../../utils/performanceChartData'
-import { augmentSeriesWithLinearTrend } from '../../lib/chartTrendForecast'
+import { usePerformanceSeries } from '../../hooks/usePerformanceSeries'
+import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
+import { deriveAccountTotals } from '../../lib/accountTotals'
+import { deriveCalculatedProvenance, formatProvenanceAsOf } from '../../lib/financialProvenance'
 import {
-  aggregateAssetValueProvenance,
-  createFinancialProvenance,
-  deriveCalculatedProvenance,
-  deriveAssetValueProvenance,
-} from '../../lib/financialProvenance'
-import type { PerformancePeriod, Asset } from '../../types'
-import { assetCurrentValue, assetGainLossPercent, ASSET_TYPE_ICONS, isLoan } from '../../types'
+  formatCurrency, formatPercentSigned, formatWeight, splitCurrency,
+} from '../../lib/formatMoney'
+import type { Asset } from '../../types'
+import { ASSET_TYPE_LABELS, assetCurrentValue, assetGainLossPercent, isLoan } from '../../types'
 import './DashboardScreen.css'
 
-const DASHBOARD_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
-
-const periods: PerformancePeriod[] = ['1D', '1W', '1M', '1Y']
-const COLORS = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899']
-
-function getGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
-}
+/** Positions listed inline before the reader is sent to the full holdings screen. */
+const DASHBOARD_HOLDINGS_LIMIT = 6
+/** Movers shown per side of the leaders/laggards split. */
+const MOVERS_PER_SIDE = 5
 
 export default function DashboardScreen() {
   const navigate = useNavigate()
-  const {
-    portfolio, totalValue, totalCost, totalGainLoss, totalGainLossPercent, loadDemo,
-  } = usePortfolio()
+  const { portfolio, totalValue, loadDemo } = usePortfolio()
   const { prefs } = usePreferences()
   const { unreadCount } = useNotifications()
-
-  const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>('1M')
+  const { isEnterprise } = useEnterpriseMode()
 
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'Investor'
 
-  const hasAssets = portfolio && portfolio.assets.length > 0
-  const nonLoanAssets = portfolio?.assets.filter(a => !isLoan(a)) || []
-  const loanAssets = portfolio?.assets.filter(a => isLoan(a)) || []
-  const totalInvestableValue = nonLoanAssets.reduce((s, a) => s + assetCurrentValue(a), 0)
+  const assets = useMemo(() => portfolio?.assets ?? [], [portfolio?.assets])
+  const hasAssets = assets.length > 0
 
-  const { history } = usePortfolioValueHistory(totalValue, totalInvestableValue, !!hasAssets)
-  const { data: historicalApiData, provenance: historicalProvenance, loading: historicalLoading } = useHistoricalPrices(
-    portfolio?.assets ?? [],
-    selectedPeriod,
-    totalValue,
-    !!hasAssets && !!window.electronAPI?.priceHistorical
-  )
-  const { data: chartData, hasRealData, dataSource } = useMemo(
-    () => getPerformanceChartData(history, totalValue, selectedPeriod, historicalApiData),
-    [history, totalValue, selectedPeriod, historicalApiData]
-  )
+  // Cost, gain and return are reported over investable holdings; liabilities are
+  // stated separately so a mortgage's negative basis cannot distort the rate.
+  const totals = useMemo(() => deriveAccountTotals(assets), [assets])
+  const { holdings, loans, grossAssets, totalLiabilities, investedCost, unrealizedGain, totalReturnPercent } = totals
 
-  const chartDataWithTrend = useMemo(
-    () =>
-      augmentSeriesWithLinearTrend(chartData, {
-        forecastSteps: 4,
-        minPoints: 3,
-      }),
-    [chartData]
-  )
+  const performance = usePerformanceSeries(assets, totalValue, grossAssets, hasAssets, {
+    withTrend: true,
+  })
 
-  const allocationData = useMemo(() => {
-    if (!hasAssets) return []
+  const allocation = useMemo(() => {
     const groups = new Map<string, number>()
-    for (const asset of nonLoanAssets) {
-      const val = assetCurrentValue(asset)
-      const label = asset.type.charAt(0).toUpperCase() + asset.type.slice(1).replace('_', ' ')
-      groups.set(label, (groups.get(label) || 0) + val)
+    for (const asset of holdings) {
+      const label = ASSET_TYPE_LABELS[asset.type] ?? asset.type
+      groups.set(label, (groups.get(label) ?? 0) + assetCurrentValue(asset))
     }
-    return Array.from(groups.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
-  }, [hasAssets, nonLoanAssets])
+    return Array.from(groups, ([name, value]) => ({ name, value }))
+  }, [holdings])
 
-  const topMovers = useMemo(() => {
-    if (!hasAssets) return []
-    return [...nonLoanAssets]
-      .map(a => ({ asset: a, pct: assetGainLossPercent(a) }))
-      .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
-      .slice(0, 6)
-  }, [hasAssets, nonLoanAssets])
+  const movers = useMemo(() => {
+    const scored = holdings
+      .map((asset) => ({ asset, pct: assetGainLossPercent(asset) }))
+      .filter((row) => Number.isFinite(row.pct) && row.pct !== 0)
+      .sort((a, b) => b.pct - a.pct)
+    return {
+      leaders: scored.filter((r) => r.pct > 0).slice(0, MOVERS_PER_SIDE),
+      laggards: scored.filter((r) => r.pct < 0).reverse().slice(0, MOVERS_PER_SIDE),
+    }
+  }, [holdings])
 
-  // Risk analysis uses investable assets only (excludes loans) to avoid negative weights when liabilities dominate
-  const totalInvestableCost = nonLoanAssets.reduce((s, a) => s + a.costBasis, 0)
-  const totalInvestableGainLossPercent = totalInvestableCost > 0 ? ((totalInvestableValue - totalInvestableCost) / totalInvestableCost) * 100 : 0
+  // Risk is measured on investable assets only; including liabilities produces
+  // negative weights once debt outweighs holdings.
   const riskResult = useMemo(
-    () => (nonLoanAssets.length > 0 && totalInvestableValue > 0)
-      ? analyzePortfolio(nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent)
-      : null,
-    [nonLoanAssets, totalInvestableValue, totalInvestableGainLossPercent]
+    () => (holdings.length > 0 && grossAssets > 0
+      ? analyzePortfolio(holdings, grossAssets, totalReturnPercent)
+      : null),
+    [holdings, grossAssets, totalReturnPercent]
   )
-  const riskScore = riskResult?.riskScore ?? 0
   const riskMeta = riskResult ? RISK_LEVEL_META[riskResult.riskLevel] : null
-  const portfolioValuation = useMemo(
-    () => aggregateAssetValueProvenance(portfolio?.assets ?? []),
-    [portfolio?.assets]
-  )
-  const chartValuation = useMemo(() => {
-    if (dataSource === 'api' && historicalProvenance) return historicalProvenance
-    const latest = chartData[chartData.length - 1]?.date ?? portfolioValuation.asOf
-    return createFinancialProvenance({
-      sourceKind: dataSource === 'history' ? 'historical' : 'calculated',
-      sourceName: dataSource === 'history' ? 'FinoCurve portfolio snapshots' : 'Current portfolio valuation',
-      valuationMethod: dataSource === 'history' ? 'historical_close' : 'portfolio_sum',
-      asOf: latest,
-      isEstimated: dataSource === 'none' || portfolioValuation.isEstimated,
-    })
-  }, [chartData, dataSource, historicalProvenance, portfolioValuation])
-  const riskValuation = useMemo(
-    () => deriveCalculatedProvenance(portfolioValuation, 'FinoCurve risk engine', 'risk_model'),
-    [portfolioValuation]
+
+  const riskProvenance = useMemo(
+    () => deriveCalculatedProvenance(performance.portfolioProvenance, 'FinoCurve risk engine', 'risk_model'),
+    [performance.portfolioProvenance]
   )
 
   if (!hasAssets) {
     return (
       <div className="dashboard-empty">
-        <div className="dashboard-empty__icon"><BarChart3 size={48} /></div>
-        <h2>Welcome to FinoCurve</h2>
-        <p>Add assets to your portfolio to see your dashboard come alive.</p>
-        <button className="dashboard-empty__cta" onClick={loadDemo}>Load Demo Portfolio</button>
+        <BriefcaseBusiness size={36} aria-hidden />
+        <h2>No holdings on file</h2>
+        <p>
+          Add positions, or load a demonstration portfolio to see how balances, allocation and
+          risk are reported.
+        </p>
+        <button type="button" className="fin-btn fin-btn--accent" onClick={loadDemo}>
+          Load demo portfolio
+        </button>
       </div>
     )
   }
 
-  const isPositive = totalGainLoss >= 0
-  const fmt = (n: number) => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const gainPositive = unrealizedGain >= 0
+  const hero = splitCurrency(totalValue)
+  const asOf = formatProvenanceAsOf(performance.portfolioProvenance.asOf)
+
+  function openAsset(asset: Asset) {
+    navigate(isLoan(asset) ? `/main/loan/${asset.id}` : `/asset/${asset.id}`)
+  }
 
   return (
-    <div className="dashboard">
-      {/* Background image */}
-      <div className="dash-bg">
-        <img src={DASHBOARD_BG} alt="" className="dash-bg__img" />
-        <div className="dash-bg__overlay" />
-      </div>
+    <div className="fin-page dashboard">
+      <PageGround />
 
-      {/* Greeting Header */}
-      <div className="dash-greeting">
-        <div className="dash-greeting__left">
-          <UserAvatar src={prefs.profilePicturePath} initials={getInitials(userName)} size={48} className="dash-avatar" showEnterpriseIndicator />
-          <div>
-            <h1 className="dash-greeting__title">{getGreeting()}, {userName}</h1>
-            <p className="dash-greeting__subtitle">Here's your portfolio at a glance</p>
+      {/* ── Masthead: whose account, worth how much, as of when ── */}
+      <header className="fin-masthead">
+        <div className="fin-masthead__id">
+          <div className="fin-masthead__eyebrow">
+            <UserAvatar
+              src={prefs.profilePicturePath}
+              initials={getInitials(userName)}
+              size={22}
+              className="dash-avatar"
+              showEnterpriseIndicator
+            />
+            <strong>{userName}</strong>
+            <span className="fin-masthead__sep">/</span>
+            <span>{portfolio!.name}</span>
+            <span className="fin-masthead__sep">/</span>
+            <span>{portfolio!.currency}</span>
+          </div>
+
+          <div className="fin-masthead__value">
+            <span className="fin-masthead__amount">
+              {hero.whole}<span className="fin-masthead__cents">{hero.cents}</span>
+            </span>
+            <Delta value={unrealizedGain} pill />
+            <Delta value={totalReturnPercent} kind="percent" pill />
+          </div>
+
+          <div className="fin-masthead__sub">
+            <span>Net worth, assets less liabilities</span>
+            <span>Change shown on invested capital</span>
+            <span>As of {asOf}</span>
           </div>
         </div>
-        <div className="dash-greeting__actions">
-          <GlassIconButton icon={<Newspaper size={20} />} onClick={() => navigate('/main?tab=news')} size={42} title="News" />
-          <div style={{ position: 'relative' }}>
-            <GlassIconButton icon={<Bell size={20} />} onClick={() => navigate('/notifications')} size={42} title="Notifications" />
+
+        <div className="fin-masthead__actions">
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={() => navigate('/main?tab=news')}
+            title="News"
+            aria-label="News"
+          >
+            <Newspaper size={16} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={() => navigate('/notifications')}
+            title="Notifications"
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+          >
+            <Bell size={16} aria-hidden />
             {unreadCount > 0 && (
               <span className="dash-notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
             )}
-          </div>
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Stats Row */}
-      <div className="dashboard-stats">
-        <GlassContainer padding="20px" borderRadius={16} className="stat-card">
-          <div className="stat-card__icon stat-card__icon--primary"><DollarSign size={20} /></div>
-          <div className="stat-card__info">
-            <span className="stat-card__label">Total Value</span>
-            <span className="stat-card__value">{fmt(totalValue)}</span>
-          </div>
-        </GlassContainer>
-        <GlassContainer padding="20px" borderRadius={16} className="stat-card">
-          <div className={`stat-card__icon ${isPositive ? 'stat-card__icon--success' : 'stat-card__icon--error'}`}>
-            {isPositive ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-          </div>
-          <div className="stat-card__info">
-            <span className="stat-card__label">Total Gain/Loss</span>
-            <span className={`stat-card__value ${isPositive ? 'stat-card__value--success' : 'stat-card__value--error'}`}>
-              {isPositive ? '+' : '-'}{fmt(totalGainLoss)}
-            </span>
-          </div>
-        </GlassContainer>
-        <GlassContainer padding="20px" borderRadius={16} className="stat-card">
-          <div className={`stat-card__icon ${isPositive ? 'stat-card__icon--success' : 'stat-card__icon--error'}`}>
-            <Activity size={20} />
-          </div>
-          <div className="stat-card__info">
-            <span className="stat-card__label">Return</span>
-            <span className={`stat-card__value ${isPositive ? 'stat-card__value--success' : 'stat-card__value--error'}`}>
-              {isPositive ? '+' : ''}{totalGainLossPercent.toFixed(2)}%
-            </span>
-          </div>
-        </GlassContainer>
-        <GlassContainer padding="20px" borderRadius={16} className="stat-card">
-          <div className="stat-card__icon stat-card__icon--primary"><BarChart3 size={20} /></div>
-          <div className="stat-card__info">
-            <span className="stat-card__label">Assets</span>
-            <span className="stat-card__value">{portfolio!.assets.length}</span>
-          </div>
-        </GlassContainer>
-      </div>
-      <ValuationDisclosure provenance={portfolioValuation} label="Portfolio totals" compact />
+      <div className="fin-stack dashboard__stack">
+        {/* ── The figures a reader checks first ── */}
+        <KeyFigures
+          figures={[
+            {
+              label: 'Gross assets',
+              value: formatCurrency(grossAssets),
+              meta: `${holdings.length} ${holdings.length === 1 ? 'position' : 'positions'}`,
+            },
+            {
+              label: 'Liabilities',
+              value: totalLiabilities > 0 ? formatCurrency(totalLiabilities) : '—',
+              meta: loans.length > 0
+                ? `${loans.length} ${loans.length === 1 ? 'obligation' : 'obligations'}`
+                : 'None on file',
+            },
+            {
+              label: 'Invested cost',
+              value: formatCurrency(investedCost),
+              meta: 'Capital deployed in holdings',
+            },
+            {
+              label: 'Unrealized gain/loss',
+              value: formatCurrency(unrealizedGain),
+              meta: 'Holdings against invested cost',
+              tone: gainPositive ? 'positive' : 'negative',
+            },
+            {
+              label: 'Total return',
+              value: formatPercentSigned(totalReturnPercent),
+              meta: 'On invested cost',
+              tone: gainPositive ? 'positive' : 'negative',
+            },
+          ]}
+        />
 
-      {/* Performance Chart */}
-      <GlassContainer padding="24px" borderRadius={20} className="dashboard-chart-card">
-        <div className="dashboard-chart-header">
-          <h2 className="section-title">Portfolio Performance</h2>
-          <div className="period-selector">
-            {periods.map(p => (
-              <button key={p} className={`period-btn ${selectedPeriod === p ? 'period-btn--active' : ''}`} onClick={() => setSelectedPeriod(p)}>{p}</button>
-            ))}
-          </div>
-        </div>
-        {!hasRealData && !historicalLoading && (
-          <p className="performance-chart-disclaimer">History builds as you use the app. Add stocks or ETFs with symbols to see live historical performance.</p>
-        )}
-        <div className="dashboard-chart">
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={chartDataWithTrend} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="var(--brand-primary)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="dateLabel"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                axisLine={{ stroke: 'var(--glass-border)' }}
-                tickLine={{ stroke: 'var(--glass-border)' }}
-                interval="preserveStartEnd"
-                label={{ value: 'Date', position: 'insideBottom', offset: -8, fill: 'var(--text-tertiary)', fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                axisLine={{ stroke: 'var(--glass-border)' }}
-                tickLine={{ stroke: 'var(--glass-border)' }}
-                tickFormatter={(v) => (v >= 0 ? `$${(v / 1000).toFixed(0)}k` : `-$${(Math.abs(v) / 1000).toFixed(0)}k`)}
-                width={56}
-                tickCount={5}
-                domain={([dataMin, dataMax]) => {
-                  const range = dataMax - dataMin
-                  const pad = range > 0
-                    ? Math.max(range * 0.15, Math.abs(dataMin + dataMax) / 2 * 0.005, 50)
-                    : Math.max(Math.abs(dataMin) * 0.02, 100)
-                  return [dataMin - pad, dataMax + pad]
-                }}
-                label={{ value: 'Portfolio Value ($)', angle: -90, position: 'insideLeft', fill: 'var(--text-tertiary)', fontSize: 11 }}
-              />
-              <Tooltip
-                contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                formatter={(value, name) => {
-                  if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', name ?? '']
-                  return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name ?? '']
-                }}
-                labelFormatter={(label) => `Date: ${label}`}
-              />
-              <Area type="monotone" dataKey="value" stroke="var(--brand-primary)" strokeWidth={2} fill="url(#chartGradient)" connectNulls={false} />
-              <Line
-                type="monotone"
-                dataKey="histTrend"
-                stroke="var(--text-tertiary)"
-                strokeWidth={1.5}
-                dot={false}
-                name="Linear trend"
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="futTrend"
-                stroke="#f59e0b"
-                strokeWidth={1.5}
-                strokeDasharray="5 4"
-                dot={false}
-                name="Projection (extrapolated)"
-                connectNulls
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-        <p className="performance-chart-disclaimer" style={{ marginTop: 8, marginBottom: 0 }}>
-          Solid gray line: least-squares fit to the series. Dashed amber: same slope extended forward — illustrative only, not a forecast of returns.
-        </p>
-        <ValuationDisclosure provenance={chartValuation} label="Performance series" compact />
-      </GlassContainer>
+        {/* ── Enterprise: consolidated custody, subscribers only ── */}
+        <EnterpriseSection
+          enabled={isEnterprise}
+          onOpenEnterprise={() => navigate('/main?tab=enterprise')}
+        />
 
-      {/* Risk Score + Allocation row */}
-      <div className="dashboard-bottom-row">
-        {/* Risk Score Card */}
-        <GlassContainer padding="24px" borderRadius={20} className="dash-risk-card" onClick={() => navigate('/risk-analysis')}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 className="section-title"><Shield size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />Risk Score</h2>
-            <ChevronRight size={18} style={{ color: 'var(--text-tertiary)' }} />
-          </div>
-          <div className="dash-risk-card__content">
-            <div className="dash-risk-card__ring">
-              <svg width="100" height="100" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="var(--glass-border)" strokeWidth="8" />
-                <circle cx="50" cy="50" r="42" fill="none"
-                  stroke={riskMeta?.color ?? 'var(--text-tertiary)'}
-                  strokeWidth="8" strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 42}
-                  strokeDashoffset={2 * Math.PI * 42 * (1 - riskScore / 100)}
-                  transform="rotate(-90 50 50)"
-                  style={{ transition: 'stroke-dashoffset 1s ease' }}
-                />
-              </svg>
-              <span className="dash-risk-card__score">{riskScore}</span>
-            </div>
-            <div className="dash-risk-card__summary">
-              {riskMeta && (
-                <>
-                  <span className="dash-risk-card__badge" style={{ background: riskMeta.color }}>{riskMeta.label}</span>
-                  <p className="dash-risk-card__desc">{riskMeta.desc}</p>
-                </>
-              )}
-              {riskResult && (
-                <div className="dash-risk-card__mini-stats">
-                  <div><span>Sharpe</span><strong>{riskResult.sharpeRatio}</strong></div>
-                  <div><span>Volatility</span><strong>{riskResult.annualizedVolatility}%</strong></div>
-                  <div><span>Max DD</span><strong>-{riskResult.maxDrawdownPercent}%</strong></div>
+        <PortfolioAnalysis
+          holdings={holdings}
+          grossAssets={grossAssets}
+          performance={performance}
+          onSelectAsset={openAsset}
+          maxRows={8}
+          title="Portfolio analysis"
+        />
+
+        <div className="fin-row-2">
+          {/* ── Risk ── */}
+          <Panel
+            title="Risk profile"
+            icon={<Shield size={14} aria-hidden />}
+            note={riskMeta ? riskMeta.desc : 'Measured on investable assets, excluding liabilities.'}
+            actions={
+              <span className="fin-btn" aria-hidden>
+                Full analysis <ChevronRight size={13} />
+              </span>
+            }
+            onClick={() => navigate('/risk-analysis')}
+            footer={<ValuationDisclosure provenance={riskProvenance} label="Risk metrics" compact />}
+          >
+            {riskResult && riskMeta ? (
+              <div className="dash-risk">
+                <div className="dash-risk__score">
+                  <span className="dash-risk__number fin-num">{riskResult.riskScore}</span>
+                  <span className="fin-label">of 100</span>
+                  <span
+                    className="dash-risk__band"
+                    style={{ color: riskMeta.color, borderColor: riskMeta.color }}
+                  >
+                    {riskMeta.label}
+                  </span>
                 </div>
-              )}
-              <div className="dash-risk-card__cta">View full analysis</div>
-            </div>
-          </div>
-          <ValuationDisclosure provenance={riskValuation} label="Risk metrics" compact />
-        </GlassContainer>
-
-        {/* Allocation */}
-        <GlassContainer padding="24px" borderRadius={20} className="dashboard-allocation">
-          <h2 className="section-title">Allocation</h2>
-          <div className="allocation-chart">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={allocationData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
-                  {allocationData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--text-primary)', fontSize: 13 }}
-                  formatter={(value) => {
-                    if (value == null || typeof value !== 'number' || Number.isNaN(value)) return ['—', '']
-                    return [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, '']
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="allocation-legend">
-              {allocationData.map((item, idx) => (
-                <div key={item.name} className="allocation-legend__item">
-                  <span className="allocation-legend__dot" style={{ background: COLORS[idx % COLORS.length] }} />
-                  <span className="allocation-legend__name">{item.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </GlassContainer>
-      </div>
-
-      {/* Top Movers — ticker tape */}
-      <div className="dash-section dash-section--centered">
-        <h2 className="section-title" style={{ textAlign: 'center' }}>Top Movers</h2>
-        <div className="dash-movers-ticker">
-          <div className="dash-movers-ticker__track" aria-hidden="true">
-            {[...topMovers, ...topMovers].map(({ asset, pct }, idx) => {
-              const pos = pct >= 0
-              return (
-                <GlassContainer
-                  key={`${asset.id}-${idx}`}
-                  className="dash-mover-card"
-                  padding="8px 12px"
-                  borderRadius={10}
-                  onClick={() => navigate(`/asset/${asset.id}`)}
-                >
-                  <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={24} borderRadius={6} />
-                  <div className="dash-mover-card__symbol">{asset.symbol || asset.name.slice(0, 4)}</div>
-                  <div className="dash-mover-card__price">${asset.currentPrice.toLocaleString()}</div>
-                  <div className={`dash-mover-card__change ${pos ? 'dash-mover-card__change--up' : 'dash-mover-card__change--down'}`}>
-                    {pos ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                    {pos ? '+' : ''}{pct.toFixed(2)}%
+                <dl className="dash-risk__metrics">
+                  <div>
+                    <dt className="fin-label">Sharpe ratio</dt>
+                    <dd className="fin-num">{riskResult.sharpeRatio}</dd>
                   </div>
-                </GlassContainer>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Holdings & Loans — two columns */}
-      <div className="dash-two-col">
-        <div className="dash-section">
-          <h2 className="section-title">Holdings ({nonLoanAssets.length})</h2>
-          <div className="dash-holdings">
-            {nonLoanAssets.map(asset => {
-              const val = assetCurrentValue(asset)
-              const pct = assetGainLossPercent(asset)
-              const pos = pct >= 0
-              return (
-                <GlassContainer
-                  key={asset.id}
-                  className="dash-holding-card"
-                  padding="16px"
-                  borderRadius={14}
-                  onClick={() => navigate(`/asset/${asset.id}`)}
-                >
-                  <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={40} borderRadius={12} />
-                  <div className="dash-holding-card__info">
-                    <div className="dash-holding-card__name">{asset.name}</div>
-                    <div className="dash-holding-card__meta">{asset.symbol || asset.type} &middot; {asset.quantity} shares</div>
-                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} value`} compact />
+                  <div>
+                    <dt className="fin-label">Ann. volatility</dt>
+                    <dd className="fin-num">{formatWeight(riskResult.annualizedVolatility)}</dd>
                   </div>
-                  <div className="dash-holding-card__right">
-                    <div className="dash-holding-card__value">${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div className={`dash-holding-card__change ${pos ? 'dash-holding-card__change--up' : 'dash-holding-card__change--down'}`}>
-                      {pos ? '+' : ''}{pct.toFixed(2)}%
-                    </div>
+                  <div>
+                    <dt className="fin-label">Max drawdown</dt>
+                    <dd className="fin-num fin-neg">−{formatWeight(riskResult.maxDrawdownPercent)}</dd>
                   </div>
-                </GlassContainer>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="dash-section">
-          <h2 className="section-title">Loans ({loanAssets.length})</h2>
-          {loanAssets.length > 0 ? (
-            <div className="dash-holdings">
-              {loanAssets.map(asset => (
-                <GlassContainer
-                  key={asset.id}
-                  className="dash-holding-card"
-                  padding="16px"
-                  borderRadius={14}
-                  onClick={() => navigate(`/main/loan/${asset.id}`)}
-                >
-                  <div className="dash-holding-card__icon">{asset.loanType ? '🏦' : '📋'}</div>
-                  <div className="dash-holding-card__info">
-                    <div className="dash-holding-card__name">{asset.name}</div>
-                    <div className="dash-holding-card__meta">
-                      {asset.interestRate ? `${asset.interestRate}% APR` : 'Loan'}
-                    </div>
-                    <ValuationDisclosure provenance={deriveAssetValueProvenance(asset)} label={`${asset.name} balance`} compact />
-                  </div>
-                  <div className="dash-holding-card__right">
-                    <div className="dash-holding-card__value" style={{ color: 'var(--status-error)' }}>
-                      ${Math.abs(asset.currentPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>balance</div>
-                  </div>
-                </GlassContainer>
-              ))}
-            </div>
-          ) : (
-            <GlassContainer padding="32px" borderRadius={14} className="dash-empty-loans">
-              <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>🏦</div>
-                No loans tracked yet
+                </dl>
               </div>
-            </GlassContainer>
-          )}
+            ) : (
+              <div className="fin-empty">
+                <span className="fin-empty__title">Not enough data</span>
+                <span className="fin-empty__body">Risk is computed once investable holdings are on file.</span>
+              </div>
+            )}
+          </Panel>
+
+          {/* ── Allocation ── */}
+          <Panel
+            title="Asset allocation"
+            icon={<PieIcon size={14} aria-hidden />}
+            note="By asset class, as a share of gross assets."
+          >
+            <AllocationBreakdown data={allocation} total={grossAssets} />
+          </Panel>
         </div>
+
+        {/* ── Movers, split by direction rather than scrolled past ── */}
+        <div className="fin-row-2">
+          <MoversPanel
+            title="Leaders"
+            icon={<TrendingUp size={14} aria-hidden />}
+            rows={movers.leaders}
+            emptyText="No positions are up against cost basis."
+            onSelect={openAsset}
+          />
+          <MoversPanel
+            title="Laggards"
+            icon={<TrendingDown size={14} aria-hidden />}
+            rows={movers.laggards}
+            emptyText="No positions are down against cost basis."
+            onSelect={openAsset}
+          />
+        </div>
+
+        {/* ── Positions ── */}
+        <Panel
+          title="Positions"
+          count={`${holdings.length}`}
+          note="Ranked by market value. Each row carries its valuation source."
+          flushBody
+          actions={
+            holdings.length > DASHBOARD_HOLDINGS_LIMIT ? (
+              <button
+                type="button"
+                className="fin-btn"
+                onClick={() => navigate('/main?tab=portfolio')}
+              >
+                All positions <ChevronRight size={13} aria-hidden />
+              </button>
+            ) : undefined
+          }
+        >
+          <HoldingsTable
+            assets={holdings}
+            totalValue={grossAssets}
+            onSelect={openAsset}
+            limit={DASHBOARD_HOLDINGS_LIMIT}
+          />
+        </Panel>
+
+        {/* ── Liabilities ── */}
+        <Panel
+          title="Liabilities"
+          count={loans.length > 0 ? `${loans.length}` : undefined}
+          icon={<Landmark size={14} aria-hidden />}
+          note="Outstanding balances netted against gross assets in the figure above."
+          flushBody={loans.length > 0}
+        >
+          <LiabilitiesTable loans={loans} onSelect={openAsset} />
+        </Panel>
+
       </div>
     </div>
+  )
+}
+
+/* ── Movers ──────────────────────────────────────────────────────────────── */
+
+interface MoverRow {
+  asset: Asset
+  pct: number
+}
+
+function MoversPanel({
+  title, icon, rows, emptyText, onSelect,
+}: {
+  title: string
+  icon: React.ReactNode
+  rows: MoverRow[]
+  emptyText: string
+  onSelect: (asset: Asset) => void
+}) {
+  return (
+    <Panel title={title} icon={icon} note="Return against cost basis." flushBody={rows.length > 0}>
+      {rows.length === 0 ? (
+        <div className="fin-empty"><span className="fin-empty__body">{emptyText}</span></div>
+      ) : (
+        <table className="fin-table dash-movers">
+          <thead className="fin-sr-only">
+            <tr>
+              <th scope="col">Holding</th>
+              <th scope="col">Market value</th>
+              <th scope="col">Return</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ asset, pct }) => (
+              <tr
+                key={asset.id}
+                className="fin-table__row--link"
+                tabIndex={0}
+                onClick={() => onSelect(asset)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(asset)
+                  }
+                }}
+              >
+                <td>
+                  <div className="fin-table__identity">
+                    <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={26} borderRadius={5} />
+                    <div className="fin-table__identity-text">
+                      <span className="fin-table__primary">{asset.symbol || asset.name}</span>
+                      <span className="fin-table__secondary">{asset.name}</span>
+                    </div>
+                  </div>
+                </td>
+                <td className="fin-table__num fin-table__value">{formatCurrency(assetCurrentValue(asset))}</td>
+                <td className="fin-table__num"><Delta value={pct} kind="percent" size="sm" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
   )
 }

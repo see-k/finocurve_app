@@ -1,0 +1,161 @@
+.fin-chart {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.fin-chart-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* Trend overlay is opt-in; the pressed state has to read as "on". */
+.fin-chart-trend-toggle--on {
+  color: var(--text-primary);
+  border-color: var(--fin-rule-strong);
+  background: var(--fin-surface-sunken);
+  box-shadow: inset 2px 0 0 var(--fin-chart-projection);
+}
+
+.fin-chart-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--status-warning) 40%, var(--fin-rule));
+  border-radius: var(--fin-radius-sm);
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.fin-chart-alert svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--status-warning);
+}
+
+.fin-chart-alert--muted {
+  border-color: var(--fin-rule);
+  background: var(--fin-surface-sunken);
+  color: var(--text-tertiary);
+}
+
+.fin-chart-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ── Tooltip ──────────────────────────────── */
+
+.fin-chart-tip {
+  min-width: 170px;
+  padding: 9px 11px;
+  background: var(--surface);
+  border: 1px solid var(--fin-rule-strong);
+  border-radius: var(--fin-radius-sm);
+  box-shadow: 0 8px 24px var(--glass-shadow);
+}
+
+.fin-chart-tip__label {
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--fin-rule-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fin-chart-tip__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 0;
+}
+
+.fin-chart-tip__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.fin-chart-tip__key::before {
+  content: '';
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.fin-chart-tip__key--histTrend::before { background: var(--fin-chart-trend); }
+.fin-chart-tip__key--futTrend::before {
+  background: transparent;
+  border-top: 2px dashed var(--fin-chart-projection);
+  height: 0;
+}
+
+.fin-chart-tip__value {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Recharts injects inline focus outlines on the surface; suppress them. */
+.fin-chart .recharts-surface:focus,
+.fin-chart .recharts-wrapper:focus {
+  outline: none;
+}
+
+/* ── Unavailable state ────────────────────────
+   Shown instead of a placeholder line when no observed series exists. */
+
+.fin-chart-unavailable {
+  gap: 12px;
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.fin-chart-unavailable__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 2px 0;
+  padding: 12px 14px;
+  list-style: none;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  text-align: left;
+}
+
+.fin-chart-unavailable__reasons li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fin-chart-unavailable__reasons strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.fin-chart-unavailable__reasons span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
