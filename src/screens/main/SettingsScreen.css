@@ -91,3 +91,143 @@
   color: var(--text-tertiary);
   letter-spacing: 0.08em;
 }
+
+/* Theme picker (ThemeScreen still uses these class names) */
+.settings-group--theme {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-theme-heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.settings-theme-hint {
+  margin: -6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 12px;
+}
+.settings-theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 12px 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.settings-theme-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--text-tertiary);
+}
+.settings-theme-card--active {
+  border-color: var(--brand-primary);
+  background: var(--primary-alpha-20);
+  box-shadow: 0 0 0 1px var(--primary-alpha-20);
+}
+.settings-theme-card__swatch {
+  height: 44px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+[data-theme^="light"] .settings-theme-card__swatch {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+.settings-theme-card__swatch--dark-graphite {
+  background: linear-gradient(135deg, #0a0a0c 48%, #121215 48%);
+}
+.settings-theme-card__swatch--dark-oled {
+  background: linear-gradient(135deg, #000000 48%, #141414 48%);
+}
+.settings-theme-card__swatch--dark-navy {
+  background: linear-gradient(135deg, #0a0e14 48%, #1a2434 48%);
+}
+.settings-theme-card__swatch--dark-royal {
+  background: linear-gradient(135deg, #0f0f23 40%, #6366f1 40%, #6366f1 55%, #1a1a35 55%);
+}
+.settings-theme-card__swatch--dark-executive {
+  background: linear-gradient(135deg, #050505 42%, #c9a227 42%, #c9a227 58%, #0e0e0c 58%);
+}
+.settings-theme-card__swatch--dark-cyan {
+  background: linear-gradient(135deg, #030708 42%, #22d3ee 42%, #22d3ee 58%, #0a1012 58%);
+}
+.settings-theme-card__swatch--dark-neqtex {
+  background: linear-gradient(135deg, #070807 42%, #c8a96a 42%, #c8a96a 58%, #151816 58%);
+}
+.settings-theme-card__swatch--dark-aurora {
+  background: linear-gradient(135deg, #060b0d 34%, #2dd4bf 34%, #38bdf8 50%, #22c55e 66%, #0c1418 66%);
+}
+.settings-theme-card__swatch--dark-sapphire {
+  background: linear-gradient(135deg, #070c16 42%, #3b82f6 42%, #3b82f6 58%, #0e1626 58%);
+}
+.settings-theme-card__swatch--dark-evergreen {
+  background: linear-gradient(135deg, #06100c 42%, #10b981 42%, #10b981 58%, #0c1a14 58%);
+}
+.settings-theme-card__swatch--light {
+  background: linear-gradient(135deg, #e8e8ee 48%, #ffffff 48%);
+}
+.settings-theme-card__swatch--light-warm {
+  background: linear-gradient(135deg, #ebe4db 48%, #fffdf9 48%);
+}
+.settings-theme-card__swatch--light-neqtex {
+  background: linear-gradient(135deg, #f8f5ee 40%, #9c7a3d 40%, #9c7a3d 55%, #ffffff 55%);
+}
+.settings-theme-card__swatch--light-aurora {
+  background: linear-gradient(135deg, #eef7f4 34%, #0d9488 34%, #0284c7 50%, #16a34a 66%, #ffffff 66%);
+}
+.settings-theme-card__swatch--light-sapphire {
+  background: linear-gradient(135deg, #eef2f9 42%, #2563eb 42%, #2563eb 58%, #ffffff 58%);
+}
+.settings-theme-card__swatch--light-evergreen {
+  background: linear-gradient(135deg, #eef5f1 42%, #047857 42%, #047857 58%, #ffffff 58%);
+}
+.settings-theme-card__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.settings-theme-card__sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+.settings-theme-card__check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--brand-primary);
+}
+
+/* Settings list rows (TrackerStorageScreen and similar sub-pages) */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.settings-row:not(:last-child) { border-bottom: 1px solid var(--glass-border); }
+.settings-row:hover { background: var(--glass-bg); }
+.settings-row--danger .settings-row__icon { color: var(--status-error); }
+.settings-row--danger .settings-row__label { color: var(--status-error); }
+.settings-row__icon { color: var(--brand-primary); display: flex; align-items: center; flex-shrink: 0; }
+.settings-row__label { font-size: 14px; font-weight: 500; color: var(--text-primary); flex: 1; }
+.settings-row__value { font-size: 13px; color: var(--text-secondary); }
+.settings-row__arrow { color: var(--text-secondary); flex-shrink: 0; }

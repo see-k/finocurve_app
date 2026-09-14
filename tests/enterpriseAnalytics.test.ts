@@ -139,7 +139,8 @@ describe('deriveCustodyMatrix', () => {
         ],
       },
     }))
-    expect(matrix.accountCount).toBe(5)
+    expect(matrix.accountCount).toBe(4)
+    expect(matrix.rows.find((r) => r.key === 'coinbase')!.accountCount).toBe(1)
     expect(matrix.cryptoAssetCount).toBe(2)
   })
 

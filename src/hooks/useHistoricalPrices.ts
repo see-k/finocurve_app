@@ -9,6 +9,15 @@ import type { PerformancePeriod } from '../types'
 
 const SUPPORTED_TYPES = ['stock', 'etf', 'crypto']
 
+function holdingsKey(assets: Asset[], period: PerformancePeriod): string {
+  const tickers = assets
+    .filter((asset) => !isLoan(asset) && asset.symbol && SUPPORTED_TYPES.includes(asset.type?.toLowerCase?.() || ''))
+    .map((asset) => `${asset.symbol}:${asset.quantity}:${asset.type}`)
+    .sort()
+    .join('|')
+  return `${period}::${tickers}`
+}
+
 export function useHistoricalPrices(
   assets: Asset[],
   period: PerformancePeriod,
@@ -21,18 +30,20 @@ export function useHistoricalPrices(
   error: string | null
 } {
   const [data, setData] = useState<{ date: string; value: number }[]>([])
-  const [dataPeriod, setDataPeriod] = useState<PerformancePeriod | null>(period)
+  const [dataKey, setDataKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [provenance, setProvenance] = useState<FinancialValueProvenance | null>(null)
   const requestSeq = useRef(0)
+  const requestKey = holdingsKey(assets, period)
 
   const fetchData = useCallback(async () => {
     const seq = ++requestSeq.current
+    const key = holdingsKey(assets, period)
     const api = typeof window !== 'undefined' ? window.electronAPI?.priceHistorical : undefined
     if (!api || !enabled || assets.length === 0) {
       setData([])
-      setDataPeriod(period)
+      setDataKey(key)
       setProvenance(null)
       setError(null)
       setLoading(false)
@@ -53,7 +64,7 @@ export function useHistoricalPrices(
 
     if (tickerAssets.length === 0) {
       setData([])
-      setDataPeriod(period)
+      setDataKey(key)
       setProvenance(null)
       setError(null)
       setLoading(false)
@@ -78,18 +89,18 @@ export function useHistoricalPrices(
       if (result.error) {
         setError(result.error)
         setData([])
-        setDataPeriod(period)
+        setDataKey(key)
         setProvenance(null)
       } else {
         setData(result.data || [])
-        setDataPeriod(period)
+        setDataKey(key)
         setProvenance(result.provenance ?? null)
       }
     } catch (err) {
       if (seq !== requestSeq.current) return
       setError(err instanceof Error ? err.message : String(err))
       setData([])
-      setDataPeriod(period)
+      setDataKey(key)
       setProvenance(null)
     } finally {
       if (seq === requestSeq.current) setLoading(false)
@@ -100,11 +111,11 @@ export function useHistoricalPrices(
     fetchData()
   }, [fetchData])
 
-  const matchesPeriod = dataPeriod === period
+  const matchesRequest = dataKey === requestKey
   return {
-    data: matchesPeriod ? data : [],
-    provenance: matchesPeriod ? provenance : null,
-    loading: loading || !matchesPeriod,
-    error: matchesPeriod ? error : null,
+    data: matchesRequest ? data : [],
+    provenance: matchesRequest ? provenance : null,
+    loading: loading || !matchesRequest,
+    error: matchesRequest ? error : null,
   }
 }

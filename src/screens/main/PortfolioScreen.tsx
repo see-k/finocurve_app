@@ -626,6 +626,24 @@ function FlowNode({
 
   return (
     <Layer key={`node-${index}`}>
+      <g
+        role="button"
+        tabIndex={0}
+        aria-pressed={isSelected}
+        aria-label={
+          entry
+            ? `${entry.fullName}, ${formatCurrency(entry.value, currency)}. Select for details.`
+            : `${name}. Select for details.`
+        }
+        style={{ cursor: 'pointer' }}
+        onClick={select}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            select(event)
+          }
+        }}
+      >
       <Rectangle
         x={x}
         y={y}
@@ -634,25 +652,22 @@ function FlowNode({
         fill={fill}
         fillOpacity={isDimmed ? 0.28 : 1}
         radius={2}
-        style={{ cursor: 'pointer' }}
-        onClick={select}
       />
       <text
         x={x + width + 8}
         y={y + height / 2}
         textAnchor="start"
         dominantBaseline="central"
-        onClick={select}
         style={{
           fontSize: 11,
           fontWeight: isSelected ? 700 : 600,
           fill: isDimmed ? 'var(--text-tertiary)' : 'var(--text-secondary)',
-          cursor: 'pointer',
         }}
       >
         {label}
         {isSelected && entry ? ` · ${formatCurrency(entry.value, currency)}` : ''}
       </text>
+      </g>
     </Layer>
   )
 }

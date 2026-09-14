@@ -26,6 +26,8 @@ interface ContributionRow {
   cost: number
   asset: Asset | null
   groupedCount: number
+  gainerCount: number
+  loserCount: number
 }
 
 /** Axis labels are a fixed width; longer names are truncated rather than wrapped. */
@@ -38,16 +40,21 @@ function axisLabel(asset: Asset): string {
 const ROW_HEIGHT = 34
 
 function buildRows(holdings: Asset[], maxRows: number): ContributionRow[] {
-  const rows: ContributionRow[] = holdings.map((asset) => ({
-    label: axisLabel(asset),
-    fullName: asset.name,
-    gain: assetGainLoss(asset),
-    returnPercent: asset.costBasis > 0 ? assetGainLossPercent(asset) : null,
-    value: assetCurrentValue(asset),
-    cost: asset.costBasis,
-    asset,
-    groupedCount: 0,
-  }))
+  const rows: ContributionRow[] = holdings.map((asset) => {
+    const gain = assetGainLoss(asset)
+    return {
+      label: axisLabel(asset),
+      fullName: asset.name,
+      gain,
+      returnPercent: asset.costBasis > 0 ? assetGainLossPercent(asset) : null,
+      value: assetCurrentValue(asset),
+      cost: asset.costBasis,
+      asset,
+      groupedCount: 0,
+      gainerCount: gain > 0 ? 1 : 0,
+      loserCount: gain < 0 ? 1 : 0,
+    }
+  })
 
   // Rank by absolute contribution — the biggest movers in either direction.
   rows.sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain))
@@ -64,6 +71,8 @@ function buildRows(holdings: Asset[], maxRows: number): ContributionRow[] {
     cost: tail.reduce((sum, r) => sum + r.cost, 0),
     asset: null,
     groupedCount: tail.length,
+    gainerCount: tail.reduce((sum, r) => sum + r.gainerCount, 0),
+    loserCount: tail.reduce((sum, r) => sum + r.loserCount, 0),
   }
   return [...head, grouped]
 }
@@ -85,16 +94,22 @@ export default function ContributionChart({
   const rows = useMemo(() => buildRows(holdings, maxRows), [holdings, maxRows])
 
   const totals = useMemo(() => {
-    const gainers = rows.filter((r) => r.gain > 0)
-    const losers = rows.filter((r) => r.gain < 0)
-    return {
-      gains: gainers.reduce((sum, r) => sum + r.gain, 0),
-      losses: losers.reduce((sum, r) => sum + r.gain, 0),
-      net: rows.reduce((sum, r) => sum + r.gain, 0),
-      gainerCount: gainers.length,
-      loserCount: losers.length,
+    let gains = 0
+    let losses = 0
+    let gainerCount = 0
+    let loserCount = 0
+    for (const asset of holdings) {
+      const gain = assetGainLoss(asset)
+      if (gain > 0) {
+        gains += gain
+        gainerCount += 1
+      } else if (gain < 0) {
+        losses += gain
+        loserCount += 1
+      }
     }
-  }, [rows])
+    return { gains, losses, net: gains + losses, gainerCount, loserCount }
+  }, [holdings])
 
   if (rows.length === 0) {
     return (

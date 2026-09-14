@@ -93,6 +93,15 @@ function emptyExposures(): Record<ExposureKind, number> {
   return { cash: 0, securities: 0, crypto: 0, other: 0 }
 }
 
+function accountCountFor(product: EnterpriseBalanceProduct): number {
+  const rows = product.balances ?? []
+  if (CRYPTO_PRODUCTS.has(product.product)) {
+    // Exchange payloads list asset holdings, not custody accounts.
+    return rows.length > 0 || numeric(product.total_usd) !== 0 ? 1 : 0
+  }
+  return rows.length
+}
+
 /**
  * Maps one provider's account rows onto exposure buckets, in that provider's
  * own field vocabulary. Returns raw sums; reconciliation happens in the caller.
@@ -187,7 +196,7 @@ export function deriveCustodyMatrix(balances: EnterpriseBalances | null): Custod
       key: product.product,
       label: product.institution_name || PRODUCT_LABELS[product.product] || product.product,
       product: product.product,
-      accountCount: (product.balances ?? []).length,
+      accountCount: accountCountFor(product),
       exposures,
       total: counted,
       weight: 0,

@@ -40,25 +40,28 @@ async function testService(rawUrl: string): Promise<CheckState> {
     // Browser fallback: /healthz is public, so reaching it proves nothing about
     // the token. Probe an authenticated route as well.
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 5000)
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
     try {
       const health = await fetch(`${url}/healthz`, { signal: controller.signal, headers: { Accept: 'application/json' } })
       if (!health.ok) return { status: 'unreachable', detail: `Service returned HTTP ${health.status}.` }
       const data = await health.json() as { status?: string }
       if (data.status !== 'ok') return { status: 'unreachable', detail: 'Service responded but is not healthy.' }
+
+      const { enterpriseFetch } = await import('../../services/enterprise')
+      try {
+        await enterpriseFetch('/api/health/connections', { baseUrl: url, signal: controller.signal })
+        return { status: 'ok' }
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : 'The service rejected the request.'
+        if (reason instanceof Error && reason.name === 'AbortError') {
+          return { status: 'unreachable', detail: 'Could not reach the service.' }
+        }
+        return /token/i.test(message)
+          ? { status: 'unauthorized', detail: message }
+          : { status: 'unreachable', detail: message }
+      }
     } finally {
       window.clearTimeout(timeout)
-    }
-
-    const { enterpriseFetch } = await import('../../services/enterprise')
-    try {
-      await enterpriseFetch('/api/health/connections', { baseUrl: url })
-      return { status: 'ok' }
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'The service rejected the request.'
-      return /token/i.test(message)
-        ? { status: 'unauthorized', detail: message }
-        : { status: 'unreachable', detail: message }
     }
   } catch (reason) {
     return {
@@ -325,8 +328,9 @@ export default function EnterpriseServiceScreen() {
               }
               footer={
                 <span className="fin-footnote">
-                  The token is held by the desktop app&rsquo;s main process and is never returned to
-                  the window — only the last four characters are shown back to you.
+                  {window.electronAPI?.enterpriseSetToken
+                    ? 'The token is encrypted on this device by the desktop app and is never returned to the window — only the last four characters are shown back to you.'
+                    : 'In the browser the token is kept for this tab only and is not written to disk. Use the FinoCurve desktop app to store it securely.'}
                 </span>
               }
             >

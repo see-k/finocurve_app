@@ -158,10 +158,10 @@ function registerEnterpriseHandlers() {
       const timeout = setTimeout(() => controller.abort(), 5000)
       try {
         const response = await net.fetch(healthUrl.toString(), { signal: controller.signal })
-        if (!response.ok) return { available: false, reachable: false, authorized: false, status: response.status }
+        if (!response.ok) return { available: false, reachable: false, status: response.status }
         const data = await response.json() as { status?: string }
         if (data.status !== 'ok') {
-          return { available: false, reachable: false, authorized: false, status: response.status }
+          return { available: false, reachable: false, status: response.status }
         }
       } finally {
         clearTimeout(timeout)
@@ -177,7 +177,7 @@ function registerEnterpriseHandlers() {
       return {
         available: false,
         reachable: true,
-        authorized: false,
+        authorized: unauthorized ? false : undefined,
         status: probe.status,
         error: unauthorized
           ? (readEnterpriseApiToken()
@@ -189,7 +189,6 @@ function registerEnterpriseHandlers() {
       return {
         available: false,
         reachable: false,
-        authorized: false,
         error: error instanceof Error ? error.message : 'Service unavailable',
       }
     }

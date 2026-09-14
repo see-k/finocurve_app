@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskEnterpriseApiToken } from '../electron/enterpriseHandlers'
+import { maskEnterpriseApiToken } from '../src/lib/enterpriseToken'
 
 describe('maskEnterpriseApiToken', () => {
   it('shows only the last four characters', () => {

@@ -4,7 +4,10 @@
  */
 
 import { net, safeStorage } from 'electron'
+import { maskEnterpriseApiToken } from '../src/lib/enterpriseToken'
 import { getCoreDataDb } from './coreDataDb'
+
+export { maskEnterpriseApiToken }
 
 const ENTERPRISE_URL_SETTING_KEY = 'enterprise_service_url'
 const ENTERPRISE_TOKEN_SETTING_KEY = 'enterprise_api_token'
@@ -72,22 +75,18 @@ export function readEnterpriseApiToken(): string {
     try {
       upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, encryptSecret(legacy))
       deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+      return legacy
     } catch {
-      // Encryption unavailable: still return the legacy value so requests work,
-      // but do not rewrite it in plaintext.
+      // Encryption unavailable or migrate failed — drop the plaintext rather
+      // than keep serving it. The user re-enters the token once secure storage
+      // is available.
+      deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+      return ''
     }
-    return legacy
   } catch {
+    // Fail closed: never attach a plaintext SQLite value as a bearer token.
     return ''
   }
-}
-
-/** A recognisable hint that discloses no usable secret. */
-export function maskEnterpriseApiToken(token: string): string {
-  const trimmed = (token ?? '').trim()
-  if (!trimmed) return ''
-  if (trimmed.length <= 4) return '••••'
-  return `••••${trimmed.slice(-4)}`
 }
 
 export function saveEnterpriseApiToken(token: string): void {

@@ -1,7 +1,35 @@
+import { maskEnterpriseApiToken } from '../lib/enterpriseToken'
+
 // The service URL lives in the app's SQLite database (Settings → Enterprise
-// service). Browser dev builds without Electron fall back to localStorage.
+// service). Browser dev builds without Electron fall back to localStorage for
+// the URL; the API token is session-only in the browser.
 const BROWSER_URL_STORAGE_KEY = 'finocurve-enterprise-service-url'
 const BROWSER_TOKEN_STORAGE_KEY = 'finocurve-enterprise-api-token'
+
+function readBrowserToken(): string {
+  try {
+    // Legacy builds wrote the bearer token to localStorage. Drop it so it
+    // cannot survive the session or be read by other scripts later.
+    localStorage.removeItem(BROWSER_TOKEN_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  try {
+    return (sessionStorage.getItem(BROWSER_TOKEN_STORAGE_KEY) ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
+function writeBrowserToken(token: string): void {
+  try {
+    localStorage.removeItem(BROWSER_TOKEN_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  if (token) sessionStorage.setItem(BROWSER_TOKEN_STORAGE_KEY, token)
+  else sessionStorage.removeItem(BROWSER_TOKEN_STORAGE_KEY)
+}
 
 let cachedServiceUrl: string | null = null
 let cachedApiToken: string | null = null
@@ -38,11 +66,7 @@ export async function loadEnterpriseApiToken(): Promise<string> {
     cachedApiToken = ''
     return ''
   }
-  try {
-    cachedApiToken = (localStorage.getItem(BROWSER_TOKEN_STORAGE_KEY) ?? '').trim()
-  } catch {
-    cachedApiToken = ''
-  }
+  cachedApiToken = readBrowserToken()
   return cachedApiToken
 }
 
@@ -53,7 +77,7 @@ export async function getEnterpriseApiTokenStatus(): Promise<{ configured: boole
   }
   const token = await loadEnterpriseApiToken()
   if (!token) return { configured: false, hint: '' }
-  return { configured: true, hint: token.length <= 4 ? '••••' : `••••${token.slice(-4)}` }
+  return { configured: true, hint: maskEnterpriseApiToken(token) }
 }
 
 export async function saveEnterpriseApiToken(
@@ -67,8 +91,7 @@ export async function saveEnterpriseApiToken(
     return window.electronAPI.enterpriseSetToken({ token: trimmed })
   }
   try {
-    if (trimmed) localStorage.setItem(BROWSER_TOKEN_STORAGE_KEY, trimmed)
-    else localStorage.removeItem(BROWSER_TOKEN_STORAGE_KEY)
+    writeBrowserToken(trimmed)
   } catch {
     return { ok: false, error: 'Could not save the API token in this browser' }
   }
@@ -76,7 +99,7 @@ export async function saveEnterpriseApiToken(
   return {
     ok: true,
     configured: Boolean(trimmed),
-    hint: trimmed ? (trimmed.length <= 4 ? '••••' : `••••${trimmed.slice(-4)}`) : '',
+    hint: maskEnterpriseApiToken(trimmed),
   }
 }
 

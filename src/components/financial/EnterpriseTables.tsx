@@ -116,7 +116,24 @@ function lastSyncLabel(connection: EnterpriseConnection): string {
  * Provider link status. On an enterprise desk this is the first thing checked
  * before the balances are trusted, so it sits beside them rather than a tab away.
  */
-export function ConnectionHealthTable({ connections }: { connections: EnterpriseConnection[] }) {
+export function ConnectionHealthTable({
+  connections,
+  unavailable = false,
+}: {
+  connections: EnterpriseConnection[]
+  unavailable?: boolean
+}) {
+  if (unavailable) {
+    return (
+      <div className="fin-empty">
+        <span className="fin-empty__title">Health check unavailable</span>
+        <span className="fin-empty__body">
+          Provider link status could not be loaded. Custody figures above may still be current.
+        </span>
+      </div>
+    )
+  }
+
   if (connections.length === 0) {
     return (
       <div className="fin-empty">

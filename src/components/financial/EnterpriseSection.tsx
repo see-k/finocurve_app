@@ -127,9 +127,9 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
             title="Connection health"
             count={connections.length > 0 ? `${connections.length}` : undefined}
             note="Provider link status. Balances are only as current as the last successful check."
-            flushBody={connections.length > 0}
+            flushBody={connections.length > 0 && !healthUnavailable}
           >
-            <ConnectionHealthTable connections={connections} />
+            <ConnectionHealthTable connections={connections} unavailable={healthUnavailable} />
           </Panel>
         </div>
       )}
