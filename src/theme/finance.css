@@ -874,3 +874,278 @@
 @media print {
   .fin-ground { display: none; }
 }
+
+/* ============================================
+   Status chip — state as icon plus label, never colour alone
+   ============================================ */
+
+.fin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--fin-radius-sm);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.fin-status svg { flex-shrink: 0; }
+
+.fin-status--ok {
+  color: var(--fin-pos);
+  background: color-mix(in srgb, var(--fin-pos) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fin-pos) 30%, transparent);
+}
+
+.fin-status--warn {
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-warning) 30%, transparent);
+}
+
+.fin-status--bad {
+  color: var(--fin-neg);
+  background: color-mix(in srgb, var(--fin-neg) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fin-neg) 30%, transparent);
+}
+
+.fin-status--neutral {
+  color: var(--text-tertiary);
+  background: var(--fin-surface-sunken);
+  border-color: var(--fin-rule-soft);
+}
+
+/* ============================================
+   Notices
+   ============================================ */
+
+.fin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.fin-notice svg { flex-shrink: 0; margin-top: 2px; }
+
+.fin-notice--ok {
+  border-color: color-mix(in srgb, var(--fin-pos) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--fin-pos) 8%, transparent);
+}
+.fin-notice--ok svg { color: var(--fin-pos); }
+
+.fin-notice--warn {
+  border-color: color-mix(in srgb, var(--status-warning) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+}
+.fin-notice--warn svg { color: var(--status-warning); }
+
+.fin-notice--bad {
+  border-color: color-mix(in srgb, var(--fin-neg) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--fin-neg) 8%, transparent);
+}
+.fin-notice--bad svg { color: var(--fin-neg); }
+
+/* ============================================
+   Form field
+   ============================================ */
+
+.fin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.fin-field__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fin-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.fin-input::placeholder { color: var(--text-tertiary); }
+
+.fin-input:hover:not(:disabled) { border-color: var(--fin-rule-strong); }
+
+.fin-input:focus-visible {
+  border-color: var(--brand-primary);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -1px;
+}
+
+.fin-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* A credential reads as one: monospaced, so characters are distinguishable. */
+.fin-input--secret {
+  font-family: var(--fin-mono);
+  letter-spacing: 0.02em;
+}
+
+.fin-field__hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.fin-field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fin-field__row .fin-input { flex: 1; min-width: 0; }
+
+/* ============================================
+   Settings rows
+   ============================================ */
+
+.fin-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.fin-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 18px;
+  border: none;
+  border-bottom: 1px solid var(--fin-rule-soft);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.1s ease;
+}
+
+.fin-row:last-child { border-bottom: none; }
+.fin-row:hover { background: var(--fin-surface-hover); }
+.fin-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -2px;
+}
+
+.fin-row--static { cursor: default; }
+.fin-row--static:hover { background: transparent; }
+
+.fin-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  border: 1px solid var(--fin-rule-soft);
+  color: var(--text-secondary);
+}
+
+.fin-row__label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.fin-row__value {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+/* Both carry auto margins: with a value present the value claims the free
+   space and the arrow trails it; with no value the arrow claims it instead, so
+   a bare row still puts its chevron at the right edge. */
+.fin-row__arrow {
+  margin-left: auto;
+  color: var(--fin-rule-strong);
+  flex-shrink: 0;
+}
+
+.fin-row--danger .fin-row__label { color: var(--fin-neg); }
+.fin-row--danger .fin-row__icon {
+  color: var(--fin-neg);
+  border-color: color-mix(in srgb, var(--fin-neg) 30%, transparent);
+  background: color-mix(in srgb, var(--fin-neg) 10%, transparent);
+}
+
+/* Toggle */
+
+.fin-toggle {
+  margin-left: auto;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--fin-rule);
+  background: var(--fin-surface-sunken);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  outline: none;
+}
+
+.fin-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fin-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.fin-toggle--on {
+  background: color-mix(in srgb, var(--brand-primary) 30%, transparent);
+  border-color: var(--brand-primary);
+}
+
+.fin-toggle--on .fin-toggle__thumb {
+  transform: translateX(16px);
+  background: var(--brand-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-row, .fin-input, .fin-toggle, .fin-toggle__thumb { transition: none; }
+}

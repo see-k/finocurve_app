@@ -7,6 +7,9 @@ import {
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import UserAvatar from '../../components/UserAvatar'
+import PageGround from '../../components/financial/PageGround'
+import Panel from '../../components/financial/Panel'
+import { StatusChip } from '../../components/financial/Status'
 import { useTheme } from '../../theme/ThemeContext'
 import { THEME_OPTIONS } from '../../theme/themes'
 import { usePreferences } from '../../store/usePreferences'
@@ -109,84 +112,108 @@ export default function SettingsScreen() {
   }
 
   return (
-    <div className="settings">
-      <div className="settings-header">
-        <h1 className="settings-header__title">Settings</h1>
-        <p className="settings-header__subtitle">Manage your preferences</p>
-      </div>
+    <div className="fin-page settings">
+      <PageGround />
 
-      {/* Profile */}
-      <GlassContainer padding="20px 24px" borderRadius={20} className="settings-profile" onClick={() => navigate('/settings/account')}>
-        <UserAvatar src={prefs.profilePicturePath} initials={initials} size={52} className="settings-avatar" showEnterpriseIndicator />
-        <div className="settings-profile__info">
-          <span className="settings-profile__name">{userName}</span>
-          <span className="settings-profile__email">{userEmail}</span>
+      <header className="fin-masthead">
+        <div className="fin-masthead__id">
+          <div className="fin-masthead__eyebrow">
+            <strong>FinoCurve</strong>
+            <span className="fin-masthead__sep">/</span>
+            <span>Settings</span>
+          </div>
+          <h1 className="fin-masthead__title">Preferences</h1>
+          <p className="fin-masthead__sub">
+            Account, display, data and integrations. Everything here is stored on this device.
+          </p>
         </div>
-        <ChevronRight size={18} className="settings-profile__arrow" />
-      </GlassContainer>
+        <div className="fin-masthead__actions">
+          <button type="button" className="fin-btn" onClick={handleRefreshPrices} disabled={refreshing}>
+            <RefreshCw size={13} aria-hidden className={refreshing ? 'spin' : ''} />
+            {refreshing ? 'Refreshing…' : 'Refresh prices'}
+          </button>
+          <button type="button" className="fin-btn" onClick={() => setShowExportModal(true)}>
+            <Download size={13} aria-hidden /> Export data
+          </button>
+        </div>
+      </header>
 
-      {/* Quick actions */}
-      <div className="settings-quick-actions">
-        <GlassContainer padding="16px" borderRadius={14} className="settings-quick-btn" onClick={handleRefreshPrices}>
-          <RefreshCw size={20} className={refreshing ? 'spin' : ''} />
-          <span>{refreshing ? 'Refreshing...' : 'Refresh Prices'}</span>
-        </GlassContainer>
-        <GlassContainer padding="16px" borderRadius={14} className="settings-quick-btn" onClick={() => setShowExportModal(true)}>
-          <Download size={20} />
-          <span>Export Data</span>
-        </GlassContainer>
+      <div className="fin-stack settings__stack">
+        {/* Account */}
+        <Panel title="Account" flushBody>
+          <button type="button" className="fin-row settings__account" onClick={() => navigate('/settings/account')}>
+            <UserAvatar src={prefs.profilePicturePath} initials={initials} size={38} className="settings-avatar" showEnterpriseIndicator />
+            <span className="settings__account-text">
+              <span className="fin-row__label">{userName}</span>
+              <span className="fin-row__sub">{userEmail}</span>
+            </span>
+            <ChevronRight size={15} className="fin-row__arrow" aria-hidden />
+          </button>
+        </Panel>
+
+        {/* Preferences */}
+        <Panel title="Display & alerts" flushBody>
+          <div className="fin-rows">
+            <SettingsRow icon={<Palette size={15} />} label="Theme" value={currentThemeLabel} onClick={() => navigate('/settings/theme')} />
+            <SettingsRow icon={<DollarSign size={15} />} label="Currency" value={prefs.defaultCurrency} onClick={() => navigate('/settings/currency')} />
+            <SettingsRow
+              icon={<Bell size={15} />}
+              label="Notifications"
+              toggle
+              toggled={prefs.notificationsEnabled}
+              onToggle={() => updatePreferences({ notificationsEnabled: !prefs.notificationsEnabled })}
+            />
+            <SettingsRow
+              icon={<Shield size={15} />}
+              label="Price alerts"
+              toggle
+              toggled={prefs.priceAlerts}
+              onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })}
+            />
+          </div>
+        </Panel>
+
+        {/* Data & integrations */}
+        <Panel title="Data & integrations" flushBody>
+          <div className="fin-rows">
+            {typeof window !== 'undefined' && (window.electronAPI?.s3List || window.electronAPI?.localStorageChooseDirectory) && (
+              <SettingsRow icon={<Cloud size={15} />} label="Storage" value={prefs.s3Bucket ? 'S3 connected' : 'Configure'} onClick={() => navigate('/settings/cloud-storage')} />
+            )}
+            {typeof window !== 'undefined' && window.electronAPI?.trackerGetState && (
+              <SettingsRow icon={<Target size={15} />} label="Tracker backup" value="SQLite + S3" onClick={() => navigate('/settings/tracker-storage')} />
+            )}
+            {typeof window !== 'undefined' && window.electronAPI?.aiConfigGet && (
+              <SettingsRow icon={<Cpu size={15} />} label="AI models" value="Configure" onClick={() => navigate('/settings/ai-config')} />
+            )}
+            <SettingsRow icon={<Bot size={15} />} label="AI experts" value="Expert network" onClick={() => navigate('/main?tab=experts')} />
+            {typeof window !== 'undefined' && window.electronAPI?.pluginsSettingsGet && (
+              <SettingsRow icon={<Plug size={15} />} label="Plugins" value="API keys" onClick={() => navigate('/settings/plugins')} />
+            )}
+            <SettingsRow
+              icon={<Building2 size={15} />}
+              label="Enterprise service"
+              trailing={<StatusChip tone={isEnterprise ? 'ok' : 'neutral'} label={isEnterprise ? 'Connected' : 'Not configured'} />}
+              onClick={() => navigate('/settings/enterprise')}
+            />
+          </div>
+        </Panel>
+
+        {/* Support */}
+        <Panel title="Support" flushBody>
+          <div className="fin-rows">
+            <SettingsRow icon={<HelpCircle size={15} />} label="Help & FAQ" onClick={() => navigate('/settings/help')} />
+            <SettingsRow icon={<Info size={15} />} label="About FinoCurve" value={`v${APP_VERSION}`} onClick={() => navigate('/settings/about')} />
+          </div>
+        </Panel>
+
+        {/* Session */}
+        <Panel title="Session" note="Signing out keeps this account's data archived on the device." flushBody>
+          <div className="fin-rows">
+            <SettingsRow icon={<LogOut size={15} />} label="Sign out" onClick={handleSignOut} />
+            <SettingsRow icon={<Trash2 size={15} />} label="Delete account" danger onClick={() => setShowDeleteConfirm(true)} />
+          </div>
+        </Panel>
       </div>
-
-      {/* Preferences */}
-      <div className="settings-section">
-        <h2 className="settings-section__title">Preferences</h2>
-        <GlassContainer padding="0" borderRadius={16} className="settings-group">
-          <SettingsRow icon={<Palette size={18} />} label="Theme" value={currentThemeLabel} onClick={() => navigate('/settings/theme')} />
-          <SettingsRow icon={<DollarSign size={18} />} label="Currency" value={prefs.defaultCurrency} onClick={() => navigate('/settings/currency')} />
-          <SettingsRow icon={<Bell size={18} />} label="Notifications" value={prefs.notificationsEnabled ? 'On' : 'Off'}
-            toggle toggled={prefs.notificationsEnabled}
-            onToggle={() => updatePreferences({ notificationsEnabled: !prefs.notificationsEnabled })} />
-          <SettingsRow icon={<Shield size={18} />} label="Price Alerts" value={prefs.priceAlerts ? 'On' : 'Off'}
-            toggle toggled={prefs.priceAlerts}
-            onToggle={() => updatePreferences({ priceAlerts: !prefs.priceAlerts })} />
-          {typeof window !== 'undefined' && (window.electronAPI?.s3List || window.electronAPI?.localStorageChooseDirectory) && (
-            <SettingsRow icon={<Cloud size={18} />} label="Storage" value={prefs.s3Bucket ? 'S3 connected' : 'Configure'} onClick={() => navigate('/settings/cloud-storage')} />
-          )}
-          {typeof window !== 'undefined' && window.electronAPI?.trackerGetState && (
-            <SettingsRow icon={<Target size={18} />} label="Tracker backup" value="SQLite + S3" onClick={() => navigate('/settings/tracker-storage')} />
-          )}
-          {typeof window !== 'undefined' && window.electronAPI?.aiConfigGet && (
-            <SettingsRow icon={<Cpu size={18} />} label="AI Models" value="Configure" onClick={() => navigate('/settings/ai-config')} />
-          )}
-          <SettingsRow icon={<Bot size={18} />} label="AI Experts" value="Build your expert network" onClick={() => navigate('/main?tab=experts')} />
-          {typeof window !== 'undefined' && window.electronAPI?.pluginsSettingsGet && (
-            <SettingsRow icon={<Plug size={18} />} label="Plugins" value="API keys" onClick={() => navigate('/settings/plugins')} />
-          )}
-          <SettingsRow icon={<Building2 size={18} />} label="Enterprise service" value={isEnterprise ? 'Connected' : 'Configure'} onClick={() => navigate('/settings/enterprise')} />
-        </GlassContainer>
-      </div>
-
-      {/* Support */}
-      <div className="settings-section">
-        <h2 className="settings-section__title">Support</h2>
-        <GlassContainer padding="0" borderRadius={16} className="settings-group">
-          <SettingsRow icon={<HelpCircle size={18} />} label="Help & FAQ" onClick={() => navigate('/settings/help')} />
-          <SettingsRow icon={<Info size={18} />} label="About FinoCurve" value={`v${APP_VERSION}`} onClick={() => navigate('/settings/about')} />
-        </GlassContainer>
-      </div>
-
-      {/* Danger Zone */}
-      <div className="settings-section">
-        <h2 className="settings-section__title" style={{ color: 'var(--status-error)' }}>Danger Zone</h2>
-        <GlassContainer padding="0" borderRadius={16} className="settings-group">
-          <SettingsRow icon={<Trash2 size={18} />} label="Delete Account" danger onClick={() => setShowDeleteConfirm(true)} />
-        </GlassContainer>
-      </div>
-
-      {/* Sign Out */}
-      <button className="settings-signout" onClick={handleSignOut}>
-        <LogOut size={18} /><span>Sign Out</span>
-      </button>
 
       {/* Export Modal */}
       {showExportModal && (
@@ -226,26 +253,44 @@ export default function SettingsScreen() {
 }
 
 function SettingsRow({
-  icon, label, value, onClick, toggle, toggled, onToggle, danger,
+  icon, label, value, trailing, onClick, toggle, toggled, onToggle, danger,
 }: {
-  icon: React.ReactNode; label: string; value?: string
-  onClick?: () => void; toggle?: boolean; toggled?: boolean
-  onToggle?: () => void; danger?: boolean
+  icon: React.ReactNode
+  label: string
+  value?: string
+  trailing?: React.ReactNode
+  onClick?: () => void
+  toggle?: boolean
+  toggled?: boolean
+  onToggle?: () => void
+  danger?: boolean
 }) {
+  if (toggle) {
+    return (
+      <div className="fin-row fin-row--static">
+        <span className="fin-row__icon">{icon}</span>
+        <span className="fin-row__label">{label}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!toggled}
+          aria-label={label}
+          className={`fin-toggle ${toggled ? 'fin-toggle--on' : ''}`.trim()}
+          onClick={onToggle}
+        >
+          <span className="fin-toggle__thumb" />
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className={`settings-row ${danger ? 'settings-row--danger' : ''}`} onClick={toggle ? onToggle : onClick}>
-      <span className="settings-row__icon">{icon}</span>
-      <span className="settings-row__label">{label}</span>
-      {toggle ? (
-        <div className={`settings-toggle ${toggled ? 'settings-toggle--on' : ''}`}>
-          <div className="settings-toggle__thumb" />
-        </div>
-      ) : (
-        <>
-          <span className="settings-row__value">{value || ''}</span>
-          <ChevronRight size={16} className="settings-row__arrow" />
-        </>
-      )}
-    </div>
+    <button type="button" className={`fin-row ${danger ? 'fin-row--danger' : ''}`.trim()} onClick={onClick}>
+      <span className="fin-row__icon">{icon}</span>
+      <span className="fin-row__label">{label}</span>
+      {trailing ? <span className="fin-row__trailing">{trailing}</span> : null}
+      {value ? <span className="fin-row__value">{value}</span> : null}
+      <ChevronRight size={15} className="fin-row__arrow" aria-hidden />
+    </button>
   )
 }

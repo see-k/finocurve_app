@@ -7,6 +7,7 @@ import { net } from 'electron'
 import { getCoreDataDb } from './coreDataDb'
 
 const ENTERPRISE_URL_SETTING_KEY = 'enterprise_service_url'
+const ENTERPRISE_TOKEN_SETTING_KEY = 'enterprise_api_token'
 const REQUEST_TIMEOUT_MS = 20000
 
 export function readEnterpriseServiceUrl(): string {
@@ -18,6 +19,46 @@ export function readEnterpriseServiceUrl(): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * The API token for Finocurve Service.
+ *
+ * Kept in the main process and never handed back to the renderer in full: the
+ * UI can learn that a token exists and see its last four characters, which is
+ * enough to recognise which credential is installed without the window being
+ * able to read it back.
+ */
+export function readEnterpriseApiToken(): string {
+  try {
+    const row = getCoreDataDb()
+      .prepare('SELECT value FROM app_settings WHERE key = ?')
+      .get(ENTERPRISE_TOKEN_SETTING_KEY) as { value?: string } | undefined
+    return (row?.value ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
+/** A recognisable hint that discloses no usable secret. */
+export function maskEnterpriseApiToken(token: string): string {
+  const trimmed = (token ?? '').trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= 4) return '••••'
+  return `••••${trimmed.slice(-4)}`
+}
+
+export function saveEnterpriseApiToken(token: string): void {
+  const db = getCoreDataDb()
+  const trimmed = (token ?? '').trim()
+  if (!trimmed) {
+    db.prepare('DELETE FROM app_settings WHERE key = ?').run(ENTERPRISE_TOKEN_SETTING_KEY)
+    return
+  }
+  db.prepare(`
+    INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(ENTERPRISE_TOKEN_SETTING_KEY, trimmed, new Date().toISOString())
 }
 
 /** Normalize to a trailing-slash-free http(s) origin+path; '' clears, null = invalid. */
@@ -71,10 +112,15 @@ export async function fetchEnterprisePath(
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
+      const token = readEnterpriseApiToken()
+      const headers: Record<string, string> = { Accept: 'application/json' }
+      // Every /api/* route on the service requires a bearer token.
+      if (token) headers.Authorization = `Bearer ${token}`
+
       const response = await net.fetch(requestUrl.toString(), {
         method,
         signal: controller.signal,
-        headers: { Accept: 'application/json' },
+        headers,
       })
       const body = await response.text()
       let data: unknown
@@ -82,6 +128,17 @@ export async function fetchEnterprisePath(
         data = body ? JSON.parse(body) : null
       } catch {
         return { ok: false, status: response.status, error: 'Service returned an invalid response' }
+      }
+      if (response.status === 401 || response.status === 403) {
+        // The generic "unauthorized" the service returns does not tell a client
+        // which of the two likely causes applies, so say it here.
+        return {
+          ok: false,
+          status: response.status,
+          error: token
+            ? 'Finocurve Service rejected the API token. Check it in Settings → Enterprise service.'
+            : 'Finocurve Service requires an API token. Add one in Settings → Enterprise service.',
+        }
       }
       if (!response.ok) {
         const message = data && typeof data === 'object' && 'error' in data

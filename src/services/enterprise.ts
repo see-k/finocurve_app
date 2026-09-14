@@ -1,8 +1,10 @@
 // The service URL lives in the app's SQLite database (Settings → Enterprise
 // service). Browser dev builds without Electron fall back to localStorage.
 const BROWSER_URL_STORAGE_KEY = 'finocurve-enterprise-service-url'
+const BROWSER_TOKEN_STORAGE_KEY = 'finocurve-enterprise-api-token'
 
 let cachedServiceUrl: string | null = null
+let cachedApiToken: string | null = null
 
 function normalizeUrl(raw: string): string {
   return (raw ?? '').trim().replace(/\/+$/, '')
@@ -22,6 +24,60 @@ export async function loadEnterpriseServiceUrl(): Promise<string> {
 /** Last loaded service URL; '' until loadEnterpriseServiceUrl resolves or when unconfigured. */
 export function getEnterpriseServiceUrl(): string {
   return cachedServiceUrl ?? ''
+}
+
+/**
+ * Load the API token for the browser fallback path.
+ *
+ * Under Electron the token lives in the main process and is never returned to
+ * the window, so this resolves to '' there and the main process attaches the
+ * header itself.
+ */
+export async function loadEnterpriseApiToken(): Promise<string> {
+  if (window.electronAPI?.enterpriseGetToken) {
+    cachedApiToken = ''
+    return ''
+  }
+  try {
+    cachedApiToken = (localStorage.getItem(BROWSER_TOKEN_STORAGE_KEY) ?? '').trim()
+  } catch {
+    cachedApiToken = ''
+  }
+  return cachedApiToken
+}
+
+/** Whether a token is installed, and a masked hint for the UI. */
+export async function getEnterpriseApiTokenStatus(): Promise<{ configured: boolean; hint: string }> {
+  if (window.electronAPI?.enterpriseGetToken) {
+    return window.electronAPI.enterpriseGetToken()
+  }
+  const token = await loadEnterpriseApiToken()
+  if (!token) return { configured: false, hint: '' }
+  return { configured: true, hint: token.length <= 4 ? '••••' : `••••${token.slice(-4)}` }
+}
+
+export async function saveEnterpriseApiToken(
+  token: string,
+): Promise<{ ok: boolean; configured?: boolean; hint?: string; error?: string }> {
+  const trimmed = (token ?? '').trim()
+  if (trimmed && /\s/.test(trimmed)) {
+    return { ok: false, error: 'API tokens cannot contain spaces' }
+  }
+  if (window.electronAPI?.enterpriseSetToken) {
+    return window.electronAPI.enterpriseSetToken({ token: trimmed })
+  }
+  try {
+    if (trimmed) localStorage.setItem(BROWSER_TOKEN_STORAGE_KEY, trimmed)
+    else localStorage.removeItem(BROWSER_TOKEN_STORAGE_KEY)
+  } catch {
+    return { ok: false, error: 'Could not save the API token in this browser' }
+  }
+  cachedApiToken = trimmed
+  return {
+    ok: true,
+    configured: Boolean(trimmed),
+    hint: trimmed ? (trimmed.length <= 4 ? '••••' : `••••${trimmed.slice(-4)}`) : '',
+  }
 }
 
 export async function saveEnterpriseServiceUrl(url: string): Promise<{ ok: boolean; url?: string; error?: string }> {
@@ -102,11 +158,24 @@ export async function enterpriseFetch<T>(path: string, options: { force?: boolea
 
   const serviceUrl = getEnterpriseServiceUrl() || await loadEnterpriseServiceUrl()
   if (!serviceUrl) throw new Error('Finocurve Service is not configured. Add its URL in Settings → Enterprise service.')
+
+  const token = cachedApiToken ?? await loadEnterpriseApiToken()
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  // Every /api/* route on the service requires a bearer token.
+  if (token) headers.Authorization = `Bearer ${token}`
+
   const response = await fetch(`${serviceUrl}${path}${force ? '?refresh=1' : ''}`, {
     method,
     signal,
-    headers: { Accept: 'application/json' },
+    headers,
   })
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(
+      token
+        ? 'Finocurve Service rejected the API token. Check it in Settings → Enterprise service.'
+        : 'Finocurve Service requires an API token. Add one in Settings → Enterprise service.',
+    )
+  }
   if (!response.ok) throw new Error(`Finocurve Service returned ${response.status}`)
   return response.json() as Promise<T>
 }

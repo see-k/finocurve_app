@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterpriseRequest: (payload: { path: string; refresh?: boolean; method?: 'GET' | 'POST' }) => ipcRenderer.invoke('enterprise-request', payload),
   enterpriseGetUrl: () => ipcRenderer.invoke('enterprise-get-url'),
   enterpriseSetUrl: (payload: { url: string }) => ipcRenderer.invoke('enterprise-set-url', payload),
+  enterpriseGetToken: () => ipcRenderer.invoke('enterprise-get-token'),
+  enterpriseSetToken: (payload: { token: string }) => ipcRenderer.invoke('enterprise-set-token', payload),
   s3SaveCredentials: (payload: { bucket: string; region: string; accessKeyId: string; secret: string }) =>
     ipcRenderer.invoke('s3-save-credentials', payload),
   s3ClearCredentials: () => ipcRenderer.invoke('s3-clear-credentials'),
