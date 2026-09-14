@@ -18,6 +18,8 @@ interface HoldingsTableProps {
   /** Denominator for the weight column — gross investable value. */
   totalValue: number
   onSelect: (asset: Asset) => void
+  /** ISO currency used for every money figure in the table. */
+  currency?: string
   /** `compact` drops quantity, last price and the provenance column. */
   density?: 'compact' | 'full'
   /** Caps visible rows; the remainder is summarised in the footer. */
@@ -51,6 +53,7 @@ export default function HoldingsTable({
   assets,
   totalValue,
   onSelect,
+  currency = 'USD',
   density = 'full',
   limit,
 }: HoldingsTableProps) {
@@ -136,33 +139,28 @@ export default function HoldingsTable({
               <tr
                 key={asset.id}
                 className="fin-table__row--link"
-                tabIndex={0}
                 onClick={() => onSelect(asset)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onSelect(asset)
-                  }
-                }}
               >
                 <td>
-                  <div className="fin-table__identity">
-                    <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={30} borderRadius={6} />
-                    <div className="fin-table__identity-text">
-                      <span className="fin-table__primary">{asset.name}</span>
-                      <span className="fin-table__secondary">
-                        {asset.symbol ? `${asset.symbol} · ` : ''}{ASSET_TYPE_LABELS[asset.type] ?? asset.type}
-                      </span>
+                  <button type="button" className="fin-table__row-action">
+                    <div className="fin-table__identity">
+                      <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={30} borderRadius={6} />
+                      <div className="fin-table__identity-text">
+                        <span className="fin-table__primary">{asset.name}</span>
+                        <span className="fin-table__secondary">
+                          {asset.symbol ? `${asset.symbol} · ` : ''}{ASSET_TYPE_LABELS[asset.type] ?? asset.type}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </button>
                 </td>
                 {density === 'full' && (
                   <td className="fin-table__num fin-holdings__muted">
                     {formatQuantity(asset.quantity)}
-                    <span className="fin-holdings__at">@ {formatCurrency(asset.currentPrice)}</span>
+                    <span className="fin-holdings__at">@ {formatCurrency(asset.currentPrice, currency)}</span>
                   </td>
                 )}
-                <td className="fin-table__num fin-table__value">{formatCurrency(value)}</td>
+                <td className="fin-table__num fin-table__value">{formatCurrency(value, currency)}</td>
                 <td className="fin-table__num">
                   <div className="fin-holdings__weight">
                     <span className="fin-holdings__weight-figure">{formatWeight(weight)}</span>
@@ -171,7 +169,7 @@ export default function HoldingsTable({
                     </span>
                   </div>
                 </td>
-                <td className="fin-table__num"><Delta value={gain} size="sm" /></td>
+                <td className="fin-table__num"><Delta value={gain} currency={currency} size="sm" /></td>
                 <td className="fin-table__num"><Delta value={pct} kind="percent" size="sm" /></td>
                 {density === 'full' && (
                   <td>
@@ -188,8 +186,8 @@ export default function HoldingsTable({
         {hidden > 0 && (
           <tfoot>
             <tr>
-              <td colSpan={columns.length - 4}>{hidden} further {hidden === 1 ? 'position' : 'positions'}</td>
-              <td className="fin-table__num">{formatCurrency(hiddenValue)}</td>
+              <td colSpan={density === 'full' ? 2 : 1}>{hidden} further {hidden === 1 ? 'position' : 'positions'}</td>
+              <td className="fin-table__num">{formatCurrency(hiddenValue, currency)}</td>
               <td className="fin-table__num">
                 {formatWeight(totalValue > 0 ? (hiddenValue / totalValue) * 100 : 0)}
               </td>

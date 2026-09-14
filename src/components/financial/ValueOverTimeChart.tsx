@@ -10,6 +10,7 @@ interface ValueOverTimeChartProps {
   performance: PerformanceSeries
   showTrend: boolean
   height?: number
+  currency?: string
 }
 
 interface TooltipPayloadEntry {
@@ -23,10 +24,11 @@ const SERIES_NAMES: Record<string, string> = {
   futTrend: 'Trend extended',
 }
 
-function ChartTooltip({ active, payload, label }: {
+function ChartTooltip({ active, payload, label, currency }: {
   active?: boolean
   payload?: TooltipPayloadEntry[]
   label?: string
+  currency: string
 }) {
   if (!active || !payload?.length) return null
   const rows = payload.filter((entry) => entry.value != null && Number.isFinite(entry.value))
@@ -40,7 +42,7 @@ function ChartTooltip({ active, payload, label }: {
           <span className={`fin-chart-tip__key fin-chart-tip__key--${entry.dataKey}`}>
             {SERIES_NAMES[String(entry.dataKey)] ?? String(entry.dataKey)}
           </span>
-          <span className="fin-chart-tip__value fin-num">{formatCurrency(entry.value as number)}</span>
+          <span className="fin-chart-tip__value fin-num">{formatCurrency(entry.value as number, currency)}</span>
         </div>
       ))}
     </div>
@@ -57,6 +59,7 @@ export default function ValueOverTimeChart({
   performance,
   showTrend,
   height = 280,
+  currency = 'USD',
 }: ValueOverTimeChartProps) {
   const {
     series, period, sources, sourcePreference, dataSource, fellBack, loading, hasRealData,
@@ -76,8 +79,9 @@ export default function ValueOverTimeChart({
         <LineChartIcon size={22} aria-hidden />
         <span className="fin-empty__title">No observed history for {period}</span>
         <span className="fin-empty__body">
-          This app will not draw a value line it has not observed. Either source below will
-          enable this view.
+          This app will not draw a value line it has not observed. When a source has enough
+          observations for this window, it can be selected above. Listed holdings with a ticker
+          enable market history; opening the app records snapshots.
         </span>
         <ul className="fin-chart-unavailable__reasons">
           {sources.map((source) => (
@@ -134,7 +138,7 @@ export default function ValueOverTimeChart({
               axisLine={false}
               tickLine={false}
               tickMargin={8}
-              tickFormatter={formatCompactCurrency}
+              tickFormatter={(value) => formatCompactCurrency(value, currency)}
               width={62}
               tickCount={5}
               domain={([dataMin, dataMax]: readonly [number, number]) => {
@@ -146,7 +150,7 @@ export default function ValueOverTimeChart({
               }}
             />
             <Tooltip
-              content={<ChartTooltip />}
+              content={<ChartTooltip currency={currency} />}
               cursor={{ stroke: 'var(--fin-rule-strong)', strokeWidth: 1 }}
             />
             <Area

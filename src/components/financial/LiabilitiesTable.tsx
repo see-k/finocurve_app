@@ -9,6 +9,8 @@ import './HoldingsTable.css'
 interface LiabilitiesTableProps {
   loans: Asset[]
   onSelect: (asset: Asset) => void
+  /** ISO currency used for principal and outstanding balances. */
+  currency?: string
   /** `compact` drops the paid-down and provenance columns. */
   density?: 'compact' | 'full'
 }
@@ -17,6 +19,7 @@ interface LiabilitiesTableProps {
 export default function LiabilitiesTable({
   loans,
   onSelect,
+  currency = 'USD',
   density = 'full',
 }: LiabilitiesTableProps) {
   if (loans.length === 0) {
@@ -53,29 +56,24 @@ export default function LiabilitiesTable({
               <tr
                 key={loan.id}
                 className="fin-table__row--link"
-                tabIndex={0}
                 onClick={() => onSelect(loan)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onSelect(loan)
-                  }
-                }}
               >
                 <td>
-                  <div className="fin-table__identity">
-                    <span className="fin-mark"><Landmark aria-hidden /></span>
-                    <div className="fin-table__identity-text">
-                      <span className="fin-table__primary">{loan.name}</span>
-                      <span className="fin-liabilities__terms">
-                        {loan.loanType && <span>{loan.loanType.replace(/_/g, ' ')}</span>}
-                        {loan.interestRate != null && <span>{loan.interestRate}% APR</span>}
-                        {principal > 0 && <span>of {formatCurrency(principal)}</span>}
-                      </span>
+                  <button type="button" className="fin-table__row-action">
+                    <div className="fin-table__identity">
+                      <span className="fin-mark"><Landmark aria-hidden /></span>
+                      <div className="fin-table__identity-text">
+                        <span className="fin-table__primary">{loan.name}</span>
+                        <span className="fin-liabilities__terms">
+                          {loan.loanType && <span>{loan.loanType.replace(/_/g, ' ')}</span>}
+                          {loan.interestRate != null && <span>{loan.interestRate}% APR</span>}
+                          {principal > 0 && <span>of {formatCurrency(principal, currency)}</span>}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </button>
                 </td>
-                <td className="fin-table__num fin-liabilities__balance">{formatCurrency(balance)}</td>
+                <td className="fin-table__num fin-liabilities__balance">{formatCurrency(balance, currency)}</td>
                 {density === 'full' && (
                   <td className="fin-table__num">
                     <div className="fin-holdings__weight">

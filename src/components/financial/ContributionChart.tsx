@@ -14,6 +14,7 @@ interface ContributionChartProps {
   /** Positions past this cap are grouped into a single "Other" bar. */
   maxRows?: number
   onSelect?: (asset: Asset) => void
+  currency?: string
 }
 
 interface ContributionRow {
@@ -79,6 +80,7 @@ export default function ContributionChart({
   grossAssets,
   maxRows = 10,
   onSelect,
+  currency = 'USD',
 }: ContributionChartProps) {
   const rows = useMemo(() => buildRows(holdings, maxRows), [holdings, maxRows])
 
@@ -110,14 +112,14 @@ export default function ContributionChart({
       <div className="fin-poschart__summary">
         <span className="fin-poschart__summary-item">
           <span className="fin-label">Gains</span>
-          <strong className="fin-num fin-pos">{formatCurrency(totals.gains)}</strong>
+          <strong className="fin-num fin-pos">{formatCurrency(totals.gains, currency)}</strong>
           <span className="fin-poschart__summary-meta">
             {totals.gainerCount} {totals.gainerCount === 1 ? 'position' : 'positions'}
           </span>
         </span>
         <span className="fin-poschart__summary-item">
           <span className="fin-label">Losses</span>
-          <strong className="fin-num fin-neg">{formatCurrency(totals.losses)}</strong>
+          <strong className="fin-num fin-neg">{formatCurrency(totals.losses, currency)}</strong>
           <span className="fin-poschart__summary-meta">
             {totals.loserCount} {totals.loserCount === 1 ? 'position' : 'positions'}
           </span>
@@ -125,7 +127,7 @@ export default function ContributionChart({
         <span className="fin-poschart__summary-item fin-poschart__summary-item--net">
           <span className="fin-label">Net unrealized</span>
           <strong className={`fin-num ${totals.net >= 0 ? 'fin-pos' : 'fin-neg'}`}>
-            {formatCurrency(totals.net)}
+            {formatCurrency(totals.net, currency)}
           </strong>
           <span className="fin-poschart__summary-meta">Across {rows.length} rows</span>
         </span>
@@ -149,7 +151,7 @@ export default function ContributionChart({
             >
               <XAxis
                 type="number"
-                tickFormatter={formatCompactCurrency}
+                tickFormatter={(value) => formatCompactCurrency(value, currency)}
                 tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
@@ -173,12 +175,12 @@ export default function ContributionChart({
                   return (
                     <div className="fin-chart-tip">
                       <div className="fin-chart-tip__label">{row.fullName}</div>
-                      <TipRow label="Unrealized" value={formatCurrency(row.gain)} tone={row.gain >= 0 ? 'pos' : 'neg'} />
+                      <TipRow label="Unrealized" value={formatCurrency(row.gain, currency)} tone={row.gain >= 0 ? 'pos' : 'neg'} />
                       {row.returnPercent != null && (
                         <TipRow label="Return" value={formatPercentSigned(row.returnPercent)} tone={row.returnPercent >= 0 ? 'pos' : 'neg'} />
                       )}
-                      <TipRow label="Market value" value={formatCurrency(row.value)} />
-                      <TipRow label="Invested cost" value={formatCurrency(row.cost)} />
+                      <TipRow label="Market value" value={formatCurrency(row.value, currency)} />
+                      <TipRow label="Invested cost" value={formatCurrency(row.cost, currency)} />
                       <TipRow label="Weight" value={formatWeight(weight)} />
                     </div>
                   )
@@ -206,7 +208,7 @@ export default function ContributionChart({
                   dataKey="gain"
                   position="right"
                   className="fin-poschart__label"
-                  formatter={(value) => (typeof value === 'number' ? formatCompactCurrency(value) : '')}
+                  formatter={(value) => (typeof value === 'number' ? formatCompactCurrency(value, currency) : '')}
                 />
               </Bar>
             </BarChart>

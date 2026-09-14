@@ -11,6 +11,7 @@ interface CostValueChartProps {
   holdings: Asset[]
   maxRows?: number
   onSelect?: (asset: Asset) => void
+  currency?: string
 }
 
 interface CostValueRow {
@@ -73,6 +74,7 @@ export default function CostValueChart({
   holdings,
   maxRows = 10,
   onSelect,
+  currency = 'USD',
 }: CostValueChartProps) {
   const rows = useMemo(() => buildRows(holdings, maxRows), [holdings, maxRows])
 
@@ -100,18 +102,18 @@ export default function CostValueChart({
       <div className="fin-poschart__summary">
         <span className="fin-poschart__summary-item">
           <span className="fin-label">Invested cost</span>
-          <strong className="fin-num">{formatCurrency(totals.cost)}</strong>
+          <strong className="fin-num">{formatCurrency(totals.cost, currency)}</strong>
           <span className="fin-poschart__summary-meta">Capital deployed</span>
         </span>
         <span className="fin-poschart__summary-item">
           <span className="fin-label">Market value</span>
-          <strong className="fin-num">{formatCurrency(totals.value)}</strong>
+          <strong className="fin-num">{formatCurrency(totals.value, currency)}</strong>
           <span className="fin-poschart__summary-meta">At current marks</span>
         </span>
         <span className="fin-poschart__summary-item fin-poschart__summary-item--net">
           <span className="fin-label">Difference</span>
           <strong className={`fin-num ${totals.value - totals.cost >= 0 ? 'fin-pos' : 'fin-neg'}`}>
-            {formatCurrency(totals.value - totals.cost)}
+            {formatCurrency(totals.value - totals.cost, currency)}
           </strong>
           <span className="fin-poschart__summary-meta">Unrealized</span>
         </span>
@@ -139,7 +141,7 @@ export default function CostValueChart({
           >
             <XAxis
               type="number"
-              tickFormatter={formatCompactCurrency}
+              tickFormatter={(value) => formatCompactCurrency(value, currency)}
               tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
@@ -163,16 +165,16 @@ export default function CostValueChart({
                     <div className="fin-chart-tip__label">{row.fullName}</div>
                     <div className="fin-chart-tip__row">
                       <span className="fin-chart-tip__key fin-chart-tip__key--cost">Invested cost</span>
-                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.cost)}</span>
+                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.cost, currency)}</span>
                     </div>
                     <div className="fin-chart-tip__row">
                       <span className="fin-chart-tip__key fin-chart-tip__key--value">Market value</span>
-                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.value)}</span>
+                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.value, currency)}</span>
                     </div>
                     <div className="fin-chart-tip__row">
                       <span className="fin-chart-tip__key fin-chart-tip__key--plain">Unrealized</span>
                       <span className={`fin-chart-tip__value fin-num ${row.gain >= 0 ? 'fin-pos' : 'fin-neg'}`}>
-                        {formatCurrency(row.gain)}
+                        {formatCurrency(row.gain, currency)}
                         {row.returnPercent != null && ` (${formatPercentSigned(row.returnPercent)})`}
                       </span>
                     </div>
@@ -201,7 +203,7 @@ export default function CostValueChart({
                 dataKey="gain"
                 position="right"
                 className="fin-poschart__label"
-                formatter={(value) => (typeof value !== 'number' ? '' : value === 0 ? '—' : formatCompactCurrency(value))}
+                formatter={(value) => (typeof value !== 'number' ? '' : value === 0 ? '—' : formatCompactCurrency(value, currency))}
               />
             </Bar>
           </BarChart>

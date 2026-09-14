@@ -110,7 +110,8 @@ export default function DashboardScreen() {
   }
 
   const gainPositive = unrealizedGain >= 0
-  const hero = splitCurrency(totalValue)
+  const currency = portfolio!.currency
+  const hero = splitCurrency(totalValue, currency)
   const asOf = formatProvenanceAsOf(performance.portfolioProvenance.asOf)
 
   function openAsset(asset: Asset) {
@@ -143,7 +144,7 @@ export default function DashboardScreen() {
             <span className="fin-masthead__amount">
               {hero.whole}<span className="fin-masthead__cents">{hero.cents}</span>
             </span>
-            <Delta value={unrealizedGain} pill />
+            <Delta value={unrealizedGain} currency={currency} pill />
             <Delta value={totalReturnPercent} kind="percent" pill />
           </div>
 
@@ -185,24 +186,24 @@ export default function DashboardScreen() {
           figures={[
             {
               label: 'Gross assets',
-              value: formatCurrency(grossAssets),
+              value: formatCurrency(grossAssets, currency),
               meta: `${holdings.length} ${holdings.length === 1 ? 'position' : 'positions'}`,
             },
             {
               label: 'Liabilities',
-              value: totalLiabilities > 0 ? formatCurrency(totalLiabilities) : '—',
+              value: totalLiabilities > 0 ? formatCurrency(totalLiabilities, currency) : '—',
               meta: loans.length > 0
                 ? `${loans.length} ${loans.length === 1 ? 'obligation' : 'obligations'}`
                 : 'None on file',
             },
             {
               label: 'Invested cost',
-              value: formatCurrency(investedCost),
+              value: formatCurrency(investedCost, currency),
               meta: 'Capital deployed in holdings',
             },
             {
               label: 'Unrealized gain/loss',
-              value: formatCurrency(unrealizedGain),
+              value: formatCurrency(unrealizedGain, currency),
               meta: 'Holdings against invested cost',
               tone: gainPositive ? 'positive' : 'negative',
             },
@@ -226,6 +227,7 @@ export default function DashboardScreen() {
           grossAssets={grossAssets}
           performance={performance}
           onSelectAsset={openAsset}
+          currency={currency}
           maxRows={8}
           title="Portfolio analysis"
         />
@@ -285,7 +287,7 @@ export default function DashboardScreen() {
             icon={<PieIcon size={14} aria-hidden />}
             note="By asset class, as a share of gross assets."
           >
-            <AllocationBreakdown data={allocation} total={grossAssets} />
+            <AllocationBreakdown data={allocation} total={grossAssets} currency={currency} />
           </Panel>
         </div>
 
@@ -296,6 +298,7 @@ export default function DashboardScreen() {
             icon={<TrendingUp size={14} aria-hidden />}
             rows={movers.leaders}
             emptyText="No positions are up against cost basis."
+            currency={currency}
             onSelect={openAsset}
           />
           <MoversPanel
@@ -303,6 +306,7 @@ export default function DashboardScreen() {
             icon={<TrendingDown size={14} aria-hidden />}
             rows={movers.laggards}
             emptyText="No positions are down against cost basis."
+            currency={currency}
             onSelect={openAsset}
           />
         </div>
@@ -329,6 +333,7 @@ export default function DashboardScreen() {
             assets={holdings}
             totalValue={grossAssets}
             onSelect={openAsset}
+            currency={currency}
             limit={DASHBOARD_HOLDINGS_LIMIT}
           />
         </Panel>
@@ -341,7 +346,7 @@ export default function DashboardScreen() {
           note="Outstanding balances netted against gross assets in the figure above."
           flushBody={loans.length > 0}
         >
-          <LiabilitiesTable loans={loans} onSelect={openAsset} />
+          <LiabilitiesTable loans={loans} onSelect={openAsset} currency={currency} />
         </Panel>
 
       </div>
@@ -357,12 +362,13 @@ interface MoverRow {
 }
 
 function MoversPanel({
-  title, icon, rows, emptyText, onSelect,
+  title, icon, rows, emptyText, currency, onSelect,
 }: {
   title: string
   icon: React.ReactNode
   rows: MoverRow[]
   emptyText: string
+  currency: string
   onSelect: (asset: Asset) => void
 }) {
   return (
@@ -383,25 +389,20 @@ function MoversPanel({
               <tr
                 key={asset.id}
                 className="fin-table__row--link"
-                tabIndex={0}
                 onClick={() => onSelect(asset)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onSelect(asset)
-                  }
-                }}
               >
                 <td>
-                  <div className="fin-table__identity">
-                    <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={26} borderRadius={5} />
-                    <div className="fin-table__identity-text">
-                      <span className="fin-table__primary">{asset.symbol || asset.name}</span>
-                      <span className="fin-table__secondary">{asset.name}</span>
+                  <button type="button" className="fin-table__row-action">
+                    <div className="fin-table__identity">
+                      <AssetLogo symbol={asset.symbol} name={asset.name} type={asset.type} size={26} borderRadius={5} />
+                      <div className="fin-table__identity-text">
+                        <span className="fin-table__primary">{asset.symbol || asset.name}</span>
+                        <span className="fin-table__secondary">{asset.name}</span>
+                      </div>
                     </div>
-                  </div>
+                  </button>
                 </td>
-                <td className="fin-table__num fin-table__value">{formatCurrency(assetCurrentValue(asset))}</td>
+                <td className="fin-table__num fin-table__value">{formatCurrency(assetCurrentValue(asset), currency)}</td>
                 <td className="fin-table__num"><Delta value={pct} kind="percent" size="sm" /></td>
               </tr>
             ))}

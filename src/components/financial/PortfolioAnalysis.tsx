@@ -31,6 +31,8 @@ interface PortfolioAnalysisProps {
   grossAssets: number
   performance: PerformanceSeries
   onSelectAsset?: (asset: Asset) => void
+  /** ISO currency for every money figure in the analysis views. */
+  currency?: string
   /** Rows before smaller positions are grouped into "Other". */
   maxRows?: number
   height?: number
@@ -49,6 +51,7 @@ export default function PortfolioAnalysis({
   grossAssets,
   performance,
   onSelectAsset,
+  currency = 'USD',
   maxRows = 10,
   height = 280,
   title = 'Analysis',
@@ -58,10 +61,11 @@ export default function PortfolioAnalysis({
 
   // The trend overlay only describes a plotted series; drop it when the series goes away.
   useEffect(() => {
-    if (!performance.hasRealData && showTrend) setShowTrend(false)
-  }, [performance.hasRealData, showTrend])
+    if ((!performance.hasRealData || performance.data.length < 3) && showTrend) setShowTrend(false)
+  }, [performance.hasRealData, performance.data.length, showTrend])
 
   const isOverTime = view === 'overTime'
+  const trendAvailable = performance.hasRealData && performance.data.length >= 3
   const activeSource = performance.sources.find((s) => s.id === performance.dataSource)
 
   const note = isOverTime && performance.hasRealData
@@ -77,7 +81,7 @@ export default function PortfolioAnalysis({
         {performance.periodChange && (
           <>
             <span className="fin-masthead__sep"> · </span>
-            {performance.period} change <Delta value={performance.periodChange.amount} size="sm" />
+            {performance.period} change <Delta value={performance.periodChange.amount} currency={currency} size="sm" />
           </>
         )}
       </span>
@@ -90,7 +94,7 @@ export default function PortfolioAnalysis({
       note={note}
       actions={
         <>
-          {isOverTime && performance.hasRealData && (
+          {isOverTime && trendAvailable && (
             <button
               type="button"
               className={`fin-btn fin-chart-trend-toggle ${showTrend ? 'fin-chart-trend-toggle--on' : ''}`.trim()}
@@ -111,7 +115,7 @@ export default function PortfolioAnalysis({
               loading={performance.loading}
             />
           )}
-          {isOverTime && performance.hasRealData && (
+          {isOverTime && (
             <Segmented
               options={PERFORMANCE_PERIODS}
               value={performance.period}
@@ -148,13 +152,14 @@ export default function PortfolioAnalysis({
           grossAssets={grossAssets}
           maxRows={maxRows}
           onSelect={onSelectAsset}
+          currency={currency}
         />
       )}
       {view === 'costValue' && (
-        <CostValueChart holdings={holdings} maxRows={maxRows} onSelect={onSelectAsset} />
+        <CostValueChart holdings={holdings} maxRows={maxRows} onSelect={onSelectAsset} currency={currency} />
       )}
       {view === 'overTime' && (
-        <ValueOverTimeChart performance={performance} showTrend={showTrend} height={height} />
+        <ValueOverTimeChart performance={performance} showTrend={showTrend} height={height} currency={currency} />
       )}
     </Panel>
   )

@@ -49,15 +49,29 @@ export function formatWeight(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
+function currencyPrefix(currency: string): string {
+  try {
+    const part = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+    }).formatToParts(0).find((entry) => entry.type === 'currency')
+    return part?.value ?? `${currency} `
+  } catch {
+    return `${currency} `
+  }
+}
+
 /** `$188k` / `−$1.2M` — axis ticks only, never table figures. */
-export function formatCompactCurrency(value: number): string {
+export function formatCompactCurrency(value: number, currency = 'USD'): string {
   if (!Number.isFinite(value)) return ''
   const abs = Math.abs(value)
   const sign = value < 0 ? '−' : ''
-  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
-  if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}k`
-  return `${sign}$${Math.round(abs)}`
+  const prefix = currencyPrefix(currency)
+  if (abs >= 1_000_000_000) return `${sign}${prefix}${(abs / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`
+  if (abs >= 1_000_000) return `${sign}${prefix}${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
+  if (abs >= 1_000) return `${sign}${prefix}${Math.round(abs / 1_000)}k`
+  return `${sign}${prefix}${Math.round(abs)}`
 }
 
 /** Share quantity — up to four decimals for fractional lots, no trailing zeros. */

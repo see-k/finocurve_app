@@ -101,9 +101,9 @@ export function usePerformanceSeries(
     if (result.dataSource === 'market') return marketProvenance ?? null
     if (result.dataSource === 'snapshots') {
       return createFinancialProvenance({
-        sourceKind: 'historical',
+        sourceKind: 'calculated',
         sourceName: 'FinoCurve account snapshots',
-        valuationMethod: 'historical_close',
+        valuationMethod: 'portfolio_sum',
         asOf: result.data[result.data.length - 1]?.date ?? portfolioProvenance.asOf,
         isEstimated: portfolioProvenance.isEstimated,
       })

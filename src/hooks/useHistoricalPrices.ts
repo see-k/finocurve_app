@@ -2,7 +2,7 @@
  * Fetches historical portfolio value from Yahoo Finance (stocks, ETFs, crypto).
  * Only available in Electron; falls back to null in browser.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Asset, FinancialValueProvenance } from '../types'
 import { assetCurrentValue, isLoan } from '../types'
 import type { PerformancePeriod } from '../types'
@@ -21,15 +21,21 @@ export function useHistoricalPrices(
   error: string | null
 } {
   const [data, setData] = useState<{ date: string; value: number }[]>([])
+  const [dataPeriod, setDataPeriod] = useState<PerformancePeriod | null>(period)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [provenance, setProvenance] = useState<FinancialValueProvenance | null>(null)
+  const requestSeq = useRef(0)
 
   const fetchData = useCallback(async () => {
+    const seq = ++requestSeq.current
     const api = typeof window !== 'undefined' ? window.electronAPI?.priceHistorical : undefined
     if (!api || !enabled || assets.length === 0) {
       setData([])
+      setDataPeriod(period)
       setProvenance(null)
+      setError(null)
+      setLoading(false)
       return
     }
 
@@ -47,7 +53,10 @@ export function useHistoricalPrices(
 
     if (tickerAssets.length === 0) {
       setData([])
+      setDataPeriod(period)
       setProvenance(null)
+      setError(null)
+      setLoading(false)
       return
     }
 
@@ -65,20 +74,25 @@ export function useHistoricalPrices(
         otherAssetsValue: otherValue,
       })
 
+      if (seq !== requestSeq.current) return
       if (result.error) {
         setError(result.error)
         setData([])
+        setDataPeriod(period)
         setProvenance(null)
       } else {
         setData(result.data || [])
+        setDataPeriod(period)
         setProvenance(result.provenance ?? null)
       }
     } catch (err) {
+      if (seq !== requestSeq.current) return
       setError(err instanceof Error ? err.message : String(err))
       setData([])
+      setDataPeriod(period)
       setProvenance(null)
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }, [assets, period, enabled])
 
@@ -86,5 +100,11 @@ export function useHistoricalPrices(
     fetchData()
   }, [fetchData])
 
-  return { data, provenance, loading, error }
+  const matchesPeriod = dataPeriod === period
+  return {
+    data: matchesPeriod ? data : [],
+    provenance: matchesPeriod ? provenance : null,
+    loading: loading || !matchesPeriod,
+    error: matchesPeriod ? error : null,
+  }
 }

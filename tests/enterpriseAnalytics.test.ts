@@ -69,9 +69,26 @@ describe('deriveCustodyMatrix', () => {
     const row = matrix.rows[0]
     const summed = EXPOSURE_ORDER.reduce((sum, kind) => sum + row.exposures[kind], 0)
     expect(summed).toBeCloseTo(120_000, 6)
+    expect(row.exposures.cash).toBeCloseTo(25_000, 6)
+    expect(row.exposures.securities).toBeCloseTo(75_000, 6)
+    expect(row.exposures.other).toBeCloseTo(20_000, 6)
     // The regression this guards: a chart whose bars sum to less than the
     // headline figure printed directly above them.
     expect(summed).toBeCloseTo(matrix.total, 6)
+  })
+
+  it('scales mapped buckets down when they exceed the reported total', () => {
+    const overstated = {
+      product: 'schwab',
+      total_usd: 80_000,
+      balances: [{ equity: 75_000, cash_balance: 25_000 }],
+    }
+    const matrix = deriveCustodyMatrix(balances({ by_product: [overstated] }))
+    const row = matrix.rows[0]
+    expect(row.exposures.cash).toBeCloseTo(20_000, 6)
+    expect(row.exposures.securities).toBeCloseTo(60_000, 6)
+    expect(row.exposures.other).toBeCloseTo(0, 6)
+    expect(EXPOSURE_ORDER.reduce((sum, kind) => sum + row.exposures[kind], 0)).toBeCloseTo(80_000, 6)
   })
 
   it('banks the whole total in Other when no row maps to a known bucket', () => {

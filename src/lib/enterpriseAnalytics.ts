@@ -162,16 +162,22 @@ export function deriveCustodyMatrix(balances: EnterpriseBalances | null): Custod
 
     if (counted > 0) {
       const mapped = raw.cash + raw.securities + raw.crypto + raw.other
-      if (mapped > 0) {
-        // Scale the mapped buckets onto the reported total, then bank the
-        // residual in `other` so the row always sums to what the service says.
-        const scale = mapped > 0 ? counted / mapped : 0
+      if (mapped <= 0) {
+        exposures.other = counted
+      } else if (mapped > counted) {
+        // Mapped rows overstate the headline total — scale them down so the
+        // chart cannot exceed the figure the service reported.
+        const scale = counted / mapped
         exposures.cash = raw.cash * scale
         exposures.securities = raw.securities * scale
         exposures.crypto = raw.crypto * scale
         exposures.other = raw.other * scale
       } else {
-        exposures.other = counted
+        // Preserve known buckets and park any unmapped remainder in `other`.
+        exposures.cash = raw.cash
+        exposures.securities = raw.securities
+        exposures.crypto = raw.crypto
+        exposures.other = raw.other + (counted - mapped)
       }
     }
 

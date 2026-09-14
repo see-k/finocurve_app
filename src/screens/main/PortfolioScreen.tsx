@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Layer, Rectangle, ResponsiveContainer, Sankey, Tooltip } from 'recharts'
 import {
@@ -182,6 +182,7 @@ export default function PortfolioScreen() {
           grossAssets={grossAssets}
           performance={performance}
           onSelectAsset={openAsset}
+          currency={portfolio!.currency}
           maxRows={12}
           height={260}
         />
@@ -207,7 +208,7 @@ export default function PortfolioScreen() {
             />
           }
         >
-          <AllocationBreakdown data={allocation} total={grossAssets} size={190} />
+          <AllocationBreakdown data={allocation} total={grossAssets} size={190} currency={portfolio!.currency} />
         </Panel>
 
         {flow && (
@@ -293,7 +294,7 @@ export default function PortfolioScreen() {
           note="Sortable. Each row carries the source and as-of date behind its valuation."
           flushBody
         >
-          <HoldingsTable assets={holdings} totalValue={grossAssets} onSelect={openAsset} />
+          <HoldingsTable assets={holdings} totalValue={grossAssets} onSelect={openAsset} currency={portfolio!.currency} />
         </Panel>
 
         <Panel
@@ -303,7 +304,7 @@ export default function PortfolioScreen() {
           note="Outstanding balances, shown against original principal."
           flushBody={loans.length > 0}
         >
-          <LiabilitiesTable loans={loans} onSelect={openAsset} />
+          <LiabilitiesTable loans={loans} onSelect={openAsset} currency={portfolio!.currency} />
         </Panel>
       </div>
 
@@ -349,9 +350,51 @@ function AddPositionDialog({
   onClose: () => void
   onPick: (path: string) => void
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previouslyFocused = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const root = dialogRef.current
+    const focusables = () =>
+      Array.from(root?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? [])
+        .filter((el) => !el.hasAttribute('disabled'))
+
+    focusables()[0]?.focus()
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusables()
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      previouslyFocused.current?.focus()
+    }
+  }, [onClose])
+
   return (
     <div className="portfolio-dialog__scrim" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
         className="portfolio-dialog"
         role="dialog"
         aria-modal="true"
@@ -418,18 +461,22 @@ interface FlowGraph {
 function buildFlowGraph(holdings: Asset[], loans: Asset[]): FlowGraph | null {
   if (holdings.length === 0) return null
 
-  const sorted = [...holdings].sort((a, b) => assetCurrentValue(b) - assetCurrentValue(a))
-  const gross = sorted.reduce((sum, a) => sum + assetCurrentValue(a), 0)
+  const sorted = [...holdings]
+    .map((asset) => ({ asset, value: assetCurrentValue(asset) }))
+    .filter((row) => row.value > 0)
+    .sort((a, b) => b.value - a.value)
+  const gross = sorted.reduce((sum, row) => sum + row.value, 0)
   if (gross <= 0) return null
 
   const classTotals = new Map<string, number>()
-  for (const asset of sorted) {
+  for (const { asset, value } of sorted) {
     const label = ASSET_TYPE_LABELS[asset.type] ?? asset.type
-    classTotals.set(label, (classTotals.get(label) ?? 0) + assetCurrentValue(asset))
+    classTotals.set(label, (classTotals.get(label) ?? 0) + value)
   }
   // Classes rank by weight so the hues line up with the allocation donut, and a
   // position inherits its class's hue — a ribbon keeps one colour end to end.
   const classes = Array.from(classTotals.keys())
+    .filter((label) => (classTotals.get(label) ?? 0) > 0)
     .sort((a, b) => classTotals.get(b)! - classTotals.get(a)!)
   const classColors = new Map(
     classes.map((label, i) => [label, FLOW_COLORS[i] ?? 'var(--fin-cat-other)'])
@@ -445,13 +492,12 @@ function buildFlowGraph(holdings: Asset[], loans: Asset[]): FlowGraph | null {
 
   // Positions past the named cap are grouped by class rather than each taking a node.
   const tailByClass = new Map<string, number>()
-  for (const asset of tail) {
+  for (const { asset, value } of tail) {
     const label = ASSET_TYPE_LABELS[asset.type] ?? asset.type
-    tailByClass.set(label, (tailByClass.get(label) ?? 0) + assetCurrentValue(asset))
+    tailByClass.set(label, (tailByClass.get(label) ?? 0) + value)
   }
 
-  for (const asset of named) {
-    const value = assetCurrentValue(asset)
+  for (const { asset, value } of named) {
     nodes.push({ name: asset.symbol || asset.name })
     meta.push({
       fullName: asset.name,
@@ -492,34 +538,36 @@ function buildFlowGraph(holdings: Asset[], loans: Asset[]): FlowGraph | null {
   nodes.push({ name: 'Gross assets' })
   meta.push({ fullName: 'Gross assets', value: gross, kind: 'total', color: 'var(--brand-primary)' })
 
-  named.forEach((asset, i) => {
+  named.forEach(({ asset, value }, i) => {
     const label = ASSET_TYPE_LABELS[asset.type] ?? asset.type
     links.push({
       source: i,
       target: classStart + classes.indexOf(label),
-      value: Math.max(assetCurrentValue(asset), 1),
+      value,
     })
   })
   tailKeys.forEach((key, i) => {
     links.push({
       source: named.length + i,
       target: classStart + classes.indexOf(key),
-      value: Math.max(tailByClass.get(key)!, 1),
+      value: tailByClass.get(key)!,
     })
   })
   classes.forEach((label, i) => {
-    links.push({ source: classStart + i, target: totalIndex, value: Math.max(classTotals.get(label)!, 1) })
+    links.push({ source: classStart + i, target: totalIndex, value: classTotals.get(label)! })
   })
 
-  if (loans.length > 0) {
-    const totalDebt = loans.reduce((sum, loan) => sum + loanBalance(loan), 0)
+  const activeLoans = loans
+    .map((loan) => ({ loan, balance: loanBalance(loan) }))
+    .filter((row) => row.balance > 0)
+  if (activeLoans.length > 0) {
+    const totalDebt = activeLoans.reduce((sum, row) => sum + row.balance, 0)
     const liabilityIndex = nodes.length
     nodes.push({ name: 'Liabilities' })
     meta.push({
       fullName: 'Total liabilities', value: totalDebt, kind: 'liability', color: 'var(--fin-neg)',
     })
-    for (const loan of loans) {
-      const balance = loanBalance(loan)
+    for (const { loan, balance } of activeLoans) {
       const index = nodes.length
       nodes.push({ name: loan.name })
       meta.push({
@@ -529,7 +577,7 @@ function buildFlowGraph(holdings: Asset[], loans: Asset[]): FlowGraph | null {
         kind: 'loan',
         color: 'var(--fin-neg)',
       })
-      links.push({ source: index, target: liabilityIndex, value: Math.max(balance, 1) })
+      links.push({ source: index, target: liabilityIndex, value: balance })
     }
   }
 

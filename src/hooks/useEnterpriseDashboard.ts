@@ -18,6 +18,8 @@ export interface EnterpriseDashboardData {
   matrix: CustodyMatrix
   balances: EnterpriseBalances | null
   connections: EnterpriseConnection[]
+  /** True when the health endpoint failed; balances may still be present. */
+  healthUnavailable: boolean
   loading: boolean
   error: string
   /** True once a load has resolved, successfully or not. */
@@ -28,6 +30,7 @@ export interface EnterpriseDashboardData {
 export function useEnterpriseDashboard(enabled: boolean): EnterpriseDashboardData {
   const [balances, setBalances] = useState<EnterpriseBalances | null>(null)
   const [connections, setConnections] = useState<EnterpriseConnection[]>([])
+  const [healthUnavailable, setHealthUnavailable] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -38,6 +41,7 @@ export function useEnterpriseDashboard(enabled: boolean): EnterpriseDashboardDat
     if (!enabled) {
       setBalances(null)
       setConnections([])
+      setHealthUnavailable(false)
       setLoaded(false)
       setError('')
       return
@@ -45,22 +49,15 @@ export function useEnterpriseDashboard(enabled: boolean): EnterpriseDashboardDat
 
     const seq = ++requestSeq.current
     let cancelled = false
+    const force = nonce > 0
     setLoading(true)
     setError('')
 
     void (async () => {
       try {
-        // Connection health is advisory; a failure there must not blank the
-        // balances the rest of the section is built on.
-        const [nextBalances, nextConnections] = await Promise.all([
-          enterpriseFetch<EnterpriseBalances>('/api/reports/balances'),
-          enterpriseFetch<{ products: EnterpriseConnection[] }>('/api/health/connections')
-            .then((data) => data.products ?? [])
-            .catch(() => [] as EnterpriseConnection[]),
-        ])
+        const nextBalances = await enterpriseFetch<EnterpriseBalances>('/api/reports/balances', { force })
         if (cancelled || seq !== requestSeq.current) return
         setBalances(nextBalances)
-        setConnections(nextConnections)
       } catch (reason) {
         if (cancelled || seq !== requestSeq.current) return
         setError(reason instanceof Error ? reason.message : 'Enterprise data could not be loaded.')
@@ -69,6 +66,24 @@ export function useEnterpriseDashboard(enabled: boolean): EnterpriseDashboardDat
           setLoading(false)
           setLoaded(true)
         }
+      }
+    })()
+
+    // Health is advisory: do not gate balances on it, and surface a failure
+    // rather than reporting 0/0 as “all providers responding”.
+    void (async () => {
+      try {
+        const data = await enterpriseFetch<{ products: EnterpriseConnection[] }>(
+          '/api/health/connections',
+          { force }
+        )
+        if (cancelled || seq !== requestSeq.current) return
+        setConnections(data.products ?? [])
+        setHealthUnavailable(false)
+      } catch {
+        if (cancelled || seq !== requestSeq.current) return
+        setConnections([])
+        setHealthUnavailable(true)
       }
     })()
 
@@ -81,6 +96,7 @@ export function useEnterpriseDashboard(enabled: boolean): EnterpriseDashboardDat
     matrix: deriveCustodyMatrix(balances),
     balances,
     connections,
+    healthUnavailable,
     loading,
     error,
     loaded,

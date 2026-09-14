@@ -524,9 +524,24 @@
   transition: background 0.1s ease;
 }
 .fin-table tbody tr.fin-table__row--link:hover { background: var(--fin-surface-hover); }
-.fin-table tbody tr.fin-table__row--link:focus-visible {
+
+.fin-table__row-action {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+.fin-table__row-action:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: -2px;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Sortable headers */

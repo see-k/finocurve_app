@@ -12,6 +12,8 @@ interface AllocationBreakdownProps {
   data: AllocationSlice[]
   /** Denominator for the weight column. Usually gross investable value. */
   total: number
+  /** ISO currency for slice values and the centre total. */
+  currency?: string
   /** Slices beyond this fold into "Other" rather than taking a generated hue. */
   maxSlices?: number
   size?: number
@@ -37,6 +39,7 @@ function sliceColor(index: number, isOther: boolean): string {
 export default function AllocationBreakdown({
   data,
   total,
+  currency = 'USD',
   maxSlices = 7,
   size = 168,
 }: AllocationBreakdownProps) {
@@ -96,7 +99,7 @@ export default function AllocationBreakdown({
                     <div className="fin-chart-tip__label">{row.name}</div>
                     <div className="fin-chart-tip__row">
                       <span className="fin-chart-tip__key" style={{ paddingLeft: 0 }}>Value</span>
-                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.value)}</span>
+                      <span className="fin-chart-tip__value fin-num">{formatCurrency(row.value, currency)}</span>
                     </div>
                     <div className="fin-chart-tip__row">
                       <span className="fin-chart-tip__key" style={{ paddingLeft: 0 }}>Weight</span>
@@ -112,7 +115,7 @@ export default function AllocationBreakdown({
         </ResponsiveContainer>
         <div className="fin-alloc__center">
           <span className="fin-label">Total</span>
-          <span className="fin-alloc__center-value fin-num">{formatCurrency(denominator)}</span>
+          <span className="fin-alloc__center-value fin-num">{formatCurrency(denominator, currency)}</span>
         </div>
       </div>
 
@@ -142,7 +145,7 @@ export default function AllocationBreakdown({
                     <span className="fin-alloc__name">{slice.name}</span>
                   </span>
                 </td>
-                <td className="fin-alloc__value fin-num">{formatCurrency(slice.value)}</td>
+                <td className="fin-alloc__value fin-num">{formatCurrency(slice.value, currency)}</td>
                 <td className="fin-alloc__weight fin-num">{formatWeight(weight)}</td>
               </tr>
             )

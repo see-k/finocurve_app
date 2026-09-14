@@ -21,13 +21,26 @@ interface EnterpriseSectionProps {
  * Rendered only for subscribers whose Finocurve Service is reachable.
  */
 export default function EnterpriseSection({ enabled, onOpenEnterprise }: EnterpriseSectionProps) {
-  const { matrix, connections, loading, error, loaded, refresh } = useEnterpriseDashboard(enabled)
+  const { matrix, connections, healthUnavailable, loading, error, loaded, refresh } = useEnterpriseDashboard(enabled)
 
   if (!enabled) return null
 
   const connected = connections.filter((c) => c.status === 'connected').length
   const degraded = connections.filter((c) => c.status === 'error').length
+  const notConfigured = connections.filter((c) => c.status === 'not_configured').length
   const reporting = matrix.rows.filter((row) => row.total > 0).length
+
+  const healthMeta = healthUnavailable
+    ? 'Health check unavailable'
+    : degraded > 0
+      ? `${degraded} reporting an error`
+      : notConfigured > 0
+        ? `${notConfigured} not configured`
+        : connections.length > 0
+          ? 'All providers responding'
+          : loaded
+            ? 'No providers reported'
+            : '—'
 
   return (
     <section className="fin-enterprise" aria-label="Enterprise custody">
@@ -81,11 +94,11 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
               },
               {
                 label: 'Links connected',
-                value: loaded ? `${connected}/${connections.length}` : '—',
-                meta: degraded > 0
-                  ? `${degraded} reporting an error`
-                  : 'All providers responding',
-                tone: degraded > 0 ? 'negative' : undefined,
+                value: loaded
+                  ? (healthUnavailable ? '—' : `${connected}/${connections.length}`)
+                  : '—',
+                meta: healthMeta,
+                tone: healthUnavailable || degraded > 0 ? 'negative' : undefined,
               },
             ]}
           />
