@@ -52,7 +52,7 @@ async function testService(rawUrl: string): Promise<CheckState> {
 
     const { enterpriseFetch } = await import('../../services/enterprise')
     try {
-      await enterpriseFetch('/api/health/connections')
+      await enterpriseFetch('/api/health/connections', { baseUrl: url })
       return { status: 'ok' }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'The service rejected the request.'
@@ -166,8 +166,20 @@ export default function EnterpriseServiceScreen() {
     setError(null)
     setSaving(true)
     try {
-      await saveEnterpriseServiceUrl('')
-      await saveEnterpriseApiToken('')
+      const urlResult = await saveEnterpriseServiceUrl('')
+      const tokenResult = await saveEnterpriseApiToken('')
+      if (!urlResult.ok || !tokenResult.ok) {
+        setError(urlResult.error || tokenResult.error || 'Could not disconnect the enterprise service.')
+        if (urlResult.ok) {
+          setUrl('')
+          setSavedUrl('')
+        }
+        if (tokenResult.ok) {
+          setToken('')
+          await refreshTokenStatus()
+        }
+        return
+      }
       setUrl('')
       setSavedUrl('')
       setToken('')

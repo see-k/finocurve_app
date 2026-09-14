@@ -283,19 +283,9 @@ export default function CustodyLandscape({ matrix, height = 560 }: CustodyLandsc
     if (e.key === 'Home' || e.key === '0') { resetView(); e.preventDefault() }
   }, [resetView])
 
-  if (rows.length === 0) {
-    return (
-      <div className="fin-empty">
-        <span className="fin-empty__title">No custodied balances</span>
-        <span className="fin-empty__body">
-          Connect an institution in Finocurve Service to populate the landscape.
-        </span>
-      </div>
-    )
-  }
-
   // Fit the viewBox to the geometry actually drawn, so rotating never leaves the
-  // field stranded in dead space.
+  // field stranded in dead space. Computed before the empty-state return so hook
+  // order stays stable when balances load in.
   const viewBox = useMemo(() => {
     const xs: number[] = []
     const ys: number[] = []
@@ -340,6 +330,17 @@ export default function CustodyLandscape({ matrix, height = 560 }: CustodyLandsc
     const cy = (minY + maxY) / 2 + pan.y
     return `${cx - width / 2} ${cy - height2 / 2} ${width} ${height2}`
   }, [bars, floor.outline, axisLabels, zoom, pan, stageWidth])
+
+  if (rows.length === 0) {
+    return (
+      <div className="fin-empty">
+        <span className="fin-empty__title">No custodied balances</span>
+        <span className="fin-empty__body">
+          Connect an institution in Finocurve Service to populate the landscape.
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="fin-landscape">

@@ -3,19 +3,51 @@
  * fetch helper, and AI-tool summary formatters consumed by LocalAIService.
  */
 
-import { net } from 'electron'
+import { net, safeStorage } from 'electron'
 import { getCoreDataDb } from './coreDataDb'
 
 const ENTERPRISE_URL_SETTING_KEY = 'enterprise_service_url'
 const ENTERPRISE_TOKEN_SETTING_KEY = 'enterprise_api_token'
+const ENTERPRISE_TOKEN_ENCRYPTED_KEY = 'enterprise_api_token_encrypted'
 const REQUEST_TIMEOUT_MS = 20000
+
+function encryptSecret(plain: string): string {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure storage is not available on this device.')
+  }
+  return safeStorage.encryptString(plain).toString('base64')
+}
+
+function decryptSecret(ciphertext: string): string | null {
+  try {
+    const value = safeStorage.decryptString(Buffer.from(ciphertext, 'base64')).trim()
+    return value || null
+  } catch {
+    return null
+  }
+}
+
+function deleteSetting(key: string): void {
+  getCoreDataDb().prepare('DELETE FROM app_settings WHERE key = ?').run(key)
+}
+
+function upsertSetting(key: string, value: string): void {
+  getCoreDataDb().prepare(`
+    INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(key, value, new Date().toISOString())
+}
+
+function readSetting(key: string): string {
+  const row = getCoreDataDb()
+    .prepare('SELECT value FROM app_settings WHERE key = ?')
+    .get(key) as { value?: string } | undefined
+  return (row?.value ?? '').trim()
+}
 
 export function readEnterpriseServiceUrl(): string {
   try {
-    const row = getCoreDataDb()
-      .prepare('SELECT value FROM app_settings WHERE key = ?')
-      .get(ENTERPRISE_URL_SETTING_KEY) as { value?: string } | undefined
-    return (row?.value ?? '').trim()
+    return readSetting(ENTERPRISE_URL_SETTING_KEY)
   } catch {
     return ''
   }
@@ -31,10 +63,20 @@ export function readEnterpriseServiceUrl(): string {
  */
 export function readEnterpriseApiToken(): string {
   try {
-    const row = getCoreDataDb()
-      .prepare('SELECT value FROM app_settings WHERE key = ?')
-      .get(ENTERPRISE_TOKEN_SETTING_KEY) as { value?: string } | undefined
-    return (row?.value ?? '').trim()
+    const encrypted = readSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY)
+    if (encrypted) return decryptSecret(encrypted) ?? ''
+
+    const legacy = readSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+    if (!legacy) return ''
+
+    try {
+      upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, encryptSecret(legacy))
+      deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+    } catch {
+      // Encryption unavailable: still return the legacy value so requests work,
+      // but do not rewrite it in plaintext.
+    }
+    return legacy
   } catch {
     return ''
   }
@@ -49,16 +91,13 @@ export function maskEnterpriseApiToken(token: string): string {
 }
 
 export function saveEnterpriseApiToken(token: string): void {
-  const db = getCoreDataDb()
   const trimmed = (token ?? '').trim()
+  deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
   if (!trimmed) {
-    db.prepare('DELETE FROM app_settings WHERE key = ?').run(ENTERPRISE_TOKEN_SETTING_KEY)
+    deleteSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY)
     return
   }
-  db.prepare(`
-    INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-  `).run(ENTERPRISE_TOKEN_SETTING_KEY, trimmed, new Date().toISOString())
+  upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, encryptSecret(trimmed))
 }
 
 /** Normalize to a trailing-slash-free http(s) origin+path; '' clears, null = invalid. */
@@ -75,14 +114,10 @@ export function normalizeEnterpriseUrl(raw: string): string | null {
 }
 
 export function saveEnterpriseServiceUrl(normalized: string): void {
-  const db = getCoreDataDb()
   if (!normalized) {
-    db.prepare('DELETE FROM app_settings WHERE key = ?').run(ENTERPRISE_URL_SETTING_KEY)
+    deleteSetting(ENTERPRISE_URL_SETTING_KEY)
   } else {
-    db.prepare(`
-      INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-    `).run(ENTERPRISE_URL_SETTING_KEY, normalized, new Date().toISOString())
+    upsertSetting(ENTERPRISE_URL_SETTING_KEY, normalized)
   }
 }
 
@@ -94,10 +129,10 @@ export type EnterpriseFetchResult =
 export async function fetchEnterprisePath(
   pathName: string,
   method: 'GET' | 'POST' = 'GET',
-  options?: { refresh?: boolean },
+  options?: { refresh?: boolean; baseUrl?: string },
 ): Promise<EnterpriseFetchResult> {
   try {
-    const baseUrl = readEnterpriseServiceUrl()
+    const baseUrl = (options?.baseUrl ?? readEnterpriseServiceUrl()).trim().replace(/\/+$/, '')
     if (!baseUrl) {
       return { ok: false, status: 503, error: 'Finocurve Service is not configured. Add its URL in Settings → Enterprise service.' }
     }

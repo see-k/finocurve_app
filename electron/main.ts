@@ -147,16 +147,17 @@ function registerEnterpriseHandlers() {
 
   ipcMain.handle('enterprise-check', async (_event, payload: { url?: string }) => {
     try {
-      const baseUrl = new URL(payload?.url?.trim() || readEnterpriseServiceUrl())
-      if (!['http:', 'https:'].includes(baseUrl.protocol)) return { available: false }
-      baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/healthz`
-      baseUrl.search = ''
-      baseUrl.hash = ''
+      const serviceUrl = (payload?.url?.trim() || readEnterpriseServiceUrl()).replace(/\/+$/, '')
+      const healthUrl = new URL(serviceUrl)
+      if (!['http:', 'https:'].includes(healthUrl.protocol)) return { available: false }
+      healthUrl.pathname = `${healthUrl.pathname.replace(/\/+$/, '')}/healthz`
+      healthUrl.search = ''
+      healthUrl.hash = ''
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
       try {
-        const response = await net.fetch(baseUrl.toString(), { signal: controller.signal })
+        const response = await net.fetch(healthUrl.toString(), { signal: controller.signal })
         if (!response.ok) return { available: false, reachable: false, authorized: false, status: response.status }
         const data = await response.json() as { status?: string }
         if (data.status !== 'ok') {
@@ -170,7 +171,7 @@ function registerEnterpriseHandlers() {
       // route the app actually uses needs one, so probe an authenticated route
       // too — otherwise enterprise mode would report itself live and then fail
       // on every request.
-      const probe = await fetchEnterprisePath('/api/health/connections')
+      const probe = await fetchEnterprisePath('/api/health/connections', 'GET', { baseUrl: serviceUrl })
       if (probe.ok) return { available: true, reachable: true, authorized: true, status: probe.status }
       const unauthorized = probe.status === 401 || probe.status === 403
       return {

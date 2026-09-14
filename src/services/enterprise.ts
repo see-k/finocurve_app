@@ -148,15 +148,15 @@ export type BalanceSnapshot = {
   source: string
 }
 
-export async function enterpriseFetch<T>(path: string, options: { force?: boolean; signal?: AbortSignal; method?: 'GET' | 'POST' } = {}): Promise<T> {
-  const { force = false, signal, method = 'GET' } = options
+export async function enterpriseFetch<T>(path: string, options: { force?: boolean; signal?: AbortSignal; method?: 'GET' | 'POST'; baseUrl?: string } = {}): Promise<T> {
+  const { force = false, signal, method = 'GET', baseUrl } = options
   if (window.electronAPI?.enterpriseRequest) {
     const result = await window.electronAPI.enterpriseRequest<T>({ path, refresh: force, method })
     if (!result.ok) throw new Error(result.error || `Finocurve Service returned ${result.status ?? 'an error'}`)
     return result.data as T
   }
 
-  const serviceUrl = getEnterpriseServiceUrl() || await loadEnterpriseServiceUrl()
+  const serviceUrl = normalizeUrl(baseUrl ?? '') || getEnterpriseServiceUrl() || await loadEnterpriseServiceUrl()
   if (!serviceUrl) throw new Error('Finocurve Service is not configured. Add its URL in Settings → Enterprise service.')
 
   const token = cachedApiToken ?? await loadEnterpriseApiToken()
