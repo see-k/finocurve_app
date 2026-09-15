@@ -38,13 +38,29 @@ function normalizeUrl(raw: string): string {
   return (raw ?? '').trim().replace(/\/+$/, '')
 }
 
+/**
+ * Absolute http(s) URLs only. Used before writing a service address into `href`
+ * so a `javascript:` / `data:` value from the settings field cannot run as HTML.
+ */
+export function safeHttpHref(raw: string): string {
+  try {
+    const url = new URL(raw)
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return url.href.replace(/\/+$/, '')
+    }
+  } catch {
+    /* not an absolute http(s) URL */
+  }
+  return ''
+}
+
 /** Load the configured service URL (IPC or localStorage) into the module cache. */
 export async function loadEnterpriseServiceUrl(): Promise<string> {
   if (window.electronAPI?.enterpriseGetUrl) {
     const result = await window.electronAPI.enterpriseGetUrl()
-    cachedServiceUrl = normalizeUrl(result.url ?? '')
+    cachedServiceUrl = safeHttpHref(normalizeUrl(result.url ?? ''))
   } else {
-    cachedServiceUrl = normalizeUrl(localStorage.getItem(BROWSER_URL_STORAGE_KEY) ?? '')
+    cachedServiceUrl = safeHttpHref(normalizeUrl(localStorage.getItem(BROWSER_URL_STORAGE_KEY) ?? ''))
   }
   return cachedServiceUrl
 }
@@ -106,23 +122,20 @@ export async function saveEnterpriseApiToken(
 export async function saveEnterpriseServiceUrl(url: string): Promise<{ ok: boolean; url?: string; error?: string }> {
   if (window.electronAPI?.enterpriseSetUrl) {
     const result = await window.electronAPI.enterpriseSetUrl({ url })
-    if (result.ok) cachedServiceUrl = result.url ?? ''
+    if (result.ok) cachedServiceUrl = result.url ? safeHttpHref(result.url) : ''
     return result
   }
   const normalized = normalizeUrl(url)
   if (normalized) {
-    try {
-      const parsed = new URL(normalized)
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error()
-    } catch {
-      return { ok: false, error: 'Enter a valid http:// or https:// URL' }
-    }
-    localStorage.setItem(BROWSER_URL_STORAGE_KEY, normalized)
-  } else {
-    localStorage.removeItem(BROWSER_URL_STORAGE_KEY)
+    const href = safeHttpHref(normalized)
+    if (!href) return { ok: false, error: 'Enter a valid http:// or https:// URL' }
+    localStorage.setItem(BROWSER_URL_STORAGE_KEY, href)
+    cachedServiceUrl = href
+    return { ok: true, url: href }
   }
-  cachedServiceUrl = normalized
-  return { ok: true, url: normalized }
+  localStorage.removeItem(BROWSER_URL_STORAGE_KEY)
+  cachedServiceUrl = ''
+  return { ok: true, url: '' }
 }
 
 export type EnterpriseConnection = {
@@ -203,6 +216,12 @@ export async function enterpriseFetch<T>(path: string, options: { force?: boolea
   return response.json() as Promise<T>
 }
 
-export function getEnterpriseSource(path: string, label: string) {
-  return { label, href: `${getEnterpriseServiceUrl()}${path}` }
+export function getEnterpriseSource(path: string, label: string): { label: string; href: string } {
+  const base = safeHttpHref(getEnterpriseServiceUrl())
+  if (!base) return { label, href: '' }
+  try {
+    return { label, href: safeHttpHref(new URL(path, `${base}/`).href) }
+  } catch {
+    return { label, href: '' }
+  }
 }
