@@ -220,7 +220,7 @@ export function getEnterpriseSource(path: string, label: string): { label: strin
   const base = safeHttpHref(getEnterpriseServiceUrl())
   if (!base) return { label, href: '' }
   try {
-    return { label, href: safeHttpHref(new URL(path, `${base}/`).href) }
+    return { label, href: safeHttpHref(`${base}/${path.replace(/^\/+/, '')}`) }
   } catch {
     return { label, href: '' }
   }
