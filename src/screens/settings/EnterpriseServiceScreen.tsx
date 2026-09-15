@@ -1,171 +1,386 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Building2, CheckCircle2, Unplug, XCircle } from 'lucide-react'
-import GlassContainer from '../../components/glass/GlassContainer'
-import GlassButton from '../../components/glass/GlassButton'
-import GlassTextField from '../../components/glass/GlassTextField'
-import GlassIconButton from '../../components/glass/GlassIconButton'
-import { loadEnterpriseServiceUrl, saveEnterpriseServiceUrl } from '../../services/enterprise'
+import { ArrowLeft, Building2, Eye, EyeOff, KeyRound, Link2 } from 'lucide-react'
+import Panel from '../../components/financial/Panel'
+import { Notice, StatusChip, type StatusTone } from '../../components/financial/Status'
+import PageGround from '../../components/financial/PageGround'
+import {
+  getEnterpriseApiTokenStatus,
+  loadEnterpriseServiceUrl,
+  saveEnterpriseApiToken,
+  saveEnterpriseServiceUrl,
+} from '../../services/enterprise'
 import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
-import './SettingsSubScreen.css'
 
-type TestState = { status: 'idle' | 'testing' | 'ok' | 'failed'; detail?: string }
+type CheckState =
+  | { status: 'idle' }
+  | { status: 'testing' }
+  | { status: 'ok' }
+  | { status: 'unauthorized'; detail: string }
+  | { status: 'unreachable'; detail: string }
 
-async function testServiceUrl(rawUrl: string): Promise<TestState> {
+/** Probes the service, distinguishing "cannot reach" from "will not authorize". */
+async function testService(rawUrl: string): Promise<CheckState> {
   const url = rawUrl.trim().replace(/\/+$/, '')
-  if (!url) return { status: 'failed', detail: 'Enter a service URL first.' }
+  if (!url) return { status: 'unreachable', detail: 'Enter a service URL first.' }
+
   try {
     if (window.electronAPI?.enterpriseCheck) {
       const result = await window.electronAPI.enterpriseCheck({ url })
-      if (!result.available) return { status: 'failed', detail: result.error || `Service responded but is not healthy${result.status ? ` (HTTP ${result.status})` : ''}.` }
-      return { status: 'ok' }
+      if (result.available) return { status: 'ok' }
+      if (result.reachable && result.authorized === false) {
+        return { status: 'unauthorized', detail: result.error || 'The service rejected the API token.' }
+      }
+      return {
+        status: 'unreachable',
+        detail: result.error || `Service responded but is not healthy${result.status ? ` (HTTP ${result.status})` : ''}.`,
+      }
     }
+
+    // Browser fallback: /healthz is public, so reaching it proves nothing about
+    // the token. Probe an authenticated route as well.
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 5000)
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
     try {
-      const response = await fetch(`${url}/healthz`, { signal: controller.signal, headers: { Accept: 'application/json' } })
-      if (!response.ok) return { status: 'failed', detail: `Service returned HTTP ${response.status}.` }
-      const data = await response.json() as { status?: string }
-      return data.status === 'ok' ? { status: 'ok' } : { status: 'failed', detail: 'Service responded but is not healthy.' }
+      const health = await fetch(`${url}/healthz`, { signal: controller.signal, headers: { Accept: 'application/json' } })
+      if (!health.ok) return { status: 'unreachable', detail: `Service returned HTTP ${health.status}.` }
+      const data = await health.json() as { status?: string }
+      if (data.status !== 'ok') return { status: 'unreachable', detail: 'Service responded but is not healthy.' }
+
+      const { enterpriseFetch } = await import('../../services/enterprise')
+      try {
+        await enterpriseFetch('/api/health/connections', { baseUrl: url, signal: controller.signal })
+        return { status: 'ok' }
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : 'The service rejected the request.'
+        if (reason instanceof Error && reason.name === 'AbortError') {
+          return { status: 'unreachable', detail: 'Could not reach the service.' }
+        }
+        return /token/i.test(message)
+          ? { status: 'unauthorized', detail: message }
+          : { status: 'unreachable', detail: message }
+      }
     } finally {
       window.clearTimeout(timeout)
     }
   } catch (reason) {
-    return { status: 'failed', detail: reason instanceof Error && reason.name !== 'AbortError' ? reason.message : 'Could not reach the service.' }
+    return {
+      status: 'unreachable',
+      detail: reason instanceof Error && reason.name !== 'AbortError' ? reason.message : 'Could not reach the service.',
+    }
   }
 }
 
 export default function EnterpriseServiceScreen() {
   const navigate = useNavigate()
   const { isEnterprise, recheck } = useEnterpriseMode()
-  const [pageVisible, setPageVisible] = useState(false)
+
   const [url, setUrl] = useState('')
   const [savedUrl, setSavedUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [tokenStatus, setTokenStatus] = useState<{ configured: boolean; hint: string }>({ configured: false, hint: '' })
+  const [revealToken, setRevealToken] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [test, setTest] = useState<TestState>({ status: 'idle' })
+  const [check, setCheck] = useState<CheckState>({ status: 'idle' })
   const [error, setError] = useState<string | null>(null)
-  const [savedOk, setSavedOk] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
 
-  useEffect(() => {
-    requestAnimationFrame(() => setPageVisible(true))
+  const refreshTokenStatus = useCallback(async () => {
+    setTokenStatus(await getEnterpriseApiTokenStatus())
   }, [])
 
   useEffect(() => {
-    loadEnterpriseServiceUrl()
-      .then(current => { setUrl(current); setSavedUrl(current) })
-      .catch(() => setError('Could not load the saved service URL'))
+    Promise.all([loadEnterpriseServiceUrl(), getEnterpriseApiTokenStatus()])
+      .then(([currentUrl, currentToken]) => {
+        setUrl(currentUrl)
+        setSavedUrl(currentUrl)
+        setTokenStatus(currentToken)
+      })
+      .catch(() => setError('Could not load the saved enterprise settings.'))
       .finally(() => setLoading(false))
   }, [])
 
-  const handleTest = async () => {
-    setError(null)
-    setTest({ status: 'testing' })
-    setTest(await testServiceUrl(url))
+  function flash(message: string) {
+    setSaved(message)
+    window.setTimeout(() => setSaved(null), 2500)
   }
 
-  const handleSave = async () => {
+  const handleSaveUrl = async () => {
     setError(null)
-    setSavedOk(false)
     setSaving(true)
     try {
       const result = await saveEnterpriseServiceUrl(url)
       if (!result.ok) {
-        setError(result.error || 'Could not save the service URL')
+        setError(result.error || 'Could not save the service URL.')
         return
       }
       setUrl(result.url ?? '')
       setSavedUrl(result.url ?? '')
-      setSavedOk(true)
-      setTest({ status: 'idle' })
+      setCheck({ status: 'idle' })
+      flash('Service URL saved.')
       void recheck()
-      setTimeout(() => setSavedOk(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveToken = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      const result = await saveEnterpriseApiToken(token)
+      if (!result.ok) {
+        setError(result.error || 'Could not save the API token.')
+        return
+      }
+      // Never keep the plaintext in component state once it is stored.
+      setToken('')
+      setRevealToken(false)
+      await refreshTokenStatus()
+      setCheck({ status: 'idle' })
+      flash('API token saved.')
+      void recheck()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveToken = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      const result = await saveEnterpriseApiToken('')
+      if (!result.ok) {
+        setError(result.error || 'Could not remove the API token.')
+        return
+      }
+      setToken('')
+      await refreshTokenStatus()
+      setCheck({ status: 'idle' })
+      flash('API token removed.')
+      void recheck()
     } finally {
       setSaving(false)
     }
   }
 
   const handleDisconnect = async () => {
-    setUrl('')
     setError(null)
     setSaving(true)
     try {
-      const result = await saveEnterpriseServiceUrl('')
-      if (!result.ok) {
-        setError(result.error || 'Could not clear the service URL')
+      const urlResult = await saveEnterpriseServiceUrl('')
+      const tokenResult = await saveEnterpriseApiToken('')
+      if (!urlResult.ok || !tokenResult.ok) {
+        setError(urlResult.error || tokenResult.error || 'Could not disconnect the enterprise service.')
+        if (urlResult.ok) {
+          setUrl('')
+          setSavedUrl('')
+        }
+        if (tokenResult.ok) {
+          setToken('')
+          await refreshTokenStatus()
+        }
         return
       }
+      setUrl('')
       setSavedUrl('')
-      setTest({ status: 'idle' })
+      setToken('')
+      await refreshTokenStatus()
+      setCheck({ status: 'idle' })
+      flash('Disconnected.')
       void recheck()
     } finally {
       setSaving(false)
     }
   }
 
-  return (
-    <div className="settings-sub">
-      <div className="settings-sub-bg settings-sub-bg--1" />
-      <div className="settings-sub-bg settings-sub-bg--2" />
-      <div className={`settings-sub-content ${pageVisible ? 'settings-sub-content--visible' : ''}`}>
-        <div className="settings-sub-header">
-          <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate('/main?tab=settings')} title="Back" />
-          <h1 className="settings-sub-title">Enterprise service</h1>
-        </div>
+  const handleTest = async () => {
+    setError(null)
+    setCheck({ status: 'testing' })
+    setCheck(await testService(url))
+  }
 
+  const connectionTone: StatusTone = isEnterprise ? 'ok' : savedUrl ? 'warn' : 'neutral'
+  const connectionLabel = isEnterprise
+    ? 'Connected'
+    : savedUrl
+      ? (tokenStatus.configured ? 'Not authorized' : 'Token required')
+      : 'Not configured'
+
+  const urlDirty = url.trim().replace(/\/+$/, '') !== savedUrl
+
+  return (
+    <div className="fin-page settings-sub-page">
+      <PageGround />
+
+      <header className="fin-masthead">
+        <div className="fin-masthead__id">
+          <div className="fin-masthead__eyebrow">
+            <Building2 size={13} aria-hidden />
+            <strong>Settings</strong>
+            <span className="fin-masthead__sep">/</span>
+            <span>Enterprise</span>
+          </div>
+          <h1 className="fin-masthead__title">Enterprise service</h1>
+          <p className="fin-masthead__sub">
+            Connect to your Finocurve Service instance for consolidated balances, institutional
+            activity and connection health. Both settings are stored on this device only.
+          </p>
+        </div>
+        <div className="fin-masthead__actions">
+          <StatusChip tone={connectionTone} label={connectionLabel} />
+          <button type="button" className="fin-btn" onClick={() => navigate('/main?tab=settings')}>
+            <ArrowLeft size={13} aria-hidden /> Back
+          </button>
+        </div>
+      </header>
+
+      <div className="fin-stack settings-sub-page__stack">
         {loading ? (
-          <GlassContainer padding="24px" borderRadius={16}>
-            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Loading…</p>
-          </GlassContainer>
+          <Panel title="Enterprise service">
+            <p className="fin-footnote">Loading…</p>
+          </Panel>
         ) : (
           <>
-            <GlassContainer padding="20px 22px" borderRadius={16}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <Building2 size={18} style={{ color: 'var(--brand-primary)' }} />
-                <h2 style={{ color: 'var(--text-primary)', fontSize: 16, margin: 0 }}>Finocurve Service</h2>
-                {savedUrl && (
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: isEnterprise ? 'var(--status-success)' : 'var(--text-tertiary)' }}>
-                    {isEnterprise ? <CheckCircle2 size={14} /> : <Unplug size={14} />}
-                    {isEnterprise ? 'Connected' : 'Not connected'}
-                  </span>
-                )}
+            {error && <Notice tone="bad">{error}</Notice>}
+            {saved && <Notice tone="ok">{saved}</Notice>}
+
+            <Panel
+              title="Service endpoint"
+              icon={<Link2 size={14} aria-hidden />}
+              note="Where this device reaches Finocurve Service."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="fin-btn"
+                    onClick={handleTest}
+                    disabled={check.status === 'testing' || saving || !url.trim()}
+                  >
+                    {check.status === 'testing' ? 'Testing…' : 'Test connection'}
+                  </button>
+                  <button
+                    type="button"
+                    className="fin-btn fin-btn--accent"
+                    onClick={handleSaveUrl}
+                    disabled={saving || !urlDirty}
+                  >
+                    Save
+                  </button>
+                </>
+              }
+            >
+              <div className="fin-field">
+                <label className="fin-label" htmlFor="enterprise-url">Service URL</label>
+                <input
+                  id="enterprise-url"
+                  className="fin-input"
+                  type="text"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="http://127.0.0.1:8002"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <span className="fin-field__hint">
+                  Usually http://127.0.0.1:8002 when the service runs on this machine.
+                </span>
               </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55, margin: '0 0 18px' }}>
-                Connect to your Finocurve Service instance to unlock enterprise mode: consolidated balances,
-                institutional activity, and connection health. The URL is stored on this device only.
-              </p>
 
-              <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Service URL</span>
-              <GlassTextField
-                type="text"
-                value={url}
-                onChange={setUrl}
-                placeholder="http://127.0.0.1:8002"
-              />
-              <p style={{ color: 'var(--text-tertiary)', fontSize: 13, lineHeight: 1.5, margin: '10px 0 0' }}>
-                Usually http://127.0.0.1:8002 when the service runs on this machine. Clear the field and save to
-                disable enterprise mode.
-              </p>
-
-              {test.status === 'ok' && (
-                <p style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--status-success)', fontSize: 14, margin: '14px 0 0' }}>
-                  <CheckCircle2 size={15} /> Service is reachable and healthy.
-                </p>
+              {check.status === 'ok' && (
+                <div className="settings-sub-page__result">
+                  <Notice tone="ok">Service is reachable and the API token was accepted.</Notice>
+                </div>
               )}
-              {test.status === 'failed' && (
-                <p style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--status-error)', fontSize: 14, margin: '14px 0 0' }}>
-                  <XCircle size={15} /> {test.detail}
-                </p>
+              {check.status === 'unauthorized' && (
+                <div className="settings-sub-page__result">
+                  <Notice tone="warn">{check.detail} Add or replace the API token below.</Notice>
+                </div>
               )}
-              {error && <p style={{ color: 'var(--status-error)', fontSize: 14, margin: '14px 0 0' }}>{error}</p>}
-              {savedOk && <p style={{ color: 'var(--status-success)', fontSize: 14, margin: '14px 0 0' }}>Saved.</p>}
+              {check.status === 'unreachable' && (
+                <div className="settings-sub-page__result">
+                  <Notice tone="bad">{check.detail}</Notice>
+                </div>
+              )}
+            </Panel>
 
-              <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-                <GlassButton text={test.status === 'testing' ? 'Testing…' : 'Test connection'} onClick={handleTest} disabled={test.status === 'testing' || saving} />
-                <GlassButton text={saving ? 'Saving…' : 'Save'} onClick={handleSave} isPrimary disabled={saving || url.trim().replace(/\/+$/, '') === savedUrl} />
-                {savedUrl && <GlassButton text="Disconnect" onClick={handleDisconnect} disabled={saving} />}
+            <Panel
+              title="API token"
+              icon={<KeyRound size={14} aria-hidden />}
+              note="Finocurve Service requires a bearer token on every request."
+              actions={
+                <>
+                  {tokenStatus.configured && (
+                    <button type="button" className="fin-btn" onClick={handleRemoveToken} disabled={saving}>
+                      Remove
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="fin-btn fin-btn--accent"
+                    onClick={handleSaveToken}
+                    disabled={saving || !token.trim()}
+                  >
+                    {tokenStatus.configured ? 'Replace token' : 'Save token'}
+                  </button>
+                </>
+              }
+              footer={
+                <span className="fin-footnote">
+                  {window.electronAPI?.enterpriseSetToken
+                    ? 'The token is encrypted on this device by the desktop app and is never returned to the window — only the last four characters are shown back to you.'
+                    : 'In the browser the token is kept for this tab only and is not written to disk. Use the FinoCurve desktop app to store it securely.'}
+                </span>
+              }
+            >
+              {tokenStatus.configured && (
+                <div className="settings-sub-page__token-state">
+                  <StatusChip tone="ok" label="Token installed" />
+                  <span className="fin-mono settings-sub-page__hint">{tokenStatus.hint}</span>
+                </div>
+              )}
+
+              <div className="fin-field">
+                <label className="fin-label" htmlFor="enterprise-token">
+                  {tokenStatus.configured ? 'Replacement token' : 'API token'}
+                </label>
+                <div className="fin-field__row">
+                  <input
+                    id="enterprise-token"
+                    className="fin-input fin-input--secret"
+                    type={revealToken ? 'text' : 'password'}
+                    value={token}
+                    onChange={(event) => setToken(event.target.value)}
+                    placeholder={tokenStatus.configured ? 'Paste a new token to replace' : 'Paste your API token'}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="fin-btn fin-btn--icon"
+                    onClick={() => setRevealToken((on) => !on)}
+                    title={revealToken ? 'Hide token' : 'Show token'}
+                    aria-label={revealToken ? 'Hide token' : 'Show token'}
+                    aria-pressed={revealToken}
+                  >
+                    {revealToken ? <EyeOff size={15} aria-hidden /> : <Eye size={15} aria-hidden />}
+                  </button>
+                </div>
+                <span className="fin-field__hint">
+                  Issued by your Finocurve Service deployment as <span className="fin-mono">API_KEY</span>.
+                  Sent as an <span className="fin-mono">Authorization: Bearer</span> header.
+                </span>
               </div>
-            </GlassContainer>
+            </Panel>
+
+            {savedUrl && (
+              <Panel title="Disconnect" note="Clears the service URL and the API token from this device.">
+                <button type="button" className="fin-btn" onClick={handleDisconnect} disabled={saving}>
+                  Disconnect enterprise service
+                </button>
+              </Panel>
+            )}
           </>
         )}
       </div>

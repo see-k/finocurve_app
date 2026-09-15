@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { ThemeProvider } from './theme/ThemeContext'
 import './theme/theme.css'
+import './theme/finance.css'
 import './index.css'
 import { initializeCoreDataStorage } from './lib/coreDataStorage'
 

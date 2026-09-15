@@ -1,0 +1,1166 @@
+/* ============================================
+   FinoCurve — financial surface design system
+
+   Primitives shared by the account-facing screens (Dashboard, Portfolio).
+   Everything resolves from the active theme's tokens so all 16 themes work.
+
+   Conventions borrowed from US brokerage/custodian statements:
+     · flat surfaces separated by hairlines, not shadows and blur
+     · figures right-aligned, tabular, one decimal convention per column
+     · micro caps labels; sentence-case content
+     · one accent (brand) + reserved semantic gain/loss
+     · every number traceable to a source and an "as of"
+   ============================================ */
+
+:root {
+  /* ── Rules & surfaces ───────────────────── */
+  --fin-rule: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --fin-rule-soft: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --fin-rule-strong: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  --fin-surface: color-mix(in srgb, var(--surface) 92%, var(--bg-primary));
+  --fin-surface-raised: var(--surface-light);
+  --fin-surface-sunken: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --fin-surface-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+
+  /* ── Semantic performance colors ─────────
+     Reserved for gain/loss only. Never reused as a series color. */
+  --fin-pos: #34d399;
+  --fin-neg: #f87171;
+  --fin-flat: var(--text-secondary);
+  --fin-pos-wash: color-mix(in srgb, var(--fin-pos) 14%, transparent);
+  --fin-neg-wash: color-mix(in srgb, var(--fin-neg) 14%, transparent);
+
+  /* ── Categorical series palette ───────────
+     Fixed order, assigned in sequence, never cycled past slot 8.
+     Dark steps; validated for lightness band, chroma, CVD separation
+     (worst adjacent ΔE 8.4 protan) and ≥3:1 against the dark surface. */
+  --fin-cat-1: #3987e5;
+  --fin-cat-2: #d95926;
+  --fin-cat-3: #199e70;
+  --fin-cat-4: #c98500;
+  --fin-cat-5: #d55181;
+  --fin-cat-6: #008300;
+  --fin-cat-7: #9085e9;
+  --fin-cat-8: #e66767;
+  /* Slot 9+ never gets a generated hue — series fold into "Other". */
+  --fin-cat-other: color-mix(in srgb, var(--text-primary) 34%, transparent);
+
+  /* ── Chart furniture ─────────────────────── */
+  --fin-chart-grid: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --fin-chart-axis: color-mix(in srgb, var(--text-primary) 16%, transparent);
+  --fin-chart-trend: color-mix(in srgb, var(--text-primary) 38%, transparent);
+  --fin-chart-projection: #c98500;
+
+  /* ── Type ─────────────────────────────────── */
+  --fin-mono: 'SF Mono', ui-monospace, SFMono-Regular, 'Roboto Mono', Menlo, Consolas, monospace;
+  --fin-radius: 10px;
+  --fin-radius-sm: 6px;
+}
+
+/* Light themes: the palette is re-stepped for a light surface, not flipped.
+   Gain/loss steps clear 4.5:1 as text on white and near-white grounds. */
+[data-theme^="light"] {
+  --fin-rule: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --fin-rule-soft: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --fin-rule-strong: color-mix(in srgb, var(--text-primary) 26%, transparent);
+  --fin-surface: var(--surface);
+  --fin-surface-raised: var(--surface);
+  --fin-surface-sunken: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --fin-surface-hover: color-mix(in srgb, var(--text-primary) 4%, transparent);
+
+  --fin-pos: #087443;
+  --fin-neg: #b42318;
+
+  --fin-cat-1: #2a78d6;
+  --fin-cat-2: #eb6834;
+  --fin-cat-3: #1baf7a;
+  --fin-cat-4: #eda100;
+  --fin-cat-5: #e87ba4;
+  --fin-cat-6: #008300;
+  --fin-cat-7: #4a3aa7;
+  --fin-cat-8: #e34948;
+
+  --fin-chart-projection: #b06f00;
+}
+
+/* ============================================
+   Page scaffolding
+   ============================================ */
+
+.fin-page {
+  display: flex;
+  flex-direction: column;
+  padding: 0 32px 40px;
+  max-width: 1560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Masthead — the account identity line, above the first rule. */
+.fin-masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 28px 0 18px;
+  border-bottom: 1px solid var(--fin-rule);
+}
+
+.fin-masthead__id {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fin-masthead__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fin-masthead__eyebrow strong {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.fin-masthead__sep {
+  color: var(--fin-rule-strong);
+}
+
+.fin-masthead__value {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.fin-masthead__amount {
+  font-size: 38px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.fin-masthead__cents {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.fin-masthead__sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.fin-masthead__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+/* ============================================
+   Panel — the one container on these screens
+   ============================================ */
+
+.fin-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--fin-surface);
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius);
+  overflow: hidden;
+}
+
+.fin-panel--flush {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+}
+
+.fin-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--fin-rule);
+  min-height: 52px;
+}
+
+.fin-panel__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fin-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.fin-panel__title svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.fin-panel__note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.35;
+}
+
+.fin-panel__count {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.fin-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fin-panel__body {
+  padding: 18px;
+  min-width: 0;
+}
+
+.fin-panel__body--flush {
+  padding: 0;
+}
+
+.fin-panel__foot {
+  margin-top: auto;
+  padding: 10px 18px;
+  border-top: 1px solid var(--fin-rule-soft);
+  background: var(--fin-surface-sunken);
+}
+
+/* Panel that navigates somewhere on click. */
+.fin-panel--link {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.fin-panel--link:hover {
+  border-color: var(--fin-rule-strong);
+}
+.fin-panel--link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ============================================
+   Type utilities
+   ============================================ */
+
+.fin-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.fin-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
+.fin-pos { color: var(--fin-pos); }
+.fin-neg { color: var(--fin-neg); }
+.fin-flat { color: var(--fin-flat); }
+
+/* ============================================
+   Key figures strip
+   ============================================ */
+
+.fin-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius);
+  background: var(--fin-surface);
+  overflow: hidden;
+}
+
+.fin-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 18px;
+  min-width: 0;
+  border-right: 1px solid var(--fin-rule-soft);
+}
+
+.fin-figure:last-child { border-right: none; }
+
+.fin-figure__value {
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-figure__meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   Delta — signed change with a direction glyph
+   ============================================ */
+
+.fin-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fin-delta--up { color: var(--fin-pos); }
+.fin-delta--down { color: var(--fin-neg); }
+.fin-delta--flat { color: var(--fin-flat); }
+
+.fin-delta__glyph {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.fin-delta--pill {
+  padding: 3px 8px;
+  border-radius: var(--fin-radius-sm);
+  font-size: 13px;
+}
+.fin-delta--pill.fin-delta--up { background: var(--fin-pos-wash); }
+.fin-delta--pill.fin-delta--down { background: var(--fin-neg-wash); }
+.fin-delta--pill.fin-delta--flat { background: var(--fin-surface-sunken); }
+
+/* ============================================
+   Segmented control (period, view switchers)
+   ============================================ */
+
+.fin-segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--fin-surface-sunken);
+  border: 1px solid var(--fin-rule-soft);
+  border-radius: var(--fin-radius-sm);
+}
+
+.fin-segmented__btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+  outline: none;
+}
+
+.fin-segmented__btn:hover:not(.fin-segmented__btn--active) {
+  color: var(--text-primary);
+  background: var(--fin-surface-hover);
+}
+
+.fin-segmented__btn--active {
+  background: var(--fin-surface-raised);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--fin-rule);
+}
+
+.fin-segmented__btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -1px;
+}
+
+/* ============================================
+   Ghost button — secondary actions in headers
+   ============================================ */
+
+.fin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--fin-radius-sm);
+  border: 1px solid var(--fin-rule);
+  background: var(--fin-surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  outline: none;
+  white-space: nowrap;
+}
+
+.fin-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--fin-rule-strong);
+}
+
+.fin-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fin-btn--accent {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: #fff;
+}
+.fin-btn--accent:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #fff;
+}
+
+.fin-btn--icon {
+  position: relative;
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  justify-content: center;
+}
+
+/* ============================================
+   Data table
+   ============================================ */
+
+.fin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--fin-surface);
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--fin-rule);
+}
+
+.fin-table th.fin-table__num,
+.fin-table td.fin-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--fin-rule-soft);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+.fin-table tbody tr:last-child td { border-bottom: none; }
+
+.fin-table tbody tr.fin-table__row--link {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.fin-table tbody tr.fin-table__row--link:hover { background: var(--fin-surface-hover); }
+
+.fin-table__row-action {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+.fin-table__row-action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Sortable headers */
+.fin-table__sort {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  outline: none;
+}
+.fin-table__sort:hover { color: var(--text-secondary); }
+.fin-table__sort:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+.fin-table__sort--active { color: var(--text-primary); }
+.fin-table__sort svg { opacity: 0.75; }
+
+/* Identity cell: mark + name + secondary line */
+.fin-table__identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.fin-table__identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fin-table__primary {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-table__secondary {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-table__value {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Totals row */
+.fin-table tfoot td {
+  padding: 11px 14px;
+  border-top: 1px solid var(--fin-rule-strong);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--fin-surface-sunken);
+}
+
+/* ============================================
+   Instrument mark — square, monogrammed
+   ============================================ */
+
+.fin-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--fin-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--fin-surface-sunken);
+  border: 1px solid var(--fin-rule-soft);
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.fin-mark svg { width: 15px; height: 15px; }
+
+/* ============================================
+   Weight meter — share-of-portfolio bar
+   ============================================ */
+
+.fin-meter {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  min-width: 40px;
+  border-radius: 2px;
+  background: var(--fin-surface-sunken);
+  overflow: hidden;
+}
+
+.fin-meter__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--fin-cat-1);
+}
+
+/* ============================================
+   Tag — asset class / status
+   ============================================ */
+
+.fin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--fin-rule-soft);
+  background: var(--fin-surface-sunken);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ============================================
+   Empty state
+   ============================================ */
+
+.fin-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.fin-empty svg { color: var(--fin-rule-strong); }
+
+.fin-empty__title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.fin-empty__body {
+  font-size: 12px;
+  max-width: 30rem;
+  line-height: 1.5;
+}
+
+/* ============================================
+   Chart legend & footnotes
+   ============================================ */
+
+.fin-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.fin-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.fin-legend__swatch {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  flex-shrink: 0;
+  background: var(--brand-primary);
+}
+
+.fin-legend__swatch--dashed {
+  height: 0;
+  border-top: 2px dashed var(--fin-chart-projection);
+}
+
+.fin-legend__swatch--dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.fin-footnote {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* ============================================
+   Layout helpers
+   ============================================ */
+
+.fin-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fin-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+@media (max-width: 1080px) {
+  .fin-row-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .fin-page { padding: 0 20px 32px; }
+  .fin-masthead { flex-direction: column; gap: 16px; }
+  .fin-masthead__amount { font-size: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-panel--link,
+  .fin-segmented__btn,
+  .fin-btn,
+  .fin-table tbody tr.fin-table__row--link {
+    transition: none;
+  }
+}
+
+/* ============================================
+   Screen-reader-only text
+   ============================================ */
+
+.fin-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================
+   Page ground
+
+   A very low-contrast engraved pattern behind the masthead, in the spirit of
+   security paper on a printed statement. Inline SVG rather than a photograph:
+   no external request, it inherits the theme's ink, and it carries no imagery
+   that competes with the figures.
+
+   It sits behind everything, fades out before the first panel, and is hidden
+   from assistive tech and print.
+   ============================================ */
+
+.fin-ground {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 420px;
+  /* Negative index keeps the ground behind the page's own content. `.fin-page`
+     establishes the stacking context and paints no background of its own, so
+     the app background still shows through. */
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Engraved hairlines: two opposing diagonals at a fine pitch. */
+.fin-ground__pattern {
+  position: absolute;
+  inset: -20% -10% 0;
+  opacity: 0.5;
+  background-image:
+    repeating-linear-gradient(
+      68deg,
+      var(--fin-ground-ink) 0 1px,
+      transparent 1px 9px
+    ),
+    repeating-linear-gradient(
+      -68deg,
+      var(--fin-ground-ink) 0 1px,
+      transparent 1px 14px
+    );
+  /* Fade to nothing well before the first panel so no rule sits on texture. */
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, transparent 78%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, transparent 78%);
+}
+
+/* A single soft wash of the brand hue, anchored top-left behind the masthead. */
+.fin-ground__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      120% 90% at 12% -30%,
+      color-mix(in srgb, var(--brand-primary) 14%, transparent) 0%,
+      transparent 62%
+    );
+}
+
+/* The page's own background, so the ground never shows through a panel. */
+.fin-ground__fade {
+  position: absolute;
+  inset: auto 0 0;
+  height: 140px;
+  background: linear-gradient(to bottom, transparent, var(--bg-primary));
+}
+
+:root {
+  --fin-ground-ink: rgba(255, 255, 255, 0.035);
+}
+
+[data-theme^="light"] {
+  --fin-ground-ink: rgba(0, 0, 0, 0.032);
+}
+
+/* Content sits above the ground. */
+.fin-page {
+  position: relative;
+  z-index: 1;
+}
+
+@media print {
+  .fin-ground { display: none; }
+}
+
+/* ============================================
+   Status chip — state as icon plus label, never colour alone
+   ============================================ */
+
+.fin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--fin-radius-sm);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.fin-status svg { flex-shrink: 0; }
+
+.fin-status--ok {
+  color: var(--fin-pos);
+  background: color-mix(in srgb, var(--fin-pos) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fin-pos) 30%, transparent);
+}
+
+.fin-status--warn {
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-warning) 30%, transparent);
+}
+
+.fin-status--bad {
+  color: var(--fin-neg);
+  background: color-mix(in srgb, var(--fin-neg) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fin-neg) 30%, transparent);
+}
+
+.fin-status--neutral {
+  color: var(--text-tertiary);
+  background: var(--fin-surface-sunken);
+  border-color: var(--fin-rule-soft);
+}
+
+/* ============================================
+   Notices
+   ============================================ */
+
+.fin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.fin-notice svg { flex-shrink: 0; margin-top: 2px; }
+
+.fin-notice--ok {
+  border-color: color-mix(in srgb, var(--fin-pos) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--fin-pos) 8%, transparent);
+}
+.fin-notice--ok svg { color: var(--fin-pos); }
+
+.fin-notice--warn {
+  border-color: color-mix(in srgb, var(--status-warning) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+}
+.fin-notice--warn svg { color: var(--status-warning); }
+
+.fin-notice--bad {
+  border-color: color-mix(in srgb, var(--fin-neg) 40%, var(--fin-rule));
+  background: color-mix(in srgb, var(--fin-neg) 8%, transparent);
+}
+.fin-notice--bad svg { color: var(--fin-neg); }
+
+/* ============================================
+   Form field
+   ============================================ */
+
+.fin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.fin-field__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fin-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--fin-rule);
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.fin-input::placeholder { color: var(--text-tertiary); }
+
+.fin-input:hover:not(:disabled) { border-color: var(--fin-rule-strong); }
+
+.fin-input:focus-visible {
+  border-color: var(--brand-primary);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -1px;
+}
+
+.fin-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* A credential reads as one: monospaced, so characters are distinguishable. */
+.fin-input--secret {
+  font-family: var(--fin-mono);
+  letter-spacing: 0.02em;
+}
+
+.fin-field__hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.fin-field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fin-field__row .fin-input { flex: 1; min-width: 0; }
+
+/* ============================================
+   Settings rows
+   ============================================ */
+
+.fin-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.fin-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 18px;
+  border: none;
+  border-bottom: 1px solid var(--fin-rule-soft);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.1s ease;
+}
+
+.fin-row:last-child { border-bottom: none; }
+.fin-row:hover { background: var(--fin-surface-hover); }
+.fin-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: -2px;
+}
+
+.fin-row--static { cursor: default; }
+.fin-row--static:hover { background: transparent; }
+
+.fin-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--fin-radius-sm);
+  background: var(--fin-surface-sunken);
+  border: 1px solid var(--fin-rule-soft);
+  color: var(--text-secondary);
+}
+
+.fin-row__label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.fin-row__value {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+/* Both carry auto margins: with a value present the value claims the free
+   space and the arrow trails it; with no value the arrow claims it instead, so
+   a bare row still puts its chevron at the right edge. */
+.fin-row__arrow {
+  margin-left: auto;
+  color: var(--fin-rule-strong);
+  flex-shrink: 0;
+}
+
+.fin-row--danger .fin-row__label { color: var(--fin-neg); }
+.fin-row--danger .fin-row__icon {
+  color: var(--fin-neg);
+  border-color: color-mix(in srgb, var(--fin-neg) 30%, transparent);
+  background: color-mix(in srgb, var(--fin-neg) 10%, transparent);
+}
+
+/* Toggle */
+
+.fin-toggle {
+  margin-left: auto;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--fin-rule);
+  background: var(--fin-surface-sunken);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  outline: none;
+}
+
+.fin-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.fin-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.fin-toggle--on {
+  background: color-mix(in srgb, var(--brand-primary) 30%, transparent);
+  border-color: var(--brand-primary);
+}
+
+.fin-toggle--on .fin-toggle__thumb {
+  transform: translateX(16px);
+  background: var(--brand-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-row, .fin-input, .fin-toggle, .fin-toggle__thumb { transition: none; }
+}

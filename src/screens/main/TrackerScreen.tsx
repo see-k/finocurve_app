@@ -151,12 +151,11 @@ export default function TrackerScreen() {
   const portfolioPerformanceMiniSeries = useMemo(() => {
     const { data } = getPerformanceChartData(
       portfolioValueHistory,
-      portfolioTotalValue,
       TRACKER_PORTFOLIO_CHART_PERIOD,
       portfolioHistoricalApiData.length >= 2 ? portfolioHistoricalApiData : undefined
     )
     return data.map((p) => ({ dateLabel: p.dateLabel, value: p.value }))
-  }, [portfolioValueHistory, portfolioTotalValue, portfolioHistoricalApiData])
+  }, [portfolioValueHistory, portfolioHistoricalApiData])
 
   const liveRiskScore = useMemo(() => currentRiskScore(portfolio), [portfolio])
 

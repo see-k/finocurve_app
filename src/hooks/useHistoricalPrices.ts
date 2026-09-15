@@ -2,12 +2,21 @@
  * Fetches historical portfolio value from Yahoo Finance (stocks, ETFs, crypto).
  * Only available in Electron; falls back to null in browser.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Asset, FinancialValueProvenance } from '../types'
 import { assetCurrentValue, isLoan } from '../types'
 import type { PerformancePeriod } from '../types'
 
 const SUPPORTED_TYPES = ['stock', 'etf', 'crypto']
+
+function holdingsKey(assets: Asset[], period: PerformancePeriod): string {
+  const tickers = assets
+    .filter((asset) => !isLoan(asset) && asset.symbol && SUPPORTED_TYPES.includes(asset.type?.toLowerCase?.() || ''))
+    .map((asset) => `${asset.symbol}:${asset.quantity}:${asset.type}`)
+    .sort()
+    .join('|')
+  return `${period}::${tickers}`
+}
 
 export function useHistoricalPrices(
   assets: Asset[],
@@ -21,15 +30,23 @@ export function useHistoricalPrices(
   error: string | null
 } {
   const [data, setData] = useState<{ date: string; value: number }[]>([])
+  const [dataKey, setDataKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [provenance, setProvenance] = useState<FinancialValueProvenance | null>(null)
+  const requestSeq = useRef(0)
+  const requestKey = holdingsKey(assets, period)
 
   const fetchData = useCallback(async () => {
+    const seq = ++requestSeq.current
+    const key = holdingsKey(assets, period)
     const api = typeof window !== 'undefined' ? window.electronAPI?.priceHistorical : undefined
     if (!api || !enabled || assets.length === 0) {
       setData([])
+      setDataKey(key)
       setProvenance(null)
+      setError(null)
+      setLoading(false)
       return
     }
 
@@ -47,7 +64,10 @@ export function useHistoricalPrices(
 
     if (tickerAssets.length === 0) {
       setData([])
+      setDataKey(key)
       setProvenance(null)
+      setError(null)
+      setLoading(false)
       return
     }
 
@@ -65,20 +85,25 @@ export function useHistoricalPrices(
         otherAssetsValue: otherValue,
       })
 
+      if (seq !== requestSeq.current) return
       if (result.error) {
         setError(result.error)
         setData([])
+        setDataKey(key)
         setProvenance(null)
       } else {
         setData(result.data || [])
+        setDataKey(key)
         setProvenance(result.provenance ?? null)
       }
     } catch (err) {
+      if (seq !== requestSeq.current) return
       setError(err instanceof Error ? err.message : String(err))
       setData([])
+      setDataKey(key)
       setProvenance(null)
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }, [assets, period, enabled])
 
@@ -86,5 +111,11 @@ export function useHistoricalPrices(
     fetchData()
   }, [fetchData])
 
-  return { data, provenance, loading, error }
+  const matchesRequest = dataKey === requestKey
+  return {
+    data: matchesRequest ? data : [],
+    provenance: matchesRequest ? provenance : null,
+    loading: loading || !matchesRequest,
+    error: matchesRequest ? error : null,
+  }
 }

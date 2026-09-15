@@ -1,0 +1,71 @@
+.fin-custody {
+  min-width: 720px;
+}
+
+.fin-custody__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.fin-custody__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fin-custody__muted {
+  color: var(--text-tertiary);
+}
+
+/* ── Connection health ────────────────────── */
+
+.fin-health {
+  min-width: 380px;
+}
+
+.fin-health__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--fin-radius-sm);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.fin-health__status--ok {
+  color: var(--fin-pos);
+  background: var(--fin-pos-wash);
+  border-color: color-mix(in srgb, var(--fin-pos) 28%, transparent);
+}
+
+.fin-health__status--bad {
+  color: var(--fin-neg);
+  background: var(--fin-neg-wash);
+  border-color: color-mix(in srgb, var(--fin-neg) 28%, transparent);
+}
+
+.fin-health__status--idle {
+  color: var(--text-tertiary);
+  background: var(--fin-surface-sunken);
+  border-color: var(--fin-rule-soft);
+}
+
+.fin-health__detail {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.fin-health__sync {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

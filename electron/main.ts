@@ -20,6 +20,9 @@ import {
   normalizeEnterpriseUrl,
   readEnterpriseServiceUrl,
   saveEnterpriseServiceUrl,
+  maskEnterpriseApiToken,
+  readEnterpriseApiToken,
+  saveEnterpriseApiToken,
 } from './enterpriseHandlers'
 
 const APP_PROTOCOL_SCHEME = 'app'
@@ -122,26 +125,72 @@ function registerEnterpriseHandlers() {
     }
   })
 
+  // The renderer may learn that a token exists and see a masked hint, never the
+  // token itself — a window that cannot read a credential cannot leak it.
+  ipcMain.handle('enterprise-get-token', async () => {
+    const token = readEnterpriseApiToken()
+    return { configured: Boolean(token), hint: maskEnterpriseApiToken(token) }
+  })
+
+  ipcMain.handle('enterprise-set-token', async (_event, payload: { token?: string }) => {
+    const token = (payload?.token ?? '').trim()
+    if (token && /\s/.test(token)) {
+      return { ok: false, error: 'API tokens cannot contain spaces' }
+    }
+    try {
+      saveEnterpriseApiToken(token)
+      return { ok: true, configured: Boolean(token), hint: maskEnterpriseApiToken(token) }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not save the API token' }
+    }
+  })
+
   ipcMain.handle('enterprise-check', async (_event, payload: { url?: string }) => {
     try {
-      const baseUrl = new URL(payload?.url?.trim() || readEnterpriseServiceUrl())
-      if (!['http:', 'https:'].includes(baseUrl.protocol)) return { available: false }
-      baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/healthz`
-      baseUrl.search = ''
-      baseUrl.hash = ''
+      const serviceUrl = (payload?.url?.trim() || readEnterpriseServiceUrl()).replace(/\/+$/, '')
+      const healthUrl = new URL(serviceUrl)
+      if (!['http:', 'https:'].includes(healthUrl.protocol)) return { available: false }
+      healthUrl.pathname = `${healthUrl.pathname.replace(/\/+$/, '')}/healthz`
+      healthUrl.search = ''
+      healthUrl.hash = ''
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
       try {
-        const response = await net.fetch(baseUrl.toString(), { signal: controller.signal })
-        if (!response.ok) return { available: false, status: response.status }
+        const response = await net.fetch(healthUrl.toString(), { signal: controller.signal })
+        if (!response.ok) return { available: false, reachable: false, status: response.status }
         const data = await response.json() as { status?: string }
-        return { available: data.status === 'ok', status: response.status }
+        if (data.status !== 'ok') {
+          return { available: false, reachable: false, status: response.status }
+        }
       } finally {
         clearTimeout(timeout)
       }
+
+      // /healthz is public, so reaching it proves nothing about the token. Every
+      // route the app actually uses needs one, so probe an authenticated route
+      // too — otherwise enterprise mode would report itself live and then fail
+      // on every request.
+      const probe = await fetchEnterprisePath('/api/health/connections', 'GET', { baseUrl: serviceUrl })
+      if (probe.ok) return { available: true, reachable: true, authorized: true, status: probe.status }
+      const unauthorized = probe.status === 401 || probe.status === 403
+      return {
+        available: false,
+        reachable: true,
+        authorized: unauthorized ? false : undefined,
+        status: probe.status,
+        error: unauthorized
+          ? (readEnterpriseApiToken()
+            ? 'Finocurve Service rejected the API token.'
+            : 'Finocurve Service requires an API token.')
+          : probe.error,
+      }
     } catch (error) {
-      return { available: false, error: error instanceof Error ? error.message : 'Service unavailable' }
+      return {
+        available: false,
+        reachable: false,
+        error: error instanceof Error ? error.message : 'Service unavailable',
+      }
     }
   })
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Building2, Camera, ChevronLeft, ChevronRight, CircleDollarSign, Coins, Database, ExternalLink, FileText, RefreshCw, ScrollText, Search, ShieldCheck } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  enterpriseFetch, getEnterpriseSource, type BalanceSnapshot, type EnterpriseBalances,
+  enterpriseFetch, getEnterpriseSource, safeHttpHref, type BalanceSnapshot, type EnterpriseBalances,
   type EnterpriseConnection, type EnterpriseTransaction,
 } from '../../services/enterprise'
 import './EnterpriseScreen.css'
@@ -111,8 +111,21 @@ const categoryLabel = (category: string) => category.replace(/_/g, ' ').replace(
 const ENTERPRISE_BG = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1600&auto=format&fit=crop'
 
 function Citation({ path, label }: { path: string; label: string }) {
-  const source = getEnterpriseSource(path, label)
-  return <a className="enterprise-citation" href={source.href} target="_blank" rel="noreferrer">{source.label}<ExternalLink size={11} /></a>
+  const href = safeHttpHref(getEnterpriseSource(path, label).href)
+  if (!href) return <span className="enterprise-citation">{label}</span>
+  return <a className="enterprise-citation" href={href} target="_blank" rel="noreferrer">{label}<ExternalLink size={11} /></a>
+}
+
+function ReportDownloadLink({ path, title, detail }: { path: string; title: string; detail: string }) {
+  const href = safeHttpHref(getEnterpriseSource(path, title).href)
+  const body = (
+    <>
+      <FileText size={15} />
+      <span><strong>{title}</strong><small>{detail}</small></span>
+    </>
+  )
+  if (!href) return <span>{body}</span>
+  return <a href={href} target="_blank" rel="noreferrer">{body}<ExternalLink size={12} /></a>
 }
 
 export default function EnterpriseScreen() {
@@ -317,7 +330,9 @@ export default function EnterpriseScreen() {
           <article className="enterprise-card"><div className="enterprise-card-title"><div><span>Source allocation</span><small>Funded sources with successfully reported USD value</small></div><CircleDollarSign size={18} /></div><div className="enterprise-allocation">{reportingProducts.map(product => { const share = balances?.aggregate.total_usd ? Math.max(2, product.total_usd / balances.aggregate.total_usd * 100) : 2; return <div key={`${product.product}-${product.institution_name ?? ''}`}><div><span>{product.institution_name ?? productNames[product.product] ?? product.product}</span><strong>{money.format(product.total_usd)}</strong></div><i><b style={{ width: `${share}%` }} /></i></div> })}</div></article>
         </section>
         <section className="enterprise-card enterprise-stack-card"><div className="enterprise-card-title"><div><span>Reports &amp; documents</span><small>Generated on demand by Finocurve Service</small></div><FileText size={18} /></div>
-          <div className="enterprise-report-links">{reportDownloads.map(report => { const source = getEnterpriseSource(report.path, report.title); return <a key={report.path} href={source.href} target="_blank" rel="noreferrer"><FileText size={15} /><span><strong>{report.title}</strong><small>{report.detail}</small></span><ExternalLink size={12} /></a> })}</div>
+          <div className="enterprise-report-links">{reportDownloads.map(report => (
+            <ReportDownloadLink key={report.path} path={report.path} title={report.title} detail={report.detail} />
+          ))}</div>
           <p className="enterprise-description">Documents are rendered live from current provider data — the first open after a quiet period can take a few seconds.</p>
         </section>
       </>}

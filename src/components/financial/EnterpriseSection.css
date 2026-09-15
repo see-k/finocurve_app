@@ -1,0 +1,78 @@
+/* The enterprise band sits between the personal figures and the personal
+   analysis, bracketed by rules and carrying its own eyebrow, so it reads as a
+   separate book of record rather than more of the account above it. */
+
+.fin-enterprise {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px 0;
+  border-top: 1px solid var(--fin-rule);
+  border-bottom: 1px solid var(--fin-rule);
+}
+
+.fin-enterprise__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.fin-enterprise__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fin-enterprise__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: var(--fin-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 38%, var(--fin-rule));
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  color: var(--brand-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fin-enterprise__title {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.fin-enterprise__sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  margin: 0;
+  max-width: 46rem;
+}
+
+.fin-enterprise__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fin-enterprise__spin {
+  animation: fin-enterprise-spin 0.9s linear infinite;
+}
+
+@keyframes fin-enterprise-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-enterprise__spin { animation: none; }
+}
