@@ -121,6 +121,7 @@ describe('core data renderer compatibility cache', () => {
     expect(isCoreDataStorageKey('finocurve-portfolio:user:a@example.com')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-conversations:user:a@example.com')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-agents:user:a@example.com')).toBe(true)
+    expect(isCoreDataStorageKey('finocurve-agents:legacy-shared')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-ai-chat-messages-a@example.com')).toBe(true)
     expect(isCoreDataStorageKey('finocurve-preferences')).toBe(false)
     setCoreDataItem('finocurve-preferences', '{"theme":"dark"}')

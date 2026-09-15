@@ -6,11 +6,13 @@
 
 export const PORTFOLIO_STORAGE_KEY = 'finocurve-portfolio'
 export const AGENTS_STORAGE_KEY = 'finocurve-agents'
+export const LEGACY_SHARED_AGENTS_KEY = 'finocurve-agents:legacy-shared'
 export const CONVERSATIONS_STORAGE_KEY = 'finocurve-conversations'
 
 const STATIC_CORE_KEYS = [
   PORTFOLIO_STORAGE_KEY,
   AGENTS_STORAGE_KEY,
+  LEGACY_SHARED_AGENTS_KEY,
   CONVERSATIONS_STORAGE_KEY,
 ] as const
 

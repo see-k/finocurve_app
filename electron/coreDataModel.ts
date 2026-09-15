@@ -33,6 +33,7 @@ export type CoreDataReconciliationDecision =
 const STATIC_KEYS = new Map<string, CoreDataKind>([
   ['finocurve-portfolio', 'portfolio'],
   ['finocurve-agents', 'agents'],
+  ['finocurve-agents:legacy-shared', 'agents'],
   ['finocurve-conversations', 'conversations'],
 ])
 
