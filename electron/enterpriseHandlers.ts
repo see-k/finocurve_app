@@ -67,7 +67,11 @@ export function readEnterpriseServiceUrl(): string {
 export function readEnterpriseApiToken(): string {
   try {
     const encrypted = readSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY)
-    if (encrypted) return decryptSecret(encrypted) ?? ''
+    if (encrypted) {
+      const decrypted = decryptSecret(encrypted)
+      if (decrypted) deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+      return decrypted ?? ''
+    }
 
     const legacy = readSetting(ENTERPRISE_TOKEN_SETTING_KEY)
     if (!legacy) return ''
