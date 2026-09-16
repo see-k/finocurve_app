@@ -1,12 +1,14 @@
 import type { Agent } from '../types/Agent'
 import type { Conversation, ConversationMessage } from '../types/Conversation'
+import { toChatAgentPersona } from './agentPersona'
 
 export interface GroupTurnChunk {
-  type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
+  type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end' | 'source'
   agentId: string
   content?: string
   toolName?: string
   status?: 'success' | 'error'
+  url?: string
 }
 
 export interface GroupTurnResult {
@@ -15,6 +17,7 @@ export interface GroupTurnResult {
   text: string
   reasoning?: string
   followUps?: { label: string; prompt: string }[]
+  sourceUrl?: string
   aborted?: boolean
 }
 
@@ -470,26 +473,11 @@ export async function* runGroupTurn(
 
     try {
       options.onAgentStart?.(agentId)
-      const { text, reasoning, followUps, aborted } = await streamChat({
+      const { text, reasoning, followUps, sourceUrl, aborted } = await streamChat({
         messages: apiMessages,
         context: {
           ...(options.baseContext ?? {}),
-          agentPersona: {
-            id: agent.id,
-            name: agent.name,
-            systemPrompt: agent.systemPrompt,
-            provider: agent.provider,
-            model: agent.model,
-            ollamaBaseUrl: agent.ollamaBaseUrl,
-            bedrockRegion: agent.bedrockRegion,
-            bedrockAccessKeyId: agent.bedrockAccessKeyId,
-            bedrockSecretKey: agent.bedrockSecretKey,
-            azureEndpoint: agent.azureEndpoint,
-            azureApiKey: agent.azureApiKey,
-            toolAccess: agent.toolAccess,
-            enabledToolNames: agent.enabledToolNames,
-            toolLimits: agent.toolLimits,
-          },
+          agentPersona: toChatAgentPersona(agent),
           groupChat: {
             participantNames,
             directlyAddressed: responderPlan.directlyAddressed || addressedByPeer.has(agentId),
@@ -505,6 +493,7 @@ export async function* runGroupTurn(
         text,
         reasoning,
         followUps,
+        sourceUrl,
         aborted,
       }
       yield result
@@ -519,6 +508,7 @@ export async function* runGroupTurn(
         senderAvatar: agent.image,
         reasoning,
         followUps,
+        sourceUrl,
       })
 
       // Let the agent hand off to peers it @mentioned. Promote/insert them at

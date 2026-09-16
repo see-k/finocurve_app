@@ -8,7 +8,6 @@ import {
   BriefcaseBusiness,
   Camera,
   CheckCircle2,
-  Cloud,
   Cpu,
   FileText,
   LockKeyhole,
@@ -30,6 +29,7 @@ import GlassButton from '../../../components/glass/GlassButton'
 import GlassTextField from '../../../components/glass/GlassTextField'
 import GlassIconButton from '../../../components/glass/GlassIconButton'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
+import { ProviderBrandIcon } from '../../../components/ai/ProviderBrandIcon'
 import { useAgents } from '../../../store/useAgents'
 import type { Agent } from '../../../types/Agent'
 import {
@@ -47,7 +47,8 @@ import './AgentsScreen.css'
 type AgentProviderChoice = 'default' | NonNullable<Agent['provider']>
 type CollapsibleSection = 'specialties' | 'model' | 'guidance'
 
-function providerName(provider: AIConfigFromMain['provider']): string {
+function providerName(provider: AIConfigFromMain['provider'] | 'slack'): string {
+  if (provider === 'slack') return 'Slack bot'
   if (provider === 'ollama') return 'Ollama'
   if (provider === 'bedrock') return 'AWS Bedrock'
   return 'Azure OpenAI'
@@ -80,6 +81,9 @@ export default function CreateEditAgentScreen() {
   const [bedrockSecretKey, setBedrockSecretKey] = useState(existing?.bedrockSecretKey || '')
   const [azureEndpoint, setAzureEndpoint] = useState(existing?.azureEndpoint || '')
   const [azureApiKey, setAzureApiKey] = useState(existing?.azureApiKey || '')
+  const [slackUserToken, setSlackUserToken] = useState(existing?.slackUserToken || '')
+  const [slackBotUserId, setSlackBotUserId] = useState(existing?.slackBotUserId || '')
+  const [slackDmChannel, setSlackDmChannel] = useState(existing?.slackDmChannel || '')
   const [toolAccess, setToolAccess] = useState<NonNullable<Agent['toolAccess']>>(existing?.toolAccess || 'all')
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(existing?.enabledToolNames || [])
   const [toolLimits, setToolLimits] = useState<Record<string, number>>(existing?.toolLimits || {})
@@ -151,6 +155,9 @@ export default function CreateEditAgentScreen() {
       setBedrockSecretKey(existing.bedrockSecretKey || primaryConfig?.bedrockSecretKey || '')
       setAzureEndpoint(existing.azureEndpoint || primaryConfig?.azureEndpoint || '')
       setAzureApiKey(existing.azureApiKey || primaryConfig?.azureApiKey || '')
+      setSlackUserToken(existing.slackUserToken || '')
+      setSlackBotUserId(existing.slackBotUserId || '')
+      setSlackDmChannel(existing.slackDmChannel || '')
       setToolAccess(existing.toolAccess || 'all')
       setEnabledToolNames(existing.enabledToolNames || [])
       setToolLimits(existing.toolLimits || {})
@@ -187,6 +194,7 @@ export default function CreateEditAgentScreen() {
   const selectProvider = (nextProvider: AgentProviderChoice) => {
     if (nextProvider === provider) return
     setProvider(nextProvider)
+    if (provider === 'slack' && nextProvider !== 'slack') setToolAccess('all')
     if (nextProvider === 'default') {
       setModel('')
     } else if (nextProvider === 'ollama') {
@@ -197,6 +205,9 @@ export default function CreateEditAgentScreen() {
           ? primaryConfig.model
           : 'anthropic.claude-3-haiku-20240307-v1:0',
       )
+    } else if (nextProvider === 'slack') {
+      setModel('Slack bot')
+      setToolAccess('none')
     } else {
       setModel(
         primaryConfig?.azureDeployment ||
@@ -209,7 +220,12 @@ export default function CreateEditAgentScreen() {
 
   const handleTestModel = async () => {
     if (provider === 'default' || !window.electronAPI?.aiTestConnection) return
-    if (!model.trim()) {
+    if (provider === 'slack') {
+      if (!slackUserToken.trim() || !slackBotUserId.trim()) {
+        setConnectionStatus({ ok: false, message: 'Enter the Slack user token and bot user id first.' })
+        return
+      }
+    } else if (!model.trim()) {
       setConnectionStatus({ ok: false, message: 'Choose a model before testing.' })
       return
     }
@@ -227,10 +243,18 @@ export default function CreateEditAgentScreen() {
         azureEndpoint,
         azureApiKey,
         azureDeployment: provider === 'azure' ? model.trim() : primaryConfig?.azureDeployment,
+        slackUserToken: slackUserToken.trim(),
+        slackBotUserId: slackBotUserId.trim(),
+        slackDmChannel: slackDmChannel.trim() || undefined,
       })
+      if (result.ok && provider === 'slack' && result.dmChannel && !slackDmChannel.trim()) {
+        setSlackDmChannel(result.dmChannel)
+      }
       setConnectionStatus({
         ok: result.ok,
-        message: result.ok ? 'Expert model is ready.' : result.error || 'Could not connect to this model.',
+        message: result.ok
+          ? (provider === 'slack' ? 'Slack DM with this bot is ready.' : 'Expert model is ready.')
+          : result.error || 'Could not connect to this model.',
       })
     } catch (testError) {
       setConnectionStatus({
@@ -344,12 +368,18 @@ export default function CreateEditAgentScreen() {
       setError('Expert name is required')
       return
     }
-    if (!systemPrompt.trim()) {
+    if (provider !== 'slack' && !systemPrompt.trim()) {
       setError('System prompt is required')
       setCollapsedSections((current) => ({ ...current, guidance: false }))
       return
     }
-    if (provider !== 'default' && !model.trim()) {
+    if (provider === 'slack') {
+      if (!slackUserToken.trim() || !slackBotUserId.trim()) {
+        setError('Slack experts need a user token (xoxp-) and the bot user id')
+        setCollapsedSections((current) => ({ ...current, model: false }))
+        return
+      }
+    } else if (provider !== 'default' && !model.trim()) {
       setError('Choose a model for this expert provider')
       setCollapsedSections((current) => ({ ...current, model: false }))
       return
@@ -361,19 +391,26 @@ export default function CreateEditAgentScreen() {
       description: description.trim() || undefined,
       specialties,
       isActive,
-      systemPrompt: systemPrompt.trim(),
+      systemPrompt: systemPrompt.trim() || (
+        provider === 'slack'
+          ? `You are ${name.trim()}, a specialist connected from Slack.`
+          : ''
+      ),
       image,
       provider: providerOverride,
-      model: providerOverride ? model.trim() : undefined,
+      model: providerOverride === 'slack' ? 'Slack bot' : providerOverride ? model.trim() : undefined,
       ollamaBaseUrl: providerOverride === 'ollama' ? ollamaBaseUrl.trim() || undefined : undefined,
       bedrockRegion: providerOverride === 'bedrock' ? bedrockRegion.trim() || undefined : undefined,
       bedrockAccessKeyId: providerOverride === 'bedrock' ? bedrockAccessKeyId.trim() || undefined : undefined,
       bedrockSecretKey: providerOverride === 'bedrock' ? bedrockSecretKey || undefined : undefined,
       azureEndpoint: providerOverride === 'azure' ? azureEndpoint.trim() || undefined : undefined,
       azureApiKey: providerOverride === 'azure' ? azureApiKey || undefined : undefined,
-      toolAccess,
-      enabledToolNames: toolAccess === 'selected' ? enabledToolNames : undefined,
-      toolLimits: Object.keys(toolLimits).length > 0 ? toolLimits : undefined,
+      slackUserToken: providerOverride === 'slack' ? slackUserToken.trim() : undefined,
+      slackBotUserId: providerOverride === 'slack' ? slackBotUserId.trim() : undefined,
+      slackDmChannel: providerOverride === 'slack' ? slackDmChannel.trim() || undefined : undefined,
+      toolAccess: providerOverride === 'slack' ? 'none' as const : toolAccess,
+      enabledToolNames: providerOverride === 'slack' || toolAccess !== 'selected' ? undefined : enabledToolNames,
+      toolLimits: providerOverride === 'slack' || Object.keys(toolLimits).length === 0 ? undefined : toolLimits,
     }
     if (isEditing && existing) {
       updateAgent(existing.id, input)
@@ -615,7 +652,9 @@ export default function CreateEditAgentScreen() {
                   <small>{collapsedSections.model
                     ? provider === 'default'
                       ? 'Using the primary model'
-                      : `${providerName(provider)} · ${model || 'Model not selected'}`
+                      : provider === 'slack'
+                        ? `Slack bot${slackBotUserId ? ` · ${slackBotUserId}` : ''}`
+                        : `${providerName(provider)} · ${model || 'Model not selected'}`
                     : 'Choose the intelligence behind this expert.'}</small>
                 </span>
               </div>
@@ -643,7 +682,7 @@ export default function CreateEditAgentScreen() {
                   className={`agent-provider-card ${provider === 'ollama' ? 'agent-provider-card--active' : ''}`}
                   onClick={() => selectProvider('ollama')}
                 >
-                  <Cpu size={18} />
+                  <ProviderBrandIcon provider="ollama" size={22} />
                   <span><strong>Ollama</strong><small>Private and local</small></span>
                 </button>
                 <button
@@ -651,7 +690,7 @@ export default function CreateEditAgentScreen() {
                   className={`agent-provider-card ${provider === 'bedrock' ? 'agent-provider-card--active' : ''}`}
                   onClick={() => selectProvider('bedrock')}
                 >
-                  <Cloud size={18} />
+                  <ProviderBrandIcon provider="bedrock" size={22} />
                   <span><strong>AWS Bedrock</strong><small>Managed foundation models</small></span>
                 </button>
                 <button
@@ -659,8 +698,16 @@ export default function CreateEditAgentScreen() {
                   className={`agent-provider-card ${provider === 'azure' ? 'agent-provider-card--active' : ''}`}
                   onClick={() => selectProvider('azure')}
                 >
-                  <Cloud size={18} />
+                  <ProviderBrandIcon provider="azure" size={22} />
                   <span><strong>Azure OpenAI</strong><small>Your Azure deployment</small></span>
+                </button>
+                <button
+                  type="button"
+                  className={`agent-provider-card ${provider === 'slack' ? 'agent-provider-card--active' : ''}`}
+                  onClick={() => selectProvider('slack')}
+                >
+                  <ProviderBrandIcon provider="slack" size={22} />
+                  <span><strong>Slack bot</strong><small>Wrap an existing workspace bot</small></span>
                 </button>
               </div>
 
@@ -670,6 +717,56 @@ export default function CreateEditAgentScreen() {
                   <span>
                     This expert automatically follows future changes to your primary provider and model.
                   </span>
+                </div>
+              ) : provider === 'slack' ? (
+                <div className="agent-model-controls">
+                  <p className="agent-model-note">
+                    FinoCurve sends each turn as you in a Slack DM, mentions this bot, and streams its
+                    threaded reply back into the same 1:1 or group conversation. Use a user token (xoxp-)
+                    with chat:write, im:write, and im:history.
+                  </p>
+                  <div className="agent-model-credentials">
+                    <div>
+                      <label>User token</label>
+                      <GlassTextField
+                        value={slackUserToken}
+                        onChange={(value) => { setSlackUserToken(value); setConnectionStatus(null) }}
+                        placeholder="xoxp-…"
+                        type="password"
+                      />
+                    </div>
+                    <div>
+                      <label>Bot user id</label>
+                      <GlassTextField
+                        value={slackBotUserId}
+                        onChange={(value) => { setSlackBotUserId(value); setConnectionStatus(null) }}
+                        placeholder="U0C1KK1S53L"
+                      />
+                    </div>
+                    <div>
+                      <label>DM channel (optional)</label>
+                      <GlassTextField
+                        value={slackDmChannel}
+                        onChange={(value) => { setSlackDmChannel(value); setConnectionStatus(null) }}
+                        placeholder="D… opened automatically if empty"
+                      />
+                    </div>
+                  </div>
+                  <div className="agent-model-actions">
+                    <GlassButton
+                      text={testing ? 'Testing…' : 'Test Slack bot'}
+                      onClick={() => void handleTestModel()}
+                      isLoading={testing}
+                      disabled={!slackUserToken.trim() || !slackBotUserId.trim()}
+                      width="auto"
+                    />
+                  </div>
+                  {connectionStatus && (
+                    <div className={`agent-model-status ${connectionStatus.ok ? 'agent-model-status--success' : 'agent-model-status--error'}`}>
+                      {connectionStatus.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                      <span>{connectionStatus.message}</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="agent-model-controls">
@@ -837,11 +934,19 @@ export default function CreateEditAgentScreen() {
                 <span className="agent-section-heading__icon"><Wrench size={16} /></span>
                 <span>
                   <strong id="agent-tools-heading">Tools and permissions</strong>
-                  <small>Give this expert only the capabilities needed for their role. Fewer tools usually means faster, more focused decisions.</small>
+                  <small>
+                    {provider === 'slack'
+                      ? 'Slack-wrapped experts use the bot’s own tools in Slack. FinoCurve tools stay off so this expert stays a faithful wrapper.'
+                      : 'Give this expert only the capabilities needed for their role. Fewer tools usually means faster, more focused decisions.'}
+                  </small>
                 </span>
-                <span className="agent-tools-section__count">{enabledToolCount} of {availableTools.length}</span>
+                <span className="agent-tools-section__count">
+                  {provider === 'slack' ? 'Slack bot' : `${enabledToolCount} of ${availableTools.length}`}
+                </span>
               </div>
 
+              {provider !== 'slack' && (
+              <>
               <div className="agent-tool-policy" role="radiogroup" aria-label="Tool access policy">
                 <button
                   type="button"
@@ -996,6 +1101,8 @@ export default function CreateEditAgentScreen() {
                   )}
                 </div>
               </div>
+              </>
+              )}
             </section>
 
             {error && <p className="agent-editor-error">{error}</p>}

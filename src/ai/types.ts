@@ -138,7 +138,7 @@ export interface ChatContext {
     name: string
     systemPrompt: string
     /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
-    provider?: 'ollama' | 'bedrock' | 'azure'
+    provider?: 'ollama' | 'bedrock' | 'azure' | 'slack'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -146,6 +146,9 @@ export interface ChatContext {
     bedrockSecretKey?: string
     azureEndpoint?: string
     azureApiKey?: string
+    slackUserToken?: string
+    slackBotUserId?: string
+    slackDmChannel?: string
     /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
     toolAccess?: 'all' | 'selected' | 'none'
     enabledToolNames?: string[]
@@ -172,6 +175,7 @@ export type ChatStreamChunk =
   | { type: 'tool_start'; toolName: string }
   | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
   | { type: 'follow_ups'; items: ChatFollowUp[] }
+  | { type: 'source'; url: string; label?: string }
 
 export interface Tool {
   name: string

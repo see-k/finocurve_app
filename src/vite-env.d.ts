@@ -120,7 +120,7 @@ interface ElectronAPI {
   aiCheckConnection?: () => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>
   aiTestConnection?: (payload: {
-    provider: 'ollama' | 'bedrock' | 'azure'
+    provider: 'ollama' | 'bedrock' | 'azure' | 'slack'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -129,7 +129,10 @@ interface ElectronAPI {
     azureEndpoint?: string
     azureApiKey?: string
     azureDeployment?: string
-  }) => Promise<{ ok: boolean; error?: string; modelCount?: number }>
+    slackUserToken?: string
+    slackBotUserId?: string
+    slackDmChannel?: string
+  }) => Promise<{ ok: boolean; error?: string; modelCount?: number; dmChannel?: string }>
   aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
   aiChatStream?: (payload: {
     messages: {
@@ -142,6 +145,7 @@ interface ElectronAPI {
     text: string
     reasoning?: string
     followUps?: { label: string; prompt: string }[]
+    sourceUrl?: string
     aborted?: boolean
   }>
   aiChatCancel?: () => Promise<{ ok: boolean }>
@@ -152,6 +156,7 @@ interface ElectronAPI {
         | { type: 'tool_start'; toolName: string }
         | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
         | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+        | { type: 'source'; url: string; label?: string }
     ) => void
   ) => () => void
   onAppBrowserRemoteIndicator?: (

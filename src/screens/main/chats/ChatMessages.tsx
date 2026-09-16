@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, type RefObject } from 'react'
 import { Sparkles, Trash2 } from 'lucide-react'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import ChatMessageContent from '../../../components/ai/ChatMessageContent'
+import { SlackThreadLink } from '../../../components/ai/ProviderBrandIcon'
 import type { Agent } from '../../../types/Agent'
 import type { Conversation } from '../../../types/Conversation'
 import type { RouterPresentation, SmartRoutingStatus } from './chatUtils'
@@ -12,6 +13,7 @@ interface ChatMessagesProps {
   conversation: Conversation
   streamingAgentId: string | null
   streamingText: string
+  streamingSourceUrl: string
   streamingReasoning: string
   streamingTools: { name: string; status: 'running' | 'success' | 'error' }[]
   verboseStreaming: boolean
@@ -34,6 +36,7 @@ export default function ChatMessages({
   conversation,
   streamingAgentId,
   streamingText,
+  streamingSourceUrl,
   streamingReasoning,
   streamingTools,
   verboseStreaming,
@@ -104,6 +107,7 @@ export default function ChatMessages({
                       <span>{message.role === 'user' ? userName : message.senderName}</span>
                     )}
                     {message.role === 'assistant' && <span className="chats-screen__advisor-tag">Advisor</span>}
+                    {message.role === 'assistant' && <SlackThreadLink url={message.sourceUrl} />}
                     {message.role === 'assistant' && renderAgentProvider(message.senderAgentId)}
                     {message.role === 'user' && <span className="chats-screen__user-tag">You</span>}
                     <button
@@ -215,6 +219,7 @@ export default function ChatMessages({
                   {agentById.get(streamingAgentId)?.name}
                 </button>
                 <span className="chats-screen__thinking-label">Thinking</span>
+                <SlackThreadLink url={streamingSourceUrl} />
                 {renderAgentProvider(streamingAgentId)}
               </div>
               <div className="chats-screen__message-bubble">

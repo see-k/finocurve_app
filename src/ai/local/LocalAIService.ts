@@ -24,6 +24,7 @@ import { filterExpertTools, isExpertToolAllowed } from '../toolPermissions'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools, type FinocurveToolContext } from './tools'
+import { parseSlackBotConfig, streamSlackBotChat } from '../slackBotChat'
 
 /** Detect AbortError-like errors regardless of provider/runtime. */
 function isAbortError(err: unknown): boolean {
@@ -649,6 +650,20 @@ export class LocalAIService implements AIService {
     options?: { signal?: AbortSignal }
   ): AsyncGenerator<ChatStreamChunk, void, unknown> {
     const signal = options?.signal
+    if (context.agentPersona?.provider === 'slack') {
+      const slackConfig = parseSlackBotConfig(context.agentPersona)
+      if (!slackConfig) {
+        throw new Error('This Slack expert is missing a user token or bot user id. Open the expert profile and complete Model assignment.')
+      }
+      yield* streamSlackBotChat({
+        config: slackConfig,
+        expertName: context.agentPersona.name,
+        messages,
+        groupChat: context.groupChat,
+        signal,
+      })
+      return
+    }
     const isGroupRouting = context.backgroundTask === 'group-routing'
     const toolIsAllowed = (toolName: string) => isExpertToolAllowed(context.agentPersona, toolName)
     const systemParts: string[] = isGroupRouting

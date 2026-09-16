@@ -13,8 +13,8 @@ export interface Agent {
   /** Data URL for the agent's avatar image, if any */
   image?: string
   /** Optional AI provider override; falls back to the global AI config when unset */
-  provider?: 'ollama' | 'bedrock' | 'azure'
-  /** Optional model override; falls back to the global AI config when unset */
+  provider?: 'ollama' | 'bedrock' | 'azure' | 'slack'
+  /** Optional model override; falls back to the global AI configuration. Slack experts store a display label. */
   model?: string
   /** Optional per-agent connection overrides. Unset values inherit the global AI configuration. */
   ollamaBaseUrl?: string
@@ -23,6 +23,12 @@ export interface Agent {
   bedrockSecretKey?: string
   azureEndpoint?: string
   azureApiKey?: string
+  /** Slack user token (`xoxp-`) used to DM the wrapped bot as you. */
+  slackUserToken?: string
+  /** Slack bot user id to mention (e.g. `U0C1KK1S53L`). */
+  slackBotUserId?: string
+  /** Optional existing DM channel id with the bot (`D…`). Opened automatically when omitted. */
+  slackDmChannel?: string
   /** Which tools this expert may discover and invoke. Older profiles default to all. */
   toolAccess?: 'all' | 'selected' | 'none'
   /** Tool allowlist used when toolAccess is selected. */
@@ -56,6 +62,9 @@ export type AgentInput = Pick<Agent, 'name' | 'systemPrompt'> &
     | 'bedrockSecretKey'
     | 'azureEndpoint'
     | 'azureApiKey'
+    | 'slackUserToken'
+    | 'slackBotUserId'
+    | 'slackDmChannel'
     | 'toolAccess'
     | 'enabledToolNames'
     | 'toolLimits'
@@ -98,8 +107,12 @@ export function createDefaultAgent(): Agent {
   }
 }
 
+export function isSlackAgent(agent: Pick<Agent, 'provider'>): boolean {
+  return agent.provider === 'slack'
+}
+
 export function getAgentToolCount(agent: Agent, availableToolCount: number): number {
-  if (agent.toolAccess === 'none') return 0
+  if (isSlackAgent(agent) || agent.toolAccess === 'none') return 0
   if (agent.toolAccess === 'selected') return Math.min(agent.enabledToolNames?.length ?? 0, availableToolCount)
   return availableToolCount
 }

@@ -17,6 +17,8 @@ export interface ConversationMessage {
   reasoning?: string
   /** Suggested follow-up prompts from suggest_conversation_follow_ups. */
   followUps?: ChatFollowUp[]
+  /** Live Slack thread for Slack-wrapped experts. */
+  sourceUrl?: string
 }
 
 /**

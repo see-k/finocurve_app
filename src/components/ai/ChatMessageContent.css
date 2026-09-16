@@ -1,5 +1,45 @@
 /* Shared message-body styles for both AIChatBubble and the dedicated Chats screen. */
 
+.slack-thread-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  text-decoration: none;
+  opacity: 0.88;
+  transition: opacity 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.slack-thread-link:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  transform: translateY(-0.5px);
+}
+
+.slack-thread-link:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.slack-thread-link .provider-brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: transparent;
+}
+
+.slack-thread-link .provider-brand-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
 .ai-chat-follow-ups {
   display: flex;
   flex-wrap: wrap;

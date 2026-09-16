@@ -20,7 +20,7 @@ export function effectiveAgentModel(
   primaryModel: string,
 ): { provider: 'ollama' | 'bedrock' | 'azure'; model: string } {
   return {
-    provider: agent.provider || primaryProvider,
+    provider: !agent.provider || agent.provider === 'slack' ? primaryProvider : agent.provider,
     model: (agent.model || primaryModel).trim(),
   }
 }
@@ -35,6 +35,7 @@ export function agentsRequiringProviderDataShare(
   primaryModel: string,
 ): Agent[] {
   return agents.filter((agent) => {
+    if (agent.provider === 'slack') return false
     const { provider, model } = effectiveAgentModel(agent, primaryProvider, primaryModel)
     if (provider === 'ollama') return false
     return requiresProviderDataShareRetention(model)

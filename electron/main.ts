@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
+import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -97,6 +97,12 @@ function createWindow() {
   })
 
   setMainWindow(win)
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url) || url.startsWith('slack:')) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
   win.on('closed', () => {
     setMainWindow(null)
     win = null
