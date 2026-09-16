@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AGENTS_STORAGE_KEY } from '../src/lib/coreDataStorage'
 import {
+  LEGACY_EXPERTS_BASELINE_KEY,
   LEGACY_EXPERTS_SEED_FLAG,
   LEGACY_SHARED_AGENTS_KEY,
   hasCustomExperts,
@@ -144,5 +145,126 @@ describe('legacy experts restore', () => {
 
     expect(localStorage.getItem(LEGACY_EXPERTS_SEED_FLAG)).toBeNull()
     expect(localStorage.getItem(LEGACY_SHARED_AGENTS_KEY)).toBeNull()
+  })
+
+  it('strips provider credentials before copying experts to another profile', () => {
+    const donor = [
+      createDefaultAgent(),
+      makeExpert('agent-bedrock', 'Bedrock Expert', {
+        provider: 'bedrock',
+        bedrockAccessKeyId: 'AKIAEXAMPLE',
+        bedrockSecretKey: 'super-secret',
+      }),
+      makeExpert('agent-slack', 'Slack Expert', {
+        provider: 'slack',
+        slackUserToken: 'xoxp-secret',
+        slackBotUserId: 'U0C1KK1S53L',
+      }),
+    ]
+    localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
+      { email: 'donor@example.com', hasCompletedOnboarding: true, updatedAt: '2026-07-01T00:00:00.000Z' },
+      { email: 'other@example.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+    ]))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`, JSON.stringify(donor))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:other@example.com`, JSON.stringify([createDefaultAgent()]))
+
+    restoreLegacyExpertsToExistingProfiles()
+
+    const seeded = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:other@example.com`)!) as Agent[]
+    const bedrock = seeded.find((agent) => agent.id === 'agent-bedrock')!
+    const slack = seeded.find((agent) => agent.id === 'agent-slack')!
+    expect(bedrock.bedrockAccessKeyId).toBeUndefined()
+    expect(bedrock.bedrockSecretKey).toBeUndefined()
+    expect(slack.slackUserToken).toBeUndefined()
+    // Non-secret configuration still travels so the expert only needs reconnecting.
+    expect(slack.slackBotUserId).toBe('U0C1KK1S53L')
+    expect(JSON.stringify(seeded)).not.toContain('super-secret')
+    expect(JSON.stringify(localStorage.getItem(LEGACY_SHARED_AGENTS_KEY))).not.toContain('xoxp-secret')
+
+    // The donor keeps its own credentials.
+    const kept = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`)!) as Agent[]
+    expect(kept.find((agent) => agent.id === 'agent-slack')!.slackUserToken).toBe('xoxp-secret')
+  })
+
+  it('keeps a profile\u2019s customized default assistant while merging recovered experts', () => {
+    const customizedDefault: Agent = {
+      ...createDefaultAgent(),
+      name: 'My Renamed Copilot',
+      systemPrompt: 'Answer only in bullet points.',
+    }
+    localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
+      { email: 'donor@example.com', hasCompletedOnboarding: true, updatedAt: '2026-07-01T00:00:00.000Z' },
+      { email: 'tweaked@example.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+    ]))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`, JSON.stringify(SHARED_EXPERTS))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:tweaked@example.com`, JSON.stringify([customizedDefault]))
+
+    restoreLegacyExpertsToExistingProfiles()
+
+    const merged = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:tweaked@example.com`)!) as Agent[]
+    const seededDefault = merged.find((agent) => agent.id === DEFAULT_AGENT_ID)!
+    expect(seededDefault.name).toBe('My Renamed Copilot')
+    expect(seededDefault.systemPrompt).toBe('Answer only in bullet points.')
+    expect(merged.map((agent) => agent.name)).toContain('Dr. Harry Kane')
+  })
+
+  it('ignores an empty legacy snapshot in favour of the richest archive', () => {
+    localStorage.setItem(LEGACY_SHARED_AGENTS_KEY, JSON.stringify([]))
+    localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
+      { email: 'donor@example.com', hasCompletedOnboarding: true, updatedAt: '2026-07-01T00:00:00.000Z' },
+      { email: 'empty@example.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+    ]))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`, JSON.stringify(SHARED_EXPERTS))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:empty@example.com`, JSON.stringify([createDefaultAgent()]))
+
+    restoreLegacyExpertsToExistingProfiles()
+
+    const seeded = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:empty@example.com`)!) as Agent[]
+    expect(seeded.map((agent) => agent.name)).toContain('Dr. Harry Kane')
+    const snapshot = JSON.parse(localStorage.getItem(LEGACY_SHARED_AGENTS_KEY)!) as Agent[]
+    expect(snapshot.map((agent) => agent.id)).toContain('agent-harry')
+  })
+
+  it('does not treat experts created after the first empty run as legacy data', () => {
+    localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
+      { email: 'a@example.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+      { email: 'b@example.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+    ]))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:a@example.com`, JSON.stringify([createDefaultAgent()]))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:b@example.com`, JSON.stringify([createDefaultAgent()]))
+
+    restoreLegacyExpertsToExistingProfiles()
+    expect(localStorage.getItem(LEGACY_EXPERTS_BASELINE_KEY)).toBeTruthy()
+
+    // Profile A authors a brand new expert after the migration baseline.
+    const brandNew = makeExpert('agent-new', 'Brand New', {
+      createdAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:a@example.com`, JSON.stringify([createDefaultAgent(), brandNew]))
+
+    restoreLegacyExpertsToExistingProfiles()
+
+    const untouched = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:b@example.com`)!) as Agent[]
+    expect(untouched).toHaveLength(1)
+    expect(hasCustomExperts(untouched)).toBe(false)
+    expect(localStorage.getItem(LEGACY_SHARED_AGENTS_KEY)).toBeNull()
+  })
+
+  it('does not replace a nonempty active list during startup recovery', () => {
+    const activeOnlyDefault = [createDefaultAgent()]
+    localStorage.setItem('finocurve-preferences', JSON.stringify({ userEmail: 'cfred.okonta@gmail.com' }))
+    localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
+      { email: 'cfred.okonta@gmail.com', hasCompletedOnboarding: true, updatedAt: '2026-09-01T00:00:00.000Z' },
+      { email: 'donor@example.com', hasCompletedOnboarding: true, updatedAt: '2026-07-01T00:00:00.000Z' },
+    ]))
+    localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(activeOnlyDefault))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`, JSON.stringify(SHARED_EXPERTS))
+    localStorage.setItem(`${AGENTS_STORAGE_KEY}:user:cfred.okonta@gmail.com`, JSON.stringify([createDefaultAgent()]))
+
+    restoreLegacyExpertsToExistingProfiles()
+
+    const active = JSON.parse(localStorage.getItem(AGENTS_STORAGE_KEY)!) as Agent[]
+    expect(active).toHaveLength(1)
+    expect(hasCustomExperts(active)).toBe(false)
   })
 })

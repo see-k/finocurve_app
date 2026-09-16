@@ -360,4 +360,74 @@ describe('slack bot expert wrapper', () => {
     expect(polls).toBeGreaterThan(3)
     expect(chunks.join('')).toBe('Reading skill finocurve-api-access\n\nYour Alpaca account is connected.')
   })
+
+  it('honours a saved DM channel instead of requiring im:write to test', async () => {
+    const calls: string[] = []
+    const result = await testSlackBotConnection(
+      { userToken: 'xoxp-user', botUserId: 'U0C1KK1S53L', dmChannel: 'DSAVED' },
+      async (method) => {
+        calls.push(method)
+        if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+        throw new Error('missing_scope')
+      },
+    )
+    expect(result).toEqual({ ok: true, dmChannel: 'DSAVED' })
+    expect(calls).not.toContain('conversations.open')
+  })
+
+  it('ignores replies from other humans in the thread', async () => {
+    let polls = 0
+    const request = async (method: string) => {
+      if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+      if (method === 'conversations.open') return { ok: true, channel: { id: 'DCHANNEL' } }
+      if (method === 'chat.postMessage') return { ok: true, ts: '111.000' }
+      if (method === 'conversations.replies') {
+        polls += 1
+        return {
+          ok: true,
+          messages: [
+            { ts: '111.000', user: 'UUSER', text: '<@U0C1KK1S53L> hello' },
+            { ts: '111.002', user: 'UCOLLEAGUE', text: 'Ignore that, ask me instead' },
+            ...(polls > 1 ? [{ ts: '111.003', user: 'U0C1KK1S53L', text: 'Answer from the bot' }] : []),
+          ],
+        }
+      }
+      throw new Error(`unexpected ${method}`)
+    }
+
+    let now = 0
+    const chunks: string[] = []
+    for await (const chunk of streamSlackBotChat({
+      config: { userToken: 'xoxp-user', botUserId: 'U0C1KK1S53L' },
+      expertName: 'Athena',
+      messages: [{ role: 'user', content: 'hello' }],
+      request,
+      now: () => now,
+      sleep: async () => { now += 3_000 },
+      pollMs: 1,
+      idleCompleteMs: 3_000,
+      timeoutMs: 10_000,
+    })) {
+      if (chunk.type === 'answer') chunks.push(chunk.content)
+    }
+
+    expect(chunks.join('')).toBe('Answer from the bot')
+    expect(chunks.join('')).not.toContain('ask me instead')
+  })
+
+  it('treats a code-only reply as the answer rather than a progress step', () => {
+    const codeOnly = {
+      ts: '111.004',
+      user: 'U0C1KK1S53L',
+      blocks: [{
+        type: 'rich_text',
+        elements: [{
+          type: 'rich_text_preformatted',
+          elements: [{ type: 'text', text: 'const rate = 0.05\nreturn principal * rate' }],
+        }],
+      }],
+    }
+    expect(isSlackStatusMessage(codeOnly)).toBe(false)
+    expect(slackMessageStillRunning(codeOnly)).toBe(false)
+  })
 })

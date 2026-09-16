@@ -14,6 +14,24 @@ import { loadSavedLocalAccounts } from './savedLocalAccounts'
 
 export { LEGACY_SHARED_AGENTS_KEY }
 export const LEGACY_EXPERTS_SEED_FLAG = 'finocurve-agents-legacy-profile-seed-v1'
+/**
+ * Timestamp of the first launch that found nothing to recover. Experts created
+ * after it are new work, not legacy data, so a later launch must not mistake a
+ * freshly authored profile for the pre-migration snapshot and fan it out.
+ */
+export const LEGACY_EXPERTS_BASELINE_KEY = 'finocurve-agents-legacy-baseline-v1'
+
+/**
+ * Per-agent secrets never leave the profile that configured them. The recovery
+ * copies expert definitions across profiles, so every profile must reconnect
+ * its own provider credentials.
+ */
+const CREDENTIAL_FIELDS = [
+  'bedrockAccessKeyId',
+  'bedrockSecretKey',
+  'azureApiKey',
+  'slackUserToken',
+] as const satisfies readonly (keyof Agent)[]
 
 const USER_ARCHIVE_PREFIXES = [
   `${AGENTS_STORAGE_KEY}:user:`,
@@ -58,6 +76,32 @@ export function hasCustomExperts(agents: Agent[] | null | undefined): boolean {
   return !!agents?.some((agent) => !isDefaultAgent(agent))
 }
 
+/** Copy of an expert with every provider credential removed. */
+export function stripAgentCredentials(agent: Agent): Agent {
+  const copy = { ...agent }
+  for (const field of CREDENTIAL_FIELDS) delete copy[field]
+  return copy
+}
+
+function readBaseline(): string | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_EXPERTS_BASELINE_KEY)
+    return raw && raw.trim() ? raw.trim() : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Recoverable legacy expert: a non-default expert that already existed when the
+ * migration first ran. Without a baseline every custom expert predates it.
+ */
+function isLegacyExpert(agent: Agent, baseline: string | null): boolean {
+  if (isDefaultAgent(agent)) return false
+  if (!baseline) return true
+  return typeof agent.createdAt === 'string' && agent.createdAt !== '' && agent.createdAt < baseline
+}
+
 function expertRichness(agents: Agent[]): number {
   const custom = agents.filter((agent) => !isDefaultAgent(agent))
   const withImage = custom.filter((agent) => !!agent.image).length
@@ -100,15 +144,17 @@ function existingProfileEmails(): string[] {
   return [...emails]
 }
 
-function collectCandidateLists(): Agent[][] {
+function collectCandidateLists(baseline: string | null): Agent[][] {
   const lists: Agent[][] = []
   const seen = new Set<string>()
   const consider = (raw: string | null) => {
     if (raw == null || seen.has(raw)) return
-    const agents = parseAgentList(raw)
-    if (!hasCustomExperts(agents)) return
     seen.add(raw)
-    lists.push(agents!)
+    const agents = parseAgentList(raw)
+    // Only the recoverable experts travel; the donor's default record stays put.
+    const legacy = agents?.filter((agent) => isLegacyExpert(agent, baseline)) ?? []
+    if (legacy.length === 0) return
+    lists.push(legacy)
   }
 
   consider(getCoreDataItem(LEGACY_SHARED_AGENTS_KEY))
@@ -119,8 +165,8 @@ function collectCandidateLists(): Agent[][] {
   return lists
 }
 
-function pickRichestExperts(): Agent[] | null {
-  const lists = collectCandidateLists()
+function pickRichestExperts(baseline: string | null): Agent[] | null {
+  const lists = collectCandidateLists(baseline)
   if (lists.length === 0) return null
   return lists.reduce((best, current) => (
     expertRichness(current) > expertRichness(best) ? current : best
@@ -148,29 +194,48 @@ export function loadPersistedAgents(): Agent[] {
 }
 
 /**
+ * Merge recovered experts into a profile archive without disturbing what the
+ * profile already has — notably its own (editable) default assistant record.
+ */
+function mergeRecoveredExperts(existing: Agent[] | null, recovered: Agent[]): Agent[] {
+  const merged = existing ? [...existing] : []
+  const known = new Set(merged.map((agent) => agent.id))
+  for (const agent of recovered) {
+    if (known.has(agent.id)) continue
+    known.add(agent.id)
+    merged.push(agent)
+  }
+  return merged
+}
+
+/**
  * Copy recovered experts onto existing profiles that only have the default
- * assistant. Idempotent after the first successful seed.
+ * assistant. Credentials are stripped on the way out so a token configured by
+ * one profile never reaches another. Idempotent after the first successful seed.
  */
 export function restoreLegacyExpertsToExistingProfiles(): void {
   try {
     if (localStorage.getItem(LEGACY_EXPERTS_SEED_FLAG) === '1') return
 
-    const richest = pickRichestExperts()
+    const baseline = readBaseline()
+    const richest = pickRichestExperts(baseline)
     if (!richest) {
-      // Nothing to recover yet; try again on a later launch if archives appear.
+      // Nothing to recover. Record the attempt so experts created from here on
+      // are recognised as new work rather than as a legacy snapshot to fan out.
+      if (!baseline) localStorage.setItem(LEGACY_EXPERTS_BASELINE_KEY, new Date().toISOString())
       return
     }
 
-    if (!parseAgentList(getCoreDataItem(LEGACY_SHARED_AGENTS_KEY))) {
-      persistAgents(LEGACY_SHARED_AGENTS_KEY, richest)
-    }
-    const source = parseAgentList(getCoreDataItem(LEGACY_SHARED_AGENTS_KEY)) ?? richest
+    const stored = parseAgentList(getCoreDataItem(LEGACY_SHARED_AGENTS_KEY))
+    // An empty or default-only snapshot recovers nothing; prefer the richest list.
+    const source = (hasCustomExperts(stored) ? stored! : richest).map(stripAgentCredentials)
+    persistAgents(LEGACY_SHARED_AGENTS_KEY, source)
 
     for (const email of existingProfileEmails()) {
       const archiveKey = agentsArchiveKey(email)
       const existing = parseAgentList(getCoreDataItem(archiveKey))
       if (hasCustomExperts(existing)) continue
-      persistAgents(archiveKey, source)
+      persistAgents(archiveKey, mergeRecoveredExperts(existing, source))
     }
 
     syncActiveSessionFromSignedInArchive()
@@ -186,6 +251,7 @@ function syncActiveSessionFromSignedInArchive(): void {
   const archived = parseAgentList(getCoreDataItem(agentsArchiveKey(email)))
   if (!hasCustomExperts(archived)) return
   const active = parseAgentList(getCoreDataItem(AGENTS_STORAGE_KEY))
-  if (hasCustomExperts(active)) return
+  // Match loadPersistedAgents: any nonempty active list may be an intentional edit.
+  if (active && active.length > 0) return
   persistAgents(AGENTS_STORAGE_KEY, archived!)
 }

@@ -13,6 +13,13 @@ const MAX_TRANSCRIPT_CHARS = 3200
 const DEFAULT_POLL_MS = 500
 const DEFAULT_IDLE_COMPLETE_MS = 3000
 const DEFAULT_TIMEOUT_MS = 300_000
+/** Ceiling for the poll interval once a thread goes quiet, so long turns stay cheap. */
+const MAX_POLL_MS = 5_000
+const POLL_BACKOFF_FACTOR = 1.5
+const REQUEST_TIMEOUT_MS = 30_000
+const MAX_RATE_LIMIT_RETRIES = 4
+const DEFAULT_RETRY_AFTER_MS = 1_000
+const MAX_RETRY_AFTER_MS = 60_000
 const SLACK_REPLY_PAGE_SIZE = 15
 const IN_PROGRESS_STATUSES = new Set(['in_progress', 'pending', 'queued', 'running'])
 const LEADING_EMOJI = /^\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/u
@@ -115,23 +122,83 @@ function encodeSlackBody(body: Record<string, unknown>): URLSearchParams {
   return params
 }
 
+export interface SlackRequestOptions {
+  /** Cancels an in-flight request as well as the wait between retries. */
+  signal?: AbortSignal
+  /** Per-request deadline; without it a hung socket would outlive the stream. */
+  timeoutMs?: number
+  maxRetries?: number
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>
+}
+
+/** Slack's documented back-pressure signal, in seconds. */
+function retryAfterMs(response: Response): number {
+  const header = response.headers?.get?.('retry-after')
+  const seconds = header ? Number.parseFloat(header) : Number.NaN
+  if (!Number.isFinite(seconds) || seconds <= 0) return DEFAULT_RETRY_AFTER_MS
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS)
+}
+
+async function slackFetch(
+  url: string,
+  init: RequestInit,
+  method: string,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  throwIfAborted(signal)
+  const controller = new AbortController()
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort, { once: true })
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (signal?.aborted) throwIfAborted(signal)
+    if (controller.signal.aborted) throw new Error(`Slack request timed out (${method}).`)
+    throw error
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
 export async function slackApiRequest(
   token: string,
   method: string,
   body: Record<string, unknown> = {},
+  options: SlackRequestOptions = {},
 ): Promise<Record<string, unknown>> {
-  const response = await fetch(`${SLACK_API_BASE}/${method}`, {
+  const sleep = options.sleep ?? defaultSlackSleep
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
+  const maxRetries = options.maxRetries ?? MAX_RATE_LIMIT_RETRIES
+  const init: RequestInit = {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: encodeSlackBody(body),
-  })
-  if (!response.ok) throw new Error(`Slack HTTP ${response.status}`)
-  const result = await response.json() as Record<string, unknown>
-  if (result.ok !== true) throw new Error(slackErrorMessage(result.error, result.response_metadata))
-  return result
+  }
+
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await slackFetch(`${SLACK_API_BASE}/${method}`, init, method, options.signal, timeoutMs)
+    // Slack answers 429 with Retry-After; honouring it beats hammering the method.
+    if (response.status === 429 && attempt < maxRetries) {
+      await sleep(retryAfterMs(response), options.signal)
+      continue
+    }
+    if (!response.ok) throw new Error(`Slack HTTP ${response.status}`)
+    const result = await response.json() as Record<string, unknown>
+    if (result.ok !== true) {
+      if (result.error === 'ratelimited' && attempt < maxRetries) {
+        await sleep(retryAfterMs(response), options.signal)
+        continue
+      }
+      throw new Error(slackErrorMessage(result.error, result.response_metadata))
+    }
+    return result
+  }
 }
 
 export function renderSlackEmojis(text: string): string {
@@ -375,6 +442,12 @@ function chunkStillRunning(value: unknown): boolean {
 export function isSlackStatusMessage(message: Record<string, unknown>): boolean {
   const lines = renderSlackMessageLines(message).filter((line) => line.code || line.plain.trim())
   if (lines.length === 0) return true
+  // Code lines only read as progress alongside an explicit step marker. A reply
+  // that is nothing but a code block is a legitimate answer.
+  const hasStatusLine = lines.some((line) => (
+    !line.code && (line.leadingEmoji || PROGRESS_LINE.test(line.plain))
+  ))
+  if (!hasStatusLine) return false
   return lines.every((line) => line.code || line.leadingEmoji || PROGRESS_LINE.test(line.plain))
 }
 
@@ -506,10 +579,13 @@ export async function testSlackBotConnection(
     }
     const api = request ?? ((method, body) => slackApiRequest(config.userToken, method, body))
     await api('auth.test', {})
+    // The stream uses a saved DM channel as-is, so the test must not demand
+    // im:write (conversations.open) that the streaming path never exercises.
+    const saved = config.dmChannel?.trim()
+    if (saved) return { ok: true, dmChannel: saved }
     const opened = await api('conversations.open', { users: config.botUserId.trim() })
     const channel = opened.channel as { id?: string } | undefined
-    const dmChannel = config.dmChannel?.trim() || channel?.id
-    return dmChannel ? { ok: true, dmChannel } : { ok: true }
+    return channel?.id ? { ok: true, dmChannel: channel.id } : { ok: true }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Could not reach Slack.' }
   }
@@ -520,7 +596,9 @@ function isBotReply(message: Record<string, unknown>, botUserId: string, myUserI
   if (user && user === myUserId) return false
   const subtype = typeof message.subtype === 'string' ? message.subtype : ''
   if (subtype && subtype !== 'bot_message' && subtype !== 'thread_broadcast') return false
-  return !user || user === botUserId || typeof message.bot_id === 'string' || user !== myUserId
+  // Only the wrapped bot speaks for this expert. Other humans may be in the
+  // thread (a shared channel, a colleague chiming in); their words are not it.
+  return !user || user === botUserId || typeof message.bot_id === 'string'
 }
 
 async function fetchThreadMessages(
@@ -562,8 +640,9 @@ export async function* streamSlackBotChat(
   }
   if (!botUserId) throw new Error('Slack experts need the bot user id to mention.')
 
-  const request = options.request ?? ((method, body) => slackApiRequest(token, method, body))
   const sleep = options.sleep ?? defaultSlackSleep
+  const request = options.request
+    ?? ((method, body) => slackApiRequest(token, method, body, { signal: options.signal, sleep }))
   const now = options.now ?? Date.now
   const pollMs = options.pollMs ?? DEFAULT_POLL_MS
   const idleCompleteMs = options.idleCompleteMs ?? DEFAULT_IDLE_COMPLETE_MS
@@ -602,6 +681,10 @@ export async function* streamSlackBotChat(
   let lastActivityAt = now()
   let sawBotReply = false
   let sawAnswer = false
+  // Back off while the thread is quiet so a five-minute turn costs tens of
+  // conversations.replies calls rather than hundreds.
+  const maxPollMs = Math.max(pollMs, Math.min(MAX_POLL_MS, timeoutMs))
+  let currentPollMs = pollMs
 
   while (true) {
     throwIfAborted(options.signal)
@@ -616,7 +699,7 @@ export async function* streamSlackBotChat(
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       if (/thread_not_found|message_not_found/i.test(message)) {
-        await sleep(pollMs, options.signal)
+        await sleep(currentPollMs, options.signal)
         continue
       }
       throw error
@@ -634,12 +717,14 @@ export async function* streamSlackBotChat(
       if (previous === undefined) {
         sawBotReply = true
         lastActivityAt = now()
+        currentPollMs = pollMs
         const prefix = printed.size > 0 && nextText ? '\n\n' : ''
         if (nextText) yield { type: 'answer', content: `${prefix}${nextText}` }
         printed.set(ts, nextText)
       } else if (nextText !== previous) {
         sawBotReply = true
         lastActivityAt = now()
+        currentPollMs = pollMs
         if (nextText.startsWith(previous)) {
           const delta = nextText.slice(previous.length)
           if (delta) yield { type: 'answer', content: delta }
@@ -657,6 +742,7 @@ export async function* streamSlackBotChat(
     const idleFor = now() - lastActivityAt
     if (sawBotReply && idleFor >= (sawAnswer ? idleCompleteMs : idleCompleteMs * 6)) return
 
-    await sleep(pollMs, options.signal)
+    await sleep(currentPollMs, options.signal)
+    currentPollMs = Math.min(Math.ceil(currentPollMs * POLL_BACKOFF_FACTOR), maxPollMs)
   }
 }

@@ -909,7 +909,9 @@ export default function CreateEditAgentScreen() {
                   <strong id="agent-guidance-heading">Expert guidance</strong>
                   <small>{collapsedSections.guidance
                     ? systemPrompt.trim() ? 'Expert instructions configured' : 'No guidance configured · Required'
-                    : "Define this expert's point of view, communication style, boundaries, and working method."}</small>
+                    : provider === 'slack'
+                      ? 'Describes this expert for FinoCurve routing and group chats. The Slack bot keeps its own instructions, so this text is not sent to Slack.'
+                      : "Define this expert's point of view, communication style, boundaries, and working method."}</small>
                 </span>
               </div>
               {!collapsedSections.guidance && (
@@ -923,7 +925,9 @@ export default function CreateEditAgentScreen() {
 
                   <div className="agent-guidance-section__tip">
                     <ShieldCheck size={14} />
-                    <span>Strong profiles state the expert's scope, evidence standards, response format, and when to acknowledge uncertainty.</span>
+                    <span>{provider === 'slack'
+                      ? 'Used to route work to this expert inside FinoCurve. The wrapped Slack bot answers with its own configured instructions.'
+                      : "Strong profiles state the expert's scope, evidence standards, response format, and when to acknowledge uncertainty."}</span>
                   </div>
                 </div>
               )}
