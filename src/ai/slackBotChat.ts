@@ -467,6 +467,18 @@ function trimTranscript(lines: string[]): string {
   return (newline >= 0 ? text.slice(newline + 1) : text).trim()
 }
 
+/**
+ * Slack DMs carry no FinoCurve attachment payload, so name the files instead of
+ * dropping them silently and leaving the bot to answer about content it cannot see.
+ */
+export function describeSlackAttachments(messages: ChatMessage[]): string {
+  const names = messages.flatMap((message) => message.attachments ?? []).map((file) => file.name)
+  if (names.length === 0) return ''
+  const unique = [...new Set(names)]
+  return `The user attached ${unique.length === 1 ? 'a file' : 'files'} in FinoCurve that could not be ` +
+    `forwarded to Slack: ${unique.join(', ')}. Say so if the answer depends on their contents.`
+}
+
 /** Compact FinoCurve transcript posted as the Slack DM body (bot is mentioned first). */
 export function buildSlackPrompt(input: {
   botUserId: string
@@ -476,13 +488,14 @@ export function buildSlackPrompt(input: {
 }): string {
   const mention = `<@${input.botUserId.trim()}>`
   const history = input.messages.filter((message) => message.role !== 'system')
+  const attachmentNote = describeSlackAttachments(input.messages)
   const latest = [...history].reverse().find((message) => message.role === 'user')
   const latestText = latest?.content.trim() || ''
   const prior = latest ? history.slice(0, history.lastIndexOf(latest)) : history
   const isGroup = !!input.groupChat?.participantNames.length
   const hasPrior = prior.some((message) => message.content.trim())
 
-  if (!isGroup && !hasPrior) {
+  if (!isGroup && !hasPrior && !attachmentNote) {
     return latestText ? `${mention} ${latestText}` : mention
   }
 
@@ -511,6 +524,7 @@ export function buildSlackPrompt(input: {
   const transcript = trimTranscript(transcriptLines)
   if (transcript) parts.push('Recent FinoCurve messages:', transcript)
   parts.push(latestText ? `Latest message from the user:\n${latestText}` : 'The user sent an empty message.')
+  if (attachmentNote) parts.push(attachmentNote)
   return parts.join('\n\n')
 }
 
@@ -566,6 +580,22 @@ export function parseSlackBotConfig(persona: {
   }
 }
 
+/**
+ * True when `channel` is still a live DM with the configured bot. Uses the
+ * read scope the streaming path already needs, not `im:write`.
+ */
+async function isDmWithBot(api: SlackRequestFn, channel: string, botUserId: string): Promise<boolean> {
+  try {
+    const result = await api('conversations.info', { channel })
+    const info = result.channel as { is_im?: unknown; user?: unknown } | undefined
+    if (!info || info.is_im !== true) return false
+    return typeof info.user === 'string' ? info.user === botUserId : false
+  } catch {
+    // Stale channel, changed bot, or no im:read — fall back to opening a fresh DM.
+    return false
+  }
+}
+
 export async function testSlackBotConnection(
   config: SlackBotConfig,
   request?: SlackRequestFn,
@@ -582,7 +612,10 @@ export async function testSlackBotConnection(
     // The stream uses a saved DM channel as-is, so the test must not demand
     // im:write (conversations.open) that the streaming path never exercises.
     const saved = config.dmChannel?.trim()
-    if (saved) return { ok: true, dmChannel: saved }
+    if (saved && await isDmWithBot(api, saved, config.botUserId.trim())) {
+      return { ok: true, dmChannel: saved }
+    }
+    // No usable saved channel: open (or re-open) the DM for the configured bot.
     const opened = await api('conversations.open', { users: config.botUserId.trim() })
     const channel = opened.channel as { id?: string } | undefined
     return channel?.id ? { ok: true, dmChannel: channel.id } : { ok: true }
@@ -591,14 +624,45 @@ export async function testSlackBotConnection(
   }
 }
 
-function isBotReply(message: Record<string, unknown>, botUserId: string, myUserId: string | undefined): boolean {
+/**
+ * Identity of the wrapped bot. `bot_id` alone only proves *some* bot posted, so
+ * we resolve the configured user's own bot id when the token allows it and
+ * match on that; otherwise only the bot user id counts.
+ */
+export interface SlackBotIdentity {
+  botUserId: string
+  botId?: string
+}
+
+export async function resolveSlackBotIdentity(
+  request: SlackRequestFn,
+  botUserId: string,
+): Promise<SlackBotIdentity> {
+  try {
+    const result = await request('users.info', { user: botUserId })
+    const user = result.user as { profile?: { bot_id?: unknown }; is_bot?: unknown } | undefined
+    const botId = user?.profile?.bot_id
+    if (typeof botId === 'string' && botId) return { botUserId, botId }
+  } catch {
+    // users:read is optional; fall back to matching on the bot user id alone.
+  }
+  return { botUserId }
+}
+
+function isBotReply(
+  message: Record<string, unknown>,
+  identity: SlackBotIdentity,
+  myUserId: string | undefined,
+): boolean {
   const user = typeof message.user === 'string' ? message.user : ''
   if (user && user === myUserId) return false
   const subtype = typeof message.subtype === 'string' ? message.subtype : ''
   if (subtype && subtype !== 'bot_message' && subtype !== 'thread_broadcast') return false
-  // Only the wrapped bot speaks for this expert. Other humans may be in the
-  // thread (a shared channel, a colleague chiming in); their words are not it.
-  return !user || user === botUserId || typeof message.bot_id === 'string'
+  // Only the configured bot speaks for this expert. Other humans and other bots
+  // may be in the thread; neither their words nor authorless posts are the answer.
+  if (user) return user === identity.botUserId
+  const botId = typeof message.bot_id === 'string' ? message.bot_id : ''
+  return !!botId && botId === identity.botId
 }
 
 async function fetchThreadMessages(
@@ -653,6 +717,7 @@ export async function* streamSlackBotChat(
   const auth = await request('auth.test', {})
   const myUserId = typeof auth.user_id === 'string' ? auth.user_id : undefined
   const teamUrl = typeof auth.url === 'string' ? auth.url : ''
+  const identity = await resolveSlackBotIdentity(request, botUserId)
 
   let channel = options.config.dmChannel?.trim() || ''
   if (!channel) {
@@ -709,7 +774,7 @@ export async function* streamSlackBotChat(
       throwIfAborted(options.signal)
       const ts = typeof message.ts === 'string' ? message.ts : ''
       if (!ts || ts === threadTs) continue
-      if (!isBotReply(message, botUserId, myUserId)) continue
+      if (!isBotReply(message, identity, myUserId)) continue
 
       const nextText = slackMessageText(message)
       const previous = printed.get(ts)
@@ -738,9 +803,11 @@ export async function* streamSlackBotChat(
     }
 
     // The answer arrives as its own reply after the thinking-step message, so wait
-    // for the whole thread to settle. Give up on status-only threads eventually.
+    // for the whole thread to settle. A thread that has only shown progress is not
+    // finished no matter how long the pause — a tool call can outlast any idle
+    // window — so those run to the overall timeout instead.
     const idleFor = now() - lastActivityAt
-    if (sawBotReply && idleFor >= (sawAnswer ? idleCompleteMs : idleCompleteMs * 6)) return
+    if (sawBotReply && sawAnswer && idleFor >= idleCompleteMs) return
 
     await sleep(currentPollMs, options.signal)
     currentPollMs = Math.min(Math.ceil(currentPollMs * POLL_BACKOFF_FACTOR), maxPollMs)

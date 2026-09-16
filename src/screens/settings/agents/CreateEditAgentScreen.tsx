@@ -730,7 +730,9 @@ export default function CreateEditAgentScreen() {
                       <label>User token</label>
                       <GlassTextField
                         value={slackUserToken}
-                        onChange={(value) => { setSlackUserToken(value); setConnectionStatus(null) }}
+                        // The cached DM belongs to the previous user/bot pair; drop it so the
+                        // next test re-opens a DM this token can actually post to.
+                        onChange={(value) => { setSlackUserToken(value); setSlackDmChannel(''); setConnectionStatus(null) }}
                         placeholder="xoxp-…"
                         type="password"
                       />
@@ -739,7 +741,7 @@ export default function CreateEditAgentScreen() {
                       <label>Bot user id</label>
                       <GlassTextField
                         value={slackBotUserId}
-                        onChange={(value) => { setSlackBotUserId(value); setConnectionStatus(null) }}
+                        onChange={(value) => { setSlackBotUserId(value); setSlackDmChannel(''); setConnectionStatus(null) }}
                         placeholder="U0C1KK1S53L"
                       />
                     </div>
@@ -908,7 +910,10 @@ export default function CreateEditAgentScreen() {
                 <span>
                   <strong id="agent-guidance-heading">Expert guidance</strong>
                   <small>{collapsedSections.guidance
-                    ? systemPrompt.trim() ? 'Expert instructions configured' : 'No guidance configured · Required'
+                    ? systemPrompt.trim()
+                      ? 'Expert instructions configured'
+                      // handleSave supplies a default prompt for Slack experts, so empty is valid there.
+                      : provider === 'slack' ? 'Using the default description' : 'No guidance configured · Required'
                     : provider === 'slack'
                       ? 'Describes this expert for FinoCurve routing and group chats. The Slack bot keeps its own instructions, so this text is not sent to Slack.'
                       : "Define this expert's point of view, communication style, boundaries, and working method."}</small>

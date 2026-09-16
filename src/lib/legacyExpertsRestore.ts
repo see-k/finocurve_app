@@ -22,15 +22,17 @@ export const LEGACY_EXPERTS_SEED_FLAG = 'finocurve-agents-legacy-profile-seed-v1
 export const LEGACY_EXPERTS_BASELINE_KEY = 'finocurve-agents-legacy-baseline-v1'
 
 /**
- * Per-agent secrets never leave the profile that configured them. The recovery
- * copies expert definitions across profiles, so every profile must reconnect
- * its own provider credentials.
+ * Per-agent secrets and identity-bound handles never leave the profile that
+ * configured them. The recovery copies expert definitions across profiles, so
+ * every profile reconnects its own credentials — and `slackDmChannel` is the
+ * donor's own DM with the bot, which no other profile can post to.
  */
 const CREDENTIAL_FIELDS = [
   'bedrockAccessKeyId',
   'bedrockSecretKey',
   'azureApiKey',
   'slackUserToken',
+  'slackDmChannel',
 ] as const satisfies readonly (keyof Agent)[]
 
 const USER_ARCHIVE_PREFIXES = [
@@ -76,7 +78,7 @@ export function hasCustomExperts(agents: Agent[] | null | undefined): boolean {
   return !!agents?.some((agent) => !isDefaultAgent(agent))
 }
 
-/** Copy of an expert with every provider credential removed. */
+/** Copy of an expert with every credential and identity-bound handle removed. */
 export function stripAgentCredentials(agent: Agent): Agent {
   const copy = { ...agent }
   for (const field of CREDENTIAL_FIELDS) delete copy[field]

@@ -361,13 +361,16 @@ describe('slack bot expert wrapper', () => {
     expect(chunks.join('')).toBe('Reading skill finocurve-api-access\n\nYour Alpaca account is connected.')
   })
 
-  it('honours a saved DM channel instead of requiring im:write to test', async () => {
+  it('verifies a saved DM channel without requiring im:write to test', async () => {
     const calls: string[] = []
     const result = await testSlackBotConnection(
       { userToken: 'xoxp-user', botUserId: 'U0C1KK1S53L', dmChannel: 'DSAVED' },
       async (method) => {
         calls.push(method)
         if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+        if (method === 'conversations.info') {
+          return { ok: true, channel: { id: 'DSAVED', is_im: true, user: 'U0C1KK1S53L' } }
+        }
         throw new Error('missing_scope')
       },
     )
@@ -375,10 +378,29 @@ describe('slack bot expert wrapper', () => {
     expect(calls).not.toContain('conversations.open')
   })
 
+  it('re-opens the DM when the saved channel belongs to a different bot', async () => {
+    const calls: string[] = []
+    const result = await testSlackBotConnection(
+      { userToken: 'xoxp-user', botUserId: 'UNEWBOT', dmChannel: 'DOLDBOT' },
+      async (method) => {
+        calls.push(method)
+        if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+        if (method === 'conversations.info') {
+          return { ok: true, channel: { id: 'DOLDBOT', is_im: true, user: 'UPREVIOUSBOT' } }
+        }
+        if (method === 'conversations.open') return { ok: true, channel: { id: 'DFRESH' } }
+        throw new Error(`unexpected ${method}`)
+      },
+    )
+    expect(result).toEqual({ ok: true, dmChannel: 'DFRESH' })
+    expect(calls).toContain('conversations.open')
+  })
+
   it('ignores replies from other humans in the thread', async () => {
     let polls = 0
     const request = async (method: string) => {
       if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+      if (method === 'users.info') return { ok: true, user: { profile: { bot_id: 'B0BOT' } } }
       if (method === 'conversations.open') return { ok: true, channel: { id: 'DCHANNEL' } }
       if (method === 'chat.postMessage') return { ok: true, ts: '111.000' }
       if (method === 'conversations.replies') {
@@ -388,6 +410,7 @@ describe('slack bot expert wrapper', () => {
           messages: [
             { ts: '111.000', user: 'UUSER', text: '<@U0C1KK1S53L> hello' },
             { ts: '111.002', user: 'UCOLLEAGUE', text: 'Ignore that, ask me instead' },
+            { ts: '111.005', bot_id: 'B0OTHERBOT', text: 'Standup reminder from another bot' },
             ...(polls > 1 ? [{ ts: '111.003', user: 'U0C1KK1S53L', text: 'Answer from the bot' }] : []),
           ],
         }
@@ -429,5 +452,99 @@ describe('slack bot expert wrapper', () => {
     }
     expect(isSlackStatusMessage(codeOnly)).toBe(false)
     expect(slackMessageStillRunning(codeOnly)).toBe(false)
+  })
+
+  it('ignores replies from other bots in the thread', async () => {
+    let polls = 0
+    const request = async (method: string) => {
+      if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+      if (method === 'users.info') return { ok: true, user: { profile: { bot_id: 'B0OURBOT' } } }
+      if (method === 'conversations.open') return { ok: true, channel: { id: 'DCHANNEL' } }
+      if (method === 'chat.postMessage') return { ok: true, ts: '111.000' }
+      if (method === 'conversations.replies') {
+        polls += 1
+        return {
+          ok: true,
+          messages: [
+            { ts: '111.000', user: 'UUSER', text: '<@U0C1KK1S53L> hello' },
+            { ts: '111.001', bot_id: 'B0STRANGER', text: 'Unrelated bot chatter' },
+            ...(polls > 1 ? [{ ts: '111.002', bot_id: 'B0OURBOT', text: 'The real answer' }] : []),
+          ],
+        }
+      }
+      throw new Error(`unexpected ${method}`)
+    }
+
+    let now = 0
+    const chunks: string[] = []
+    for await (const chunk of streamSlackBotChat({
+      config: { userToken: 'xoxp-user', botUserId: 'U0C1KK1S53L' },
+      expertName: 'Athena',
+      messages: [{ role: 'user', content: 'hello' }],
+      request,
+      now: () => now,
+      sleep: async () => { now += 3_000 },
+      pollMs: 1,
+      idleCompleteMs: 3_000,
+      timeoutMs: 10_000,
+    })) {
+      if (chunk.type === 'answer') chunks.push(chunk.content)
+    }
+
+    expect(chunks.join('')).toBe('The real answer')
+    expect(chunks.join('')).not.toContain('Unrelated bot chatter')
+  })
+
+  it('waits out a long tool pause instead of settling for a progress-only reply', async () => {
+    let polls = 0
+    const request = async (method: string) => {
+      if (method === 'auth.test') return { ok: true, user_id: 'UUSER' }
+      if (method === 'conversations.open') return { ok: true, channel: { id: 'DCHANNEL' } }
+      if (method === 'chat.postMessage') return { ok: true, ts: '111.000' }
+      if (method === 'conversations.replies') {
+        polls += 1
+        const parent = { ts: '111.000', user: 'UUSER', text: '<@U0C1KK1S53L> alpaca' }
+        const progress = { ts: '111.001', user: 'U0C1KK1S53L', text: 'Reading skill finocurve-api-access' }
+        // The tool call stalls well past idleCompleteMs * 6 before answering.
+        if (polls < 12) return { ok: true, messages: [parent, progress] }
+        return {
+          ok: true,
+          messages: [parent, progress, { ts: '111.002', user: 'U0C1KK1S53L', text: 'Alpaca is a broker API.' }],
+        }
+      }
+      throw new Error(`unexpected ${method}`)
+    }
+
+    let now = 0
+    const chunks: string[] = []
+    for await (const chunk of streamSlackBotChat({
+      config: { userToken: 'xoxp-user', botUserId: 'U0C1KK1S53L' },
+      expertName: 'Athena',
+      messages: [{ role: 'user', content: 'alpaca' }],
+      request,
+      now: () => now,
+      sleep: async () => { now += 5_000 },
+      pollMs: 1,
+      idleCompleteMs: 3_000,
+      timeoutMs: 300_000,
+    })) {
+      if (chunk.type === 'answer') chunks.push(chunk.content)
+    }
+
+    expect(chunks.join('')).toContain('Alpaca is a broker API.')
+  })
+
+  it('tells the Slack bot about attachments it cannot see', () => {
+    const prompt = buildSlackPrompt({
+      botUserId: 'U0C1KK1S53L',
+      expertName: 'Athena',
+      messages: [{
+        role: 'user',
+        content: 'What does this say?',
+        attachments: [{ name: 'q3-report.pdf', mimeType: 'application/pdf', dataBase64: 'AAA' }],
+      }],
+    })
+    expect(prompt).toContain('q3-report.pdf')
+    expect(prompt).toContain('could not be forwarded to Slack')
   })
 })

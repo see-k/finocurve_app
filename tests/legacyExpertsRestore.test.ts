@@ -159,6 +159,7 @@ describe('legacy experts restore', () => {
         provider: 'slack',
         slackUserToken: 'xoxp-secret',
         slackBotUserId: 'U0C1KK1S53L',
+        slackDmChannel: 'DDONORONLY',
       }),
     ]
     localStorage.setItem('finocurve-saved-local-accounts', JSON.stringify([
@@ -176,6 +177,8 @@ describe('legacy experts restore', () => {
     expect(bedrock.bedrockAccessKeyId).toBeUndefined()
     expect(bedrock.bedrockSecretKey).toBeUndefined()
     expect(slack.slackUserToken).toBeUndefined()
+    // The donor's DM channel is theirs alone; the restored profile reopens its own.
+    expect(slack.slackDmChannel).toBeUndefined()
     // Non-secret configuration still travels so the expert only needs reconnecting.
     expect(slack.slackBotUserId).toBe('U0C1KK1S53L')
     expect(JSON.stringify(seeded)).not.toContain('super-secret')
@@ -184,6 +187,7 @@ describe('legacy experts restore', () => {
     // The donor keeps its own credentials.
     const kept = JSON.parse(localStorage.getItem(`${AGENTS_STORAGE_KEY}:user:donor@example.com`)!) as Agent[]
     expect(kept.find((agent) => agent.id === 'agent-slack')!.slackUserToken).toBe('xoxp-secret')
+    expect(kept.find((agent) => agent.id === 'agent-slack')!.slackDmChannel).toBe('DDONORONLY')
   })
 
   it('keeps a profile\u2019s customized default assistant while merging recovered experts', () => {
