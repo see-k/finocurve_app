@@ -17,6 +17,7 @@ import {
 import GlassContainer from '../../../components/glass/GlassContainer'
 import GlassButton from '../../../components/glass/GlassButton'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
+import { ProviderBrandIcon } from '../../../components/ai/ProviderBrandIcon'
 import { useAgents } from '../../../store/useAgents'
 import { useConversations } from '../../../store/useConversations'
 import { getAgentToolCount, isAgentActive, isDefaultAgent } from '../../../types/Agent'
@@ -223,11 +224,18 @@ export default function AgentsListScreen() {
                       </h2>
                       <p>{agent.description || 'FinoCurve AI specialist'}</p>
                       <span className="agents-list__provider-badge">
+                        {agent.provider === 'ollama' && <ProviderBrandIcon provider="ollama" size={12} />}
+                        {agent.provider === 'bedrock' && <ProviderBrandIcon provider="bedrock" size={12} />}
+                        {agent.provider === 'azure' && <ProviderBrandIcon provider="azure" size={12} />}
+                        {agent.provider === 'slack' && <ProviderBrandIcon provider="slack" size={12} />}
                         {agent.provider === 'ollama' && 'Ollama'}
                         {agent.provider === 'bedrock' && 'AWS Bedrock'}
                         {agent.provider === 'azure' && 'Azure OpenAI'}
+                        {agent.provider === 'slack' && 'Slack bot'}
                         {!agent.provider && 'Primary model'}
-                        {agent.model && <b>· {agent.model}</b>}
+                        {agent.provider === 'slack' && agent.slackBotUserId
+                          ? <b>· {agent.slackBotUserId}</b>
+                          : agent.model && <b>· {agent.model}</b>}
                       </span>
                     </div>
 

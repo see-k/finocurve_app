@@ -7,9 +7,11 @@ import './theme/theme.css'
 import './theme/finance.css'
 import './index.css'
 import { initializeCoreDataStorage } from './lib/coreDataStorage'
+import { restoreLegacyExpertsToExistingProfiles } from './lib/legacyExpertsRestore'
 
 async function start() {
   await initializeCoreDataStorage()
+  restoreLegacyExpertsToExistingProfiles()
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <HashRouter>

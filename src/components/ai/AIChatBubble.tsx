@@ -5,12 +5,14 @@ import { usePortfolio } from '../../store/usePortfolio'
 import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
+import { toChatAgentPersona } from '../../ai/agentPersona'
 import { DEFAULT_AGENT_ID, isAgentActive, isDefaultAgent } from '../../types/Agent'
 import type { Agent } from '../../types/Agent'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
 import GlassContainer from '../glass/GlassContainer'
 import UserAvatar, { getInitials } from '../UserAvatar'
 import ChatMessageContent, { FollowUpsRow } from './ChatMessageContent'
+import { SlackThreadLink } from './ProviderBrandIcon'
 import { AssistantMarkdown } from './assistantMarkdown'
 import { getCoreDataItem, removeCoreDataItem, setCoreDataItem } from '../../lib/coreDataStorage'
 import { aggregateAssetValueProvenance, toFinancialAuditContext } from '../../lib/financialProvenance'
@@ -37,6 +39,8 @@ interface ChatMessage {
   reasoning?: string
   /** Clickable follow-ups from suggest_conversation_follow_ups */
   followUps?: ChatFollowUp[]
+  /** Live Slack thread for Slack-wrapped experts. */
+  sourceUrl?: string
 }
 
 const MAX_CHAT_ATTACHMENTS = 6
@@ -210,6 +214,7 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
           ...(typeof msg.reasoning === 'string' && msg.reasoning ? { reasoning: msg.reasoning } : {}),
           ...(followUps && followUps.length > 0 ? { followUps } : {}),
+          ...(typeof msg.sourceUrl === 'string' && msg.sourceUrl ? { sourceUrl: msg.sourceUrl } : {}),
         }
       })
   } catch {
@@ -335,6 +340,7 @@ export default function AIChatBubble() {
   const [streaming, setStreaming] = useState<{ reasoning: string; answer: string }>({ reasoning: '', answer: '' })
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingFollowUps, setStreamingFollowUps] = useState<ChatFollowUp[]>([])
+  const [streamingSourceUrl, setStreamingSourceUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -541,6 +547,7 @@ export default function AIChatBubble() {
     setError(null)
     setStreaming({ reasoning: '', answer: '' })
     setStreamingFollowUps([])
+    setStreamingSourceUrl('')
 
     const displayContent =
       text || (apiAttachments.length > 0 ? '(See attached files)' : '')
@@ -590,6 +597,10 @@ export default function AIChatBubble() {
         setStreamingFollowUps(chunk.items)
         return
       }
+      if (chunk.type === 'source') {
+        setStreamingSourceUrl(chunk.url)
+        return
+      }
       if (chunk.type === 'tool_start' || chunk.type === 'tool_end') return
       setStreaming((prev) =>
         chunk.type === 'reasoning'
@@ -613,7 +624,7 @@ export default function AIChatBubble() {
 
       const agent = activeAgentRef.current
       setStreamingAgentId(agent?.id ?? null)
-      const { text: response, reasoning, followUps, aborted } = await streamChat({
+      const { text: response, reasoning, followUps, sourceUrl, aborted } = await streamChat({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
@@ -631,22 +642,7 @@ export default function AIChatBubble() {
           riskMetrics: undefined,
           ...(agent
             ? {
-                agentPersona: {
-                  id: agent.id,
-                  name: agent.name,
-                  systemPrompt: agent.systemPrompt,
-                  provider: agent.provider,
-                  model: agent.model,
-                  ollamaBaseUrl: agent.ollamaBaseUrl,
-                  bedrockRegion: agent.bedrockRegion,
-                  bedrockAccessKeyId: agent.bedrockAccessKeyId,
-                  bedrockSecretKey: agent.bedrockSecretKey,
-                  azureEndpoint: agent.azureEndpoint,
-                  azureApiKey: agent.azureApiKey,
-                  toolAccess: agent.toolAccess,
-                  enabledToolNames: agent.enabledToolNames,
-                  toolLimits: agent.toolLimits,
-                },
+                agentPersona: toChatAgentPersona(agent),
               }
             : {}),
         },
@@ -655,6 +651,7 @@ export default function AIChatBubble() {
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
       setStreamingFollowUps([])
+      setStreamingSourceUrl('')
       const wasStopped = aborted || stoppedByUserRef.current
       const baseContent = response || (wasStopped ? '' : 'No response.')
       const finalContent = wasStopped
@@ -670,12 +667,14 @@ export default function AIChatBubble() {
           ...(agent?.image ? { senderAvatar: agent.image } : {}),
           reasoning,
           ...(!wasStopped && followUps && followUps.length > 0 ? { followUps } : {}),
+          ...(sourceUrl ? { sourceUrl } : {}),
         },
       ])
     } catch (e) {
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
       setStreamingFollowUps([])
+      setStreamingSourceUrl('')
       setError(e instanceof Error ? e.message : 'Failed to get response')
       setMessages((prev) => [
         ...prev,
@@ -872,6 +871,7 @@ export default function AIChatBubble() {
                     ) : (
                       <span className="ai-chat-msg__you">You</span>
                     )}
+                    {msg.role === 'assistant' && <SlackThreadLink url={msg.sourceUrl} />}
                     <button
                       type="button"
                       className="ai-chat-msg-delete"
@@ -934,14 +934,17 @@ export default function AIChatBubble() {
                     </button>
                   </div>
                   <div className="ai-chat-msg ai-chat-msg--assistant">
-                    <button
-                      type="button"
-                      className="ai-chat-expert-link ai-chat-expert-link--name"
-                      onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
-                      disabled={!streamingAgentId}
-                    >
-                      {agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'AI Assistant'}
-                    </button>
+                    <div className="ai-chat-msg__meta">
+                      <button
+                        type="button"
+                        className="ai-chat-expert-link ai-chat-expert-link--name"
+                        onClick={() => streamingAgentId && navigate(`/settings/agents/${streamingAgentId}`)}
+                        disabled={!streamingAgentId}
+                      >
+                        {agents.find((agent) => agent.id === streamingAgentId)?.name || activeAgent?.name || 'AI Assistant'}
+                      </button>
+                      <SlackThreadLink url={streamingSourceUrl} />
+                    </div>
                     {streaming.reasoning && (
                       <div className="ai-chat-reasoning ai-chat-reasoning--streaming">
                         {streaming.reasoning}

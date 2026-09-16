@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Agent, AgentInput } from '../types/Agent'
 import { createDefaultAgent, isDefaultAgent } from '../types/Agent'
-import { AGENTS_STORAGE_KEY, getCoreDataItem, setCoreDataItem } from '../lib/coreDataStorage'
+import { AGENTS_STORAGE_KEY, setCoreDataItem } from '../lib/coreDataStorage'
+import { loadPersistedAgents } from '../lib/legacyExpertsRestore'
 import { usePreferences } from './usePreferences'
 
 /** Stable id for the signed-in profile; agents are archived/restored per identity on sign-in/out. */
@@ -22,8 +23,7 @@ function ensureDefaultAgent(agents: Agent[]): Agent[] {
 
 function load(): Agent[] {
   try {
-    const stored = getCoreDataItem(AGENTS_STORAGE_KEY)
-    if (stored) return ensureDefaultAgent(JSON.parse(stored) as Agent[])
+    return ensureDefaultAgent(loadPersistedAgents())
   } catch { /* ignore */ }
   return ensureDefaultAgent([])
 }
@@ -78,6 +78,9 @@ export function useAgents() {
       bedrockSecretKey: input.bedrockSecretKey,
       azureEndpoint: input.azureEndpoint,
       azureApiKey: input.azureApiKey,
+      slackUserToken: input.slackUserToken,
+      slackBotUserId: input.slackBotUserId,
+      slackDmChannel: input.slackDmChannel,
       toolAccess: input.toolAccess ?? 'all',
       enabledToolNames: input.enabledToolNames,
       toolLimits: input.toolLimits,

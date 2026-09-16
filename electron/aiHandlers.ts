@@ -21,6 +21,7 @@ import { getMCPLangChainTools } from './mcpToolBridge'
 import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
+import { testSlackBotConnection } from '../src/ai/slackBotChat'
 import {
   generateBrandedCustomReportPdf,
   safeReportFileSlug,
@@ -413,7 +414,7 @@ export function registerAIHandlers(): void {
   }
 
   function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): LocalAIService {
-    if (!persona.provider) return getService()
+    if (!persona.provider || persona.provider === 'slack') return getService()
 
     const stored = loadAIConfig()
     const providerDefaults: Record<NonNullable<typeof persona.provider>, string> = {
@@ -480,7 +481,7 @@ export function registerAIHandlers(): void {
   })
 
   async function testConnection(config: {
-    provider: StoredAIConfig['provider']
+    provider: StoredAIConfig['provider'] | 'slack'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -489,7 +490,10 @@ export function registerAIHandlers(): void {
     azureEndpoint?: string
     azureApiKey?: string
     azureDeployment?: string
-  }): Promise<{ ok: boolean; error?: string; modelCount?: number }> {
+    slackUserToken?: string
+    slackBotUserId?: string
+    slackDmChannel?: string
+  }): Promise<{ ok: boolean; error?: string; modelCount?: number; dmChannel?: string }> {
     const { provider } = config
     try {
       if (provider === 'ollama') {
@@ -530,6 +534,13 @@ export function registerAIHandlers(): void {
         await model.invoke([new HumanMessage('Say OK')])
         return { ok: true }
       }
+      if (provider === 'slack') {
+        return testSlackBotConnection({
+          userToken: config.slackUserToken || '',
+          botUserId: config.slackBotUserId || '',
+          dmChannel: config.slackDmChannel,
+        })
+      }
       return { ok: false, error: `Unknown provider: ${provider}` }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
@@ -566,7 +577,7 @@ export function registerAIHandlers(): void {
   ipcMain.handle('ai-test-connection', async (
     _event,
     payload: {
-      provider: StoredAIConfig['provider']
+      provider: StoredAIConfig['provider'] | 'slack'
       model?: string
       ollamaBaseUrl?: string
       bedrockRegion?: string
@@ -575,6 +586,9 @@ export function registerAIHandlers(): void {
       azureEndpoint?: string
       azureApiKey?: string
       azureDeployment?: string
+      slackUserToken?: string
+      slackBotUserId?: string
+      slackDmChannel?: string
     }
   ) => {
     const existing = loadAIConfig()
@@ -643,6 +657,7 @@ export function registerAIHandlers(): void {
     let answer = ''
     let aborted = false
     let followUps: { label: string; prompt: string }[] | undefined
+    let sourceUrl: string | undefined
 
     try {
       for await (const chunk of service.chat(payload.messages, payload.context, { signal: controller.signal })) {
@@ -656,6 +671,9 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'follow_ups') {
           followUps = chunk.items
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'follow_ups', items: chunk.items })
+        } else if (chunk.type === 'source') {
+          sourceUrl = chunk.url
+          if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'source', url: chunk.url, label: chunk.label })
         } else if (chunk.type === 'answer') {
           answer += chunk.content
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
@@ -682,6 +700,7 @@ export function registerAIHandlers(): void {
       text: answer,
       reasoning: reasoning || undefined,
       ...(followUps && followUps.length > 0 ? { followUps } : {}),
+      ...(sourceUrl ? { sourceUrl } : {}),
       ...(aborted ? { aborted: true } : {}),
     }
   })

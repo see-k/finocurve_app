@@ -103,6 +103,39 @@
   color: inherit;
 }
 
+.provider-brand-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.provider-brand-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.provider-brand-icon--ollama {
+  background: #f4f4f5;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+.provider-brand-icon--bedrock {
+  background: #232f3e;
+}
+
+.provider-brand-icon--azure,
+.provider-brand-icon--slack {
+  background: transparent;
+}
+
 /* AI Config select & advanced */
 .ai-config-select {
   width: 100%;

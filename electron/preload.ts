@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiCheckConnection: () => ipcRenderer.invoke('ai-check-connection'),
   aiOllamaListModels: (baseUrl?: string) => ipcRenderer.invoke('ai-ollama-list-models', baseUrl),
   aiTestConnection: (payload: {
-    provider: 'ollama' | 'bedrock' | 'azure'
+    provider: 'ollama' | 'bedrock' | 'azure' | 'slack'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     azureEndpoint?: string
     azureApiKey?: string
     azureDeployment?: string
+    slackUserToken?: string
+    slackBotUserId?: string
+    slackDmChannel?: string
   }) => ipcRenderer.invoke('ai-test-connection', payload),
   aiGenerateInsights: (payload: { documents: unknown[]; portfolioContext?: unknown }) =>
     ipcRenderer.invoke('ai-generate-insights', payload),
@@ -81,6 +84,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       chunk:
         | { type: 'reasoning' | 'answer'; content: string }
         | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+        | { type: 'source'; url: string; label?: string }
     ) => void
   ) => {
     const handler = (
@@ -88,6 +92,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       chunk:
         | { type: 'reasoning' | 'answer'; content: string }
         | { type: 'follow_ups'; items: { label: string; prompt: string }[] }
+        | { type: 'source'; url: string; label?: string }
     ) => callback(chunk)
     ipcRenderer.on('ai-chat-chunk', handler)
     return () => ipcRenderer.removeListener('ai-chat-chunk', handler)

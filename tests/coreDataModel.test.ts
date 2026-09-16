@@ -27,6 +27,7 @@ describe('core data migration model', () => {
   it('only accepts supported core and per-user storage keys', () => {
     expect(coreDataKindForKey('finocurve-portfolio')).toBe('portfolio')
     expect(coreDataKindForKey('finocurve-agents')).toBe('agents')
+    expect(coreDataKindForKey('finocurve-agents:legacy-shared')).toBe('agents')
     expect(coreDataKindForKey('finocurve-conversations')).toBe('conversations')
     expect(coreDataKindForKey('finocurve-portfolio:user:person@example.com')).toBe('portfolio')
     expect(coreDataKindForKey('finocurve-conversations:user:person@example.com')).toBe('conversations')

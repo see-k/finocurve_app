@@ -13,6 +13,7 @@ import { useAgents } from '../../store/useAgents'
 import { useConversations } from '../../store/useConversations'
 import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
+import { toChatAgentPersona } from '../../ai/agentPersona'
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
@@ -64,6 +65,7 @@ export default function ChatsScreen() {
   const [loading, setLoading] = useState(false)
   const [streamingAgentId, setStreamingAgentId] = useState<string | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const [streamingSourceUrl, setStreamingSourceUrl] = useState('')
   const [streamingReasoning, setStreamingReasoning] = useState('')
   const [streamingTools, setStreamingTools] = useState<{ name: string; status: 'running' | 'success' | 'error' }[]>([])
   const [verboseStreaming, setVerboseStreaming] = useState(() => localStorage.getItem('finocurve-chat-verbose') === 'true')
@@ -158,7 +160,9 @@ export default function ChatsScreen() {
     const agent = agents.find((candidate) => candidate.id === agentId)
     if (!agent) return null
     const provider = agent.provider || agentProviderPresentation.primaryProvider
-    const model = agent.model || agentProviderPresentation.primaryModel
+    const model = agent.provider === 'slack'
+      ? (agent.slackBotUserId || 'Slack bot')
+      : (agent.model || agentProviderPresentation.primaryModel)
     const providerLabel = getModelProviderLabel(provider, model)
     return (
       <span
@@ -189,12 +193,15 @@ export default function ChatsScreen() {
   }
 
   const handleLiveChunk = (chunk: {
-    type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end'
+    type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end' | 'source'
     content?: string
     toolName?: string
     status?: 'success' | 'error'
+    url?: string
   }) => {
-    if (chunk.type === 'answer' && chunk.content) {
+    if (chunk.type === 'source' && chunk.url) {
+      setStreamingSourceUrl(chunk.url)
+    } else if (chunk.type === 'answer' && chunk.content) {
       setStreamingText((previous) => previous + chunk.content)
     } else if (chunk.type === 'reasoning' && chunk.content) {
       setStreamingReasoning((previous) => previous + chunk.content)
@@ -413,6 +420,7 @@ export default function ChatsScreen() {
         streamingAgentIdRef.current = agent.id
         setStreamingAgentId(agent.id)
         setStreamingText('')
+        setStreamingSourceUrl('')
         resetStreamingActivity()
 
         const unsubscribe = window.electronAPI.onAiChatChunk?.((chunk) => {
@@ -430,26 +438,11 @@ export default function ChatsScreen() {
               ...(messageAttachments?.length ? { attachments: messageAttachments } : {}),
             }
           })
-          const { text: reply, reasoning, followUps, aborted } = await window.electronAPI.aiChatStream({
+          const { text: reply, reasoning, followUps, sourceUrl, aborted } = await window.electronAPI.aiChatStream({
             messages: chatMessages,
             context: {
               ...baseContext,
-              agentPersona: {
-                id: agent.id,
-                name: agent.name,
-                systemPrompt: agent.systemPrompt,
-                provider: agent.provider,
-                model: agent.model,
-                ollamaBaseUrl: agent.ollamaBaseUrl,
-                bedrockRegion: agent.bedrockRegion,
-                bedrockAccessKeyId: agent.bedrockAccessKeyId,
-                bedrockSecretKey: agent.bedrockSecretKey,
-                azureEndpoint: agent.azureEndpoint,
-                azureApiKey: agent.azureApiKey,
-                toolAccess: agent.toolAccess,
-                enabledToolNames: agent.enabledToolNames,
-                toolLimits: agent.toolLimits,
-              },
+              agentPersona: toChatAgentPersona(agent),
             },
           })
 
@@ -462,6 +455,7 @@ export default function ChatsScreen() {
               senderAvatar: agent.image,
               reasoning,
               followUps,
+              sourceUrl,
             })
           }
         } finally {
@@ -482,6 +476,7 @@ export default function ChatsScreen() {
             streamingAgentIdRef.current = agentId
             setStreamingAgentId(agentId)
             setStreamingText('')
+            setStreamingSourceUrl('')
             resetStreamingActivity()
           },
           onChunk: (chunk) => {
@@ -489,6 +484,7 @@ export default function ChatsScreen() {
               streamingAgentIdRef.current = chunk.agentId
               setStreamingAgentId(chunk.agentId)
               setStreamingText('')
+              setStreamingSourceUrl('')
               resetStreamingActivity()
             }
             handleLiveChunk(chunk)
@@ -503,16 +499,19 @@ export default function ChatsScreen() {
             senderAvatar: agentById.get(result.agentId)?.image,
             reasoning: result.reasoning,
             followUps: result.followUps,
+            sourceUrl: result.sourceUrl,
           })
           streamingAgentIdRef.current = null
           setStreamingAgentId(null)
           setStreamingText('')
+          setStreamingSourceUrl('')
         }
       }
     } finally {
       streamingAgentIdRef.current = null
       setStreamingAgentId(null)
       setStreamingText('')
+      setStreamingSourceUrl('')
       resetStreamingActivity()
       setSmartRoutingStatus(null)
       setLoading(false)
@@ -723,6 +722,7 @@ export default function ChatsScreen() {
             conversation={selected}
             streamingAgentId={streamingAgentId}
             streamingText={streamingText}
+            streamingSourceUrl={streamingSourceUrl}
             streamingReasoning={streamingReasoning}
             streamingTools={streamingTools}
             verboseStreaming={verboseStreaming}

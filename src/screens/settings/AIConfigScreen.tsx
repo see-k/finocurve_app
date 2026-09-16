@@ -16,6 +16,7 @@ import {
 } from '../../services/a2a'
 import type { A2AServerStatus, A2ASettings } from '../../types/A2A'
 import AgentTerminal from '../../components/ai/AgentTerminal'
+import { ProviderBrandIcon } from '../../components/ai/ProviderBrandIcon'
 import './SettingsSubScreen.css'
 
 type AIProvider = 'ollama' | 'bedrock' | 'azure'
@@ -529,9 +530,9 @@ export default function AIConfigScreen() {
                     className={`settings-provider-option ${provider === p ? 'settings-provider-option--active' : ''}`}
                     onClick={() => setProvider(p)}
                   >
-                    {p === 'ollama' && <Cpu size={20} />}
-                    {p === 'bedrock' && <Cloud size={20} />}
-                    {p === 'azure' && <Cloud size={20} />}
+                    {p === 'ollama' && <ProviderBrandIcon provider="ollama" size={22} />}
+                    {p === 'bedrock' && <ProviderBrandIcon provider="bedrock" size={22} />}
+                    {p === 'azure' && <ProviderBrandIcon provider="azure" size={22} />}
                     <span>
                       {p === 'ollama' && 'Ollama (local)'}
                       {p === 'bedrock' && 'AWS Bedrock'}
@@ -709,7 +710,7 @@ export default function AIConfigScreen() {
                     setRouterConnectionStatus(null)
                   }}
                 >
-                  <Cpu size={20} />
+                  <ProviderBrandIcon provider="ollama" size={22} />
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                     <strong style={{ fontSize: 13 }}>Ollama router</strong>
                     <small style={{ color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 400 }}>
