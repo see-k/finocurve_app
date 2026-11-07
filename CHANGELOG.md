@@ -1,5 +1,11 @@
 # Changelog
 
+# [1.5.0](https://github.com/see-k/finocurve_app/compare/v1.4.4...v1.5.0) (2026-11-07)
+
+### Features
+
+* add A2A agent support in AI handlers and UI ([#112](https://github.com/see-k/finocurve_app/issues/112)) ([33aec46](https://github.com/see-k/finocurve_app/commit/33aec469448eb08e070443334a106e69953f3ea2))
+
 ## [1.4.4](https://github.com/see-k/finocurve_app/compare/v1.4.3...v1.4.4) (2026-09-16)
 
 ## [1.4.3](https://github.com/see-k/finocurve_app/compare/v1.4.2...v1.4.3) (2026-09-15)
