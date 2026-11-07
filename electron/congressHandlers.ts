@@ -20,7 +20,7 @@ export interface CongressCache {
   houseFetchedAt?: string
 }
 
-function getApiKey(): string | null {
+async function getApiKey(): Promise<string | null> {
   return getFmpApiKey()
 }
 
@@ -34,7 +34,7 @@ export interface CongressListResult {
 }
 
 async function fetchFMP<T>(path: string, params: Record<string, string> = {}): Promise<{ data: T | null; error: string | null }> {
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
   if (!apiKey) {
     return { data: null, error: 'Financial Modeling Prep API key not configured. Add it under Settings > Plugins.' }
   }

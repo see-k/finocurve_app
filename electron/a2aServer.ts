@@ -121,7 +121,7 @@ function extractTextFromParts(parts: A2AMessagePart[]): string {
  * Start the A2A server on the given port.
  */
 export function startA2AServer(
-  getAIService: () => LocalAIService,
+  getAIService: () => LocalAIService | Promise<LocalAIService>,
   options?: A2AStartOptions,
 ): Promise<A2AStartResult> {
   return new Promise((resolve) => {
@@ -188,7 +188,7 @@ export function startA2AServer(
         return
       }
 
-      const service = getAIService()
+      const service = await getAIService()
       const sendJson = (result: unknown) => {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ jsonrpc: '2.0', result, id: parsed.id }))

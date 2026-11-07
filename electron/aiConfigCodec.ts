@@ -29,9 +29,9 @@ export interface StoredAIConfig {
 }
 
 export interface SecretCipher {
-  isAvailable(): boolean
-  encrypt(plaintext: string): string
-  decrypt(ciphertext: string): string
+  isAvailable(): boolean | Promise<boolean>
+  encrypt(plaintext: string): string | Promise<string>
+  decrypt(ciphertext: string): string | Promise<string>
 }
 
 export interface PersistedAIConfig extends Omit<StoredAIConfig, 'bedrockSecretKey' | 'azureApiKey'> {
@@ -101,20 +101,20 @@ function joinWarnings(warnings: string[]): string | undefined {
   return unique.length > 0 ? unique.join(' ') : undefined
 }
 
-function encryptVerified(cipher: SecretCipher, plaintext: string): string {
-  const encrypted = cipher.encrypt(plaintext)
-  if (!encrypted || cipher.decrypt(encrypted) !== plaintext) {
+async function encryptVerified(cipher: SecretCipher, plaintext: string): Promise<string> {
+  const encrypted = await cipher.encrypt(plaintext)
+  if (!encrypted || (await cipher.decrypt(encrypted)) !== plaintext) {
     throw new Error('Encrypted credential verification failed.')
   }
   return encrypted
 }
 
 /** Encodes a runtime config without ever copying plaintext secrets to the persisted shape. */
-export function encodeAIConfig(
+export async function encodeAIConfig(
   config: StoredAIConfig,
   cipher: SecretCipher,
   previous?: Partial<PersistedAIConfig>,
-): EncodedAIConfig {
+): Promise<EncodedAIConfig> {
   const { bedrockSecretKey, azureApiKey } = config
   const persisted: PersistedAIConfig = {
     ...pickNonSecretConfig(config),
@@ -129,9 +129,9 @@ export function encodeAIConfig(
   const sessionSecrets: AIConfigSecrets = {}
   const warnings: string[] = []
   let secretsPersisted = true
-  const encryptionAvailable = cipher.isAvailable()
+  const encryptionAvailable = await cipher.isAvailable()
 
-  const storeSecret = (
+  const storeSecret = async (
     plaintext: string | undefined,
     encryptedKey: 'bedrockSecretKeyEncrypted' | 'azureApiKeyEncrypted',
     sessionKey: keyof AIConfigSecrets,
@@ -154,7 +154,7 @@ export function encodeAIConfig(
     }
 
     try {
-      persisted[encryptedKey] = encryptVerified(cipher, value)
+      persisted[encryptedKey] = await encryptVerified(cipher, value)
     } catch {
       sessionSecrets[sessionKey] = value
       secretsPersisted = false
@@ -162,8 +162,8 @@ export function encodeAIConfig(
     }
   }
 
-  storeSecret(bedrockSecretKey, 'bedrockSecretKeyEncrypted', 'bedrockSecretKey', 'AWS Bedrock')
-  storeSecret(azureApiKey, 'azureApiKeyEncrypted', 'azureApiKey', 'Azure OpenAI')
+  await storeSecret(bedrockSecretKey, 'bedrockSecretKeyEncrypted', 'bedrockSecretKey', 'AWS Bedrock')
+  await storeSecret(azureApiKey, 'azureApiKeyEncrypted', 'azureApiKey', 'Azure OpenAI')
 
   return {
     persisted,
@@ -174,10 +174,10 @@ export function encodeAIConfig(
 }
 
 /** Decodes v2 encrypted secrets and prepares a verified v1 plaintext migration when possible. */
-export function decodeAIConfig(
+export async function decodeAIConfig(
   input: unknown,
   cipher: SecretCipher,
-): DecodedAIConfig {
+): Promise<DecodedAIConfig> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { config: {} }
 
   const persisted = input as Partial<PersistedAIConfig>
@@ -189,9 +189,9 @@ export function decodeAIConfig(
   } = persisted
   const config: Partial<StoredAIConfig> = pickNonSecretConfig(persisted)
   const warnings: string[] = []
-  const encryptionAvailable = cipher.isAvailable()
+  const encryptionAvailable = await cipher.isAvailable()
 
-  const readEncrypted = (
+  const readEncrypted = async (
     encrypted: unknown,
     configKey: keyof AIConfigSecrets,
     label: string,
@@ -203,7 +203,7 @@ export function decodeAIConfig(
       return
     }
     try {
-      const plaintext = cleanSecret(cipher.decrypt(ciphertext))
+      const plaintext = cleanSecret(await cipher.decrypt(ciphertext))
       if (plaintext) config[configKey] = plaintext
       else warnings.push(`${label} credentials were empty after decryption.`)
     } catch {
@@ -211,8 +211,8 @@ export function decodeAIConfig(
     }
   }
 
-  readEncrypted(bedrockSecretKeyEncrypted, 'bedrockSecretKey', 'AWS Bedrock')
-  readEncrypted(azureApiKeyEncrypted, 'azureApiKey', 'Azure OpenAI')
+  await readEncrypted(bedrockSecretKeyEncrypted, 'bedrockSecretKey', 'AWS Bedrock')
+  await readEncrypted(azureApiKeyEncrypted, 'azureApiKey', 'Azure OpenAI')
 
   const legacyBedrock = cleanSecret(legacyBedrockSecret)
   const legacyAzure = cleanSecret(legacyAzureSecret)
@@ -225,7 +225,7 @@ export function decodeAIConfig(
       warnings.push('Legacy plaintext AI credentials could not be migrated because OS credential encryption is unavailable.')
     } else {
       const completeConfig = config as StoredAIConfig
-      const encoded = encodeAIConfig(completeConfig, cipher, persisted)
+      const encoded = await encodeAIConfig(completeConfig, cipher, persisted)
       if (encoded.secretsPersisted) {
         migratedPersisted = encoded.persisted
       } else if (encoded.warning) {

@@ -389,15 +389,15 @@ export function registerAIHandlers(): void {
     })
   }
 
-  function getService(): LocalAIService {
+  async function getService(): Promise<LocalAIService> {
     if (!aiService) {
-      aiService = createService(loadAIConfig())
+      aiService = createService(await loadAIConfig())
     }
     return aiService
   }
 
-  function getRouterService(): LocalAIService {
-    const stored = loadAIConfig()
+  async function getRouterService(): Promise<LocalAIService> {
+    const stored = await loadAIConfig()
     if (!stored.routerProvider || stored.routerProvider === 'default') return getService()
 
     if (!routerService) {
@@ -414,10 +414,10 @@ export function registerAIHandlers(): void {
     return routerService
   }
 
-  function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): LocalAIService {
+  async function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): Promise<LocalAIService> {
     if (!persona.provider || persona.provider === 'slack' || persona.provider === 'a2a') return getService()
 
-    const stored = loadAIConfig()
+    const stored = await loadAIConfig()
     const providerDefaults: Record<NonNullable<typeof persona.provider>, string> = {
       ollama: 'llama3.2',
       bedrock: 'anthropic.claude-3-haiku-20240307-v1:0',
@@ -462,8 +462,8 @@ export function registerAIHandlers(): void {
   // =============================================
 
   ipcMain.handle('ai-config-get', async () => {
-    const config = loadAIConfig()
-    const storageStatus = getAIConfigStorageStatus()
+    const config = await loadAIConfig()
+    const storageStatus = await getAIConfigStorageStatus()
     return {
       ...config,
       bedrockSecretKey: config.bedrockSecretKey ? '••••••••' : '',
@@ -474,9 +474,9 @@ export function registerAIHandlers(): void {
   })
 
   ipcMain.handle('ai-config-save', async (_event, payload: StoredAIConfig) => {
-    const existing = loadAIConfig()
+    const existing = await loadAIConfig()
     const toSave = mergeAIConfigUpdate(existing, payload)
-    const storageResult = saveAIConfig(toSave)
+    const storageResult = await saveAIConfig(toSave)
     resetService()
     return { ok: true, ...storageResult }
   })
@@ -521,7 +521,7 @@ export function registerAIHandlers(): void {
       }
       if (provider === 'bedrock') {
         const aiConfig = storedConfigToAIConfig({
-          ...loadAIConfig(),
+          ...(await loadAIConfig()),
           provider: 'bedrock',
           model: config.model || 'anthropic.claude-3-haiku-20240307-v1:0',
           bedrockRegion: config.bedrockRegion,
@@ -534,7 +534,7 @@ export function registerAIHandlers(): void {
       }
       if (provider === 'azure') {
         const aiConfig = storedConfigToAIConfig({
-          ...loadAIConfig(),
+          ...(await loadAIConfig()),
           provider: 'azure',
           model: config.model || 'gpt-4',
           azureEndpoint: config.azureEndpoint,
@@ -566,7 +566,7 @@ export function registerAIHandlers(): void {
   }
 
   ipcMain.handle('ai-check-ollama', async () => {
-    const stored = loadAIConfig()
+    const stored = await loadAIConfig()
     if (stored.provider !== 'ollama') {
       return testConnection({ ...stored, provider: stored.provider })
     }
@@ -578,7 +578,7 @@ export function registerAIHandlers(): void {
   })
 
   ipcMain.handle('ai-check-connection', async () => {
-    const stored = loadAIConfig()
+    const stored = await loadAIConfig()
     return testConnection({
       provider: stored.provider,
       model: stored.model,
@@ -612,7 +612,7 @@ export function registerAIHandlers(): void {
       a2aAgentId?: string
     }
   ) => {
-    const existing = loadAIConfig()
+    const existing = await loadAIConfig()
     const merged = {
       ...payload,
       bedrockSecretKey: payload.bedrockSecretKey && payload.bedrockSecretKey !== '••••••••'
@@ -627,7 +627,7 @@ export function registerAIHandlers(): void {
 
   ipcMain.handle('ai-ollama-list-models', async (_event, baseUrl?: string) => {
     try {
-      const url = (baseUrl || loadAIConfig().ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
+      const url = (baseUrl || (await loadAIConfig()).ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
       const res = await fetch(`${url}/api/tags`)
       if (!res.ok) throw new Error(`Ollama returned ${res.status}`)
       const data = (await res.json()) as { models?: { name: string }[] }
@@ -645,7 +645,7 @@ export function registerAIHandlers(): void {
       portfolioContext?: PortfolioContext
     }
   ) => {
-    const service = getService()
+    const service = await getService()
     const insights = await service.generateDocumentInsights(
       payload.documents,
       payload.portfolioContext
@@ -663,10 +663,10 @@ export function registerAIHandlers(): void {
     }
   ) => {
     const service = payload.context.backgroundTask === 'group-routing'
-      ? getRouterService()
+      ? await getRouterService()
       : payload.context.agentPersona?.provider
-        ? getAgentService(payload.context.agentPersona)
-        : getService()
+        ? await getAgentService(payload.context.agentPersona)
+        : await getService()
     const sender = event.sender
     const senderId = sender.id
 
@@ -748,7 +748,7 @@ export function registerAIHandlers(): void {
       document?: { key: string; fileName: string; source: 'cloud' | 'local' }
     }
   ) => {
-    const service = getService()
+    const service = await getService()
     let documentContent: { fileName: string; text: string } | undefined
     if (payload.document) {
       const content = await getDocumentContent(payload.document.key, payload.document.source)
@@ -783,7 +783,7 @@ export function registerAIHandlers(): void {
   // Start A2A server
   ipcMain.handle('a2a:start', async (_event, options?: { port?: number }) => {
     try {
-      const config = loadAIConfig()
+      const config = await loadAIConfig()
       const port = options?.port ?? config.a2aPort ?? DEFAULT_PORT
       const result = await startA2AServer(getService, {
         port,
@@ -819,7 +819,7 @@ export function registerAIHandlers(): void {
   // Get A2A settings (port, autoStart)
   ipcMain.handle('a2a:getSettings', async () => {
     try {
-      const config = loadAIConfig()
+      const config = await loadAIConfig()
       return {
         success: true,
         data: {
@@ -835,14 +835,14 @@ export function registerAIHandlers(): void {
   // Update A2A settings
   ipcMain.handle('a2a:updateSettings', async (_event, settings: { port?: number; autoStart?: boolean }) => {
     try {
-      const config = loadAIConfig()
+      const config = await loadAIConfig()
       if (settings.port !== undefined) {
         config.a2aPort = settings.port
       }
       if (settings.autoStart !== undefined) {
         config.a2aAutoStart = settings.autoStart
       }
-      saveAIConfig(config)
+      await saveAIConfig(config)
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Failed to update A2A settings' }
@@ -852,13 +852,15 @@ export function registerAIHandlers(): void {
   // =============================================
   // Auto-start A2A server if configured
   // =============================================
-  const storedConfig = loadAIConfig()
-  if (storedConfig.a2aAutoStart || storedConfig.a2aEnabled) {
-    const port = storedConfig.a2aPort ?? DEFAULT_PORT
-    startA2AServer(getService, {
-      port,
-      onVerbose: getA2AVerboseCallback(),
-      getAIContext: getAIContextForA2A,
-    })
-  }
+  void (async () => {
+    const storedConfig = await loadAIConfig()
+    if (storedConfig.a2aAutoStart || storedConfig.a2aEnabled) {
+      const port = storedConfig.a2aPort ?? DEFAULT_PORT
+      await startA2AServer(getService, {
+        port,
+        onVerbose: getA2AVerboseCallback(),
+        getAIContext: getAIContextForA2A,
+      })
+    }
+  })()
 }

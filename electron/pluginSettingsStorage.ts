@@ -3,7 +3,8 @@
  * FMP API key is encrypted at rest via Electron safeStorage (same pattern as S3 secret).
  */
 
-import { app, safeStorage } from 'electron'
+import { app } from 'electron'
+import { decryptSecret, encryptSecret, isSecretEncryptionAvailable } from './safeSecret'
 import path from 'node:path'
 import fs from 'node:fs'
 
@@ -41,55 +42,62 @@ function writePersisted(data: PersistedShape): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
 }
 
-function persistEncryptedPlaintext(plain: string | undefined): void {
+async function persistEncryptedPlaintext(plain: string | undefined): Promise<void> {
   if (!plain) {
     writePersisted({})
     return
   }
-  const encryptedBuffer = safeStorage.encryptString(plain)
+  if (!(await isSecretEncryptionAvailable())) {
+    throw new Error('Secure storage is not available on this device.')
+  }
   writePersisted({
-    fmpApiKeyEncrypted: encryptedBuffer.toString('base64'),
+    fmpApiKeyEncrypted: await encryptSecret(plain),
   })
 }
 
-function decryptStoredKey(encBase64: string): string | null {
+async function decryptStoredKey(encBase64: string): Promise<{ key: string; ciphertext: string } | null> {
   try {
-    const s = safeStorage.decryptString(Buffer.from(encBase64, 'base64'))
-    return s.trim() || null
+    const decrypted = await decryptSecret(encBase64)
+    const key = decrypted.plaintext.trim()
+    return key ? { key, ciphertext: decrypted.ciphertext } : null
   } catch {
     return null
   }
 }
 
-export function loadPluginSettings(): StoredPluginSettings {
+export async function loadPluginSettings(): Promise<StoredPluginSettings> {
   const persisted = readPersisted()
 
   if (persisted.fmpApiKeyEncrypted) {
-    const key = decryptStoredKey(persisted.fmpApiKeyEncrypted)
-    return key ? { fmpApiKey: key } : {}
+    const decrypted = await decryptStoredKey(persisted.fmpApiKeyEncrypted)
+    if (!decrypted) return {}
+    if (decrypted.ciphertext !== persisted.fmpApiKeyEncrypted) {
+      writePersisted({ fmpApiKeyEncrypted: decrypted.ciphertext })
+    }
+    return { fmpApiKey: decrypted.key }
   }
 
   const legacy = persisted.fmpApiKey
   if (typeof legacy === 'string' && legacy.trim()) {
     const plain = legacy.trim()
-    persistEncryptedPlaintext(plain)
+    await persistEncryptedPlaintext(plain)
     return { fmpApiKey: plain }
   }
 
   return {}
 }
 
-export function savePluginSettings(settings: StoredPluginSettings): void {
+export async function savePluginSettings(settings: StoredPluginSettings): Promise<void> {
   const trimmed = settings.fmpApiKey?.trim()
-  persistEncryptedPlaintext(trimmed || undefined)
+  await persistEncryptedPlaintext(trimmed || undefined)
 }
 
 /** API key for FMP congressional endpoints — never sent to renderer. */
-export function getFmpApiKey(): string | null {
-  const key = loadPluginSettings().fmpApiKey
+export async function getFmpApiKey(): Promise<string | null> {
+  const key = (await loadPluginSettings()).fmpApiKey
   return key && key.trim() ? key.trim() : null
 }
 
-export function isFmpApiKeyConfigured(): boolean {
-  return getFmpApiKey() !== null
+export async function isFmpApiKeyConfigured(): Promise<boolean> {
+  return (await getFmpApiKey()) !== null
 }
