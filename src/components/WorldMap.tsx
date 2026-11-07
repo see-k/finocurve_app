@@ -13,10 +13,11 @@ import {
   type PreparedFeature,
 } from '@vnedyalk0v/react19-simple-maps'
 import { Tooltip as ReactTooltip } from 'react-tooltip'
+import type { Topology } from 'topojson-specification'
 import geographyData from '@/data/countries-110m.json'
 
 // TopoJSON object - avoids URL validation issues in Electron
-const GEO_DATA = geographyData as { type: string; objects: Record<string, unknown>; arcs: unknown[] }
+const GEO_DATA = geographyData as Topology
 
 // ISO 3166 numeric → name mapping for major countries
 const COUNTRY_NUM_TO_NAME: Record<string, string> = {
