@@ -13,7 +13,7 @@ export interface Agent {
   /** Data URL for the agent's avatar image, if any */
   image?: string
   /** Optional AI provider override; falls back to the global AI config when unset */
-  provider?: 'ollama' | 'bedrock' | 'azure' | 'slack'
+  provider?: 'ollama' | 'bedrock' | 'azure' | 'slack' | 'a2a'
   /** Optional model override; falls back to the global AI configuration. Slack experts store a display label. */
   model?: string
   /** Optional per-agent connection overrides. Unset values inherit the global AI configuration. */
@@ -29,6 +29,12 @@ export interface Agent {
   slackBotUserId?: string
   /** Optional existing DM channel id with the bot (`D…`). Opened automatically when omitted. */
   slackDmChannel?: string
+  /** A2A server base URL, agent card URL, or JSON-RPC endpoint (e.g. Hermes Glass `http://127.0.0.1:47821`). */
+  a2aUrl?: string
+  /** Bearer token for the A2A server, when it requires one. */
+  a2aToken?: string
+  /** Agent selected on a multi-agent A2A gateway, sent as message metadata (e.g. `profile:atlas`). */
+  a2aAgentId?: string
   /** Which tools this expert may discover and invoke. Older profiles default to all. */
   toolAccess?: 'all' | 'selected' | 'none'
   /** Tool allowlist used when toolAccess is selected. */
@@ -65,6 +71,9 @@ export type AgentInput = Pick<Agent, 'name' | 'systemPrompt'> &
     | 'slackUserToken'
     | 'slackBotUserId'
     | 'slackDmChannel'
+    | 'a2aUrl'
+    | 'a2aToken'
+    | 'a2aAgentId'
     | 'toolAccess'
     | 'enabledToolNames'
     | 'toolLimits'
@@ -111,8 +120,20 @@ export function isSlackAgent(agent: Pick<Agent, 'provider'>): boolean {
   return agent.provider === 'slack'
 }
 
+export function isA2AAgent(agent: Pick<Agent, 'provider'>): boolean {
+  return agent.provider === 'a2a'
+}
+
+/**
+ * Experts that wrap an agent running elsewhere (a Slack bot or an A2A agent). The remote
+ * agent keeps its own model, tools, and instructions; FinoCurve only relays the conversation.
+ */
+export function isRemoteAgent(agent: Pick<Agent, 'provider'>): boolean {
+  return isSlackAgent(agent) || isA2AAgent(agent)
+}
+
 export function getAgentToolCount(agent: Agent, availableToolCount: number): number {
-  if (isSlackAgent(agent) || agent.toolAccess === 'none') return 0
+  if (isRemoteAgent(agent) || agent.toolAccess === 'none') return 0
   if (agent.toolAccess === 'selected') return Math.min(agent.enabledToolNames?.length ?? 0, availableToolCount)
   return availableToolCount
 }

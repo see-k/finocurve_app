@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiCheckConnection: () => ipcRenderer.invoke('ai-check-connection'),
   aiOllamaListModels: (baseUrl?: string) => ipcRenderer.invoke('ai-ollama-list-models', baseUrl),
   aiTestConnection: (payload: {
-    provider: 'ollama' | 'bedrock' | 'azure' | 'slack'
+    provider: 'ollama' | 'bedrock' | 'azure' | 'slack' | 'a2a'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -73,6 +73,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     slackUserToken?: string
     slackBotUserId?: string
     slackDmChannel?: string
+    a2aUrl?: string
+    a2aToken?: string
+    a2aAgentId?: string
   }) => ipcRenderer.invoke('ai-test-connection', payload),
   aiGenerateInsights: (payload: { documents: unknown[]; portfolioContext?: unknown }) =>
     ipcRenderer.invoke('ai-generate-insights', payload),

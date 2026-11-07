@@ -1,8 +1,10 @@
 import type { Agent } from '../types/Agent'
+import { isRemoteAgent } from '../types/Agent'
 import type { ChatContext } from './types'
 
 /** Persona payload sent with chat so the main process can use this expert's model/tools. */
 export function toChatAgentPersona(agent: Agent): NonNullable<ChatContext['agentPersona']> {
+  const remote = isRemoteAgent(agent)
   return {
     id: agent.id,
     name: agent.name,
@@ -18,8 +20,11 @@ export function toChatAgentPersona(agent: Agent): NonNullable<ChatContext['agent
     slackUserToken: agent.slackUserToken,
     slackBotUserId: agent.slackBotUserId,
     slackDmChannel: agent.slackDmChannel,
-    toolAccess: agent.provider === 'slack' ? 'none' : agent.toolAccess,
-    enabledToolNames: agent.provider === 'slack' ? undefined : agent.enabledToolNames,
-    toolLimits: agent.provider === 'slack' ? undefined : agent.toolLimits,
+    a2aUrl: agent.a2aUrl,
+    a2aToken: agent.a2aToken,
+    a2aAgentId: agent.a2aAgentId,
+    toolAccess: remote ? 'none' : agent.toolAccess,
+    enabledToolNames: remote ? undefined : agent.enabledToolNames,
+    toolLimits: remote ? undefined : agent.toolLimits,
   }
 }

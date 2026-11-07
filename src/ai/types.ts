@@ -138,7 +138,7 @@ export interface ChatContext {
     name: string
     systemPrompt: string
     /** Optional per-agent model override. When omitted, the primary AI configuration is used. */
-    provider?: 'ollama' | 'bedrock' | 'azure' | 'slack'
+    provider?: 'ollama' | 'bedrock' | 'azure' | 'slack' | 'a2a'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -149,6 +149,9 @@ export interface ChatContext {
     slackUserToken?: string
     slackBotUserId?: string
     slackDmChannel?: string
+    a2aUrl?: string
+    a2aToken?: string
+    a2aAgentId?: string
     /** Restricts the tools bound to this expert. Omitted for legacy profiles means all tools. */
     toolAccess?: 'all' | 'selected' | 'none'
     enabledToolNames?: string[]
@@ -164,6 +167,14 @@ export interface ChatContext {
      */
     directlyAddressed: boolean
   }
+  /**
+   * A2A experts only: continue this remote session. `newMessageCount` trailing
+   * messages are the ones the remote agent has not seen since its last reply.
+   */
+  a2aSession?: {
+    contextId: string
+    newMessageCount: number
+  }
   /** Internal, non-conversational model pass. It never appears as a chat participant. */
   backgroundTask?: 'group-routing'
 }
@@ -176,6 +187,8 @@ export type ChatStreamChunk =
   | { type: 'tool_end'; toolName: string; status: 'success' | 'error' }
   | { type: 'follow_ups'; items: ChatFollowUp[] }
   | { type: 'source'; url: string; label?: string }
+  /** Remote session id for A2A experts, returned to the renderer rather than shown. */
+  | { type: 'session'; contextId: string }
 
 export interface Tool {
   name: string

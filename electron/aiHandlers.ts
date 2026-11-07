@@ -22,6 +22,7 @@ import { createChatModel } from '../src/ai/createChatModel'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { DocumentRef, PortfolioContext, ChatMessage, ChatContext, DocumentInsight } from '../src/ai/types'
 import { testSlackBotConnection } from '../src/ai/slackBotChat'
+import { testA2AAgentConnection } from '../src/ai/a2aAgentChat'
 import {
   generateBrandedCustomReportPdf,
   safeReportFileSlug,
@@ -414,7 +415,7 @@ export function registerAIHandlers(): void {
   }
 
   function getAgentService(persona: NonNullable<ChatContext['agentPersona']>): LocalAIService {
-    if (!persona.provider || persona.provider === 'slack') return getService()
+    if (!persona.provider || persona.provider === 'slack' || persona.provider === 'a2a') return getService()
 
     const stored = loadAIConfig()
     const providerDefaults: Record<NonNullable<typeof persona.provider>, string> = {
@@ -481,7 +482,7 @@ export function registerAIHandlers(): void {
   })
 
   async function testConnection(config: {
-    provider: StoredAIConfig['provider'] | 'slack'
+    provider: StoredAIConfig['provider'] | 'slack' | 'a2a'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -493,7 +494,17 @@ export function registerAIHandlers(): void {
     slackUserToken?: string
     slackBotUserId?: string
     slackDmChannel?: string
-  }): Promise<{ ok: boolean; error?: string; modelCount?: number; dmChannel?: string }> {
+    a2aUrl?: string
+    a2aToken?: string
+    a2aAgentId?: string
+  }): Promise<{
+    ok: boolean
+    error?: string
+    modelCount?: number
+    dmChannel?: string
+    agentName?: string
+    agents?: { id: string; name: string; description?: string }[]
+  }> {
     const { provider } = config
     try {
       if (provider === 'ollama') {
@@ -541,6 +552,13 @@ export function registerAIHandlers(): void {
           dmChannel: config.slackDmChannel,
         })
       }
+      if (provider === 'a2a') {
+        return testA2AAgentConnection({
+          url: config.a2aUrl || '',
+          token: config.a2aToken?.trim() || undefined,
+          agentId: config.a2aAgentId?.trim() || undefined,
+        })
+      }
       return { ok: false, error: `Unknown provider: ${provider}` }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
@@ -577,7 +595,7 @@ export function registerAIHandlers(): void {
   ipcMain.handle('ai-test-connection', async (
     _event,
     payload: {
-      provider: StoredAIConfig['provider'] | 'slack'
+      provider: StoredAIConfig['provider'] | 'slack' | 'a2a'
       model?: string
       ollamaBaseUrl?: string
       bedrockRegion?: string
@@ -589,6 +607,9 @@ export function registerAIHandlers(): void {
       slackUserToken?: string
       slackBotUserId?: string
       slackDmChannel?: string
+      a2aUrl?: string
+      a2aToken?: string
+      a2aAgentId?: string
     }
   ) => {
     const existing = loadAIConfig()
@@ -658,6 +679,7 @@ export function registerAIHandlers(): void {
     let aborted = false
     let followUps: { label: string; prompt: string }[] | undefined
     let sourceUrl: string | undefined
+    let a2aContextId: string | undefined
 
     try {
       for await (const chunk of service.chat(payload.messages, payload.context, { signal: controller.signal })) {
@@ -674,6 +696,8 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'source') {
           sourceUrl = chunk.url
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'source', url: chunk.url, label: chunk.label })
+        } else if (chunk.type === 'session') {
+          a2aContextId = chunk.contextId
         } else if (chunk.type === 'answer') {
           answer += chunk.content
           if (!sender.isDestroyed()) sender.send('ai-chat-chunk', { type: 'answer', content: chunk.content })
@@ -701,6 +725,7 @@ export function registerAIHandlers(): void {
       reasoning: reasoning || undefined,
       ...(followUps && followUps.length > 0 ? { followUps } : {}),
       ...(sourceUrl ? { sourceUrl } : {}),
+      ...(a2aContextId ? { a2aContextId } : {}),
       ...(aborted ? { aborted: true } : {}),
     }
   })

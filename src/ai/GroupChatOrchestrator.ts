@@ -1,6 +1,7 @@
 import type { Agent } from '../types/Agent'
 import type { Conversation, ConversationMessage } from '../types/Conversation'
 import { toChatAgentPersona } from './agentPersona'
+import { a2aSessionRef, resumeA2ASession, type A2ASessionRef } from './a2aSession'
 
 export interface GroupTurnChunk {
   type: 'reasoning' | 'answer' | 'tool_start' | 'tool_end' | 'source'
@@ -18,6 +19,8 @@ export interface GroupTurnResult {
   reasoning?: string
   followUps?: { label: string; prompt: string }[]
   sourceUrl?: string
+  /** A2A experts: remote session this reply belongs to. */
+  a2aSession?: A2ASessionRef
   aborted?: boolean
 }
 
@@ -473,11 +476,14 @@ export async function* runGroupTurn(
 
     try {
       options.onAgentStart?.(agentId)
-      const { text, reasoning, followUps, sourceUrl, aborted } = await streamChat({
+      // Everything after this expert's last reply (the user's turn and peers' answers) is new to it.
+      const resumeSession = resumeA2ASession(agent, transcript, apiMessages.length)
+      const { text, reasoning, followUps, sourceUrl, a2aContextId, aborted } = await streamChat({
         messages: apiMessages,
         context: {
           ...(options.baseContext ?? {}),
           agentPersona: toChatAgentPersona(agent),
+          ...(resumeSession ? { a2aSession: resumeSession } : {}),
           groupChat: {
             participantNames,
             directlyAddressed: responderPlan.directlyAddressed || addressedByPeer.has(agentId),
@@ -487,6 +493,7 @@ export async function* runGroupTurn(
 
       unsubscribe?.()
 
+      const a2aSession = a2aSessionRef(agent, a2aContextId)
       const result: GroupTurnResult = {
         agentId,
         agentName: agent.name,
@@ -494,6 +501,7 @@ export async function* runGroupTurn(
         reasoning,
         followUps,
         sourceUrl,
+        ...(a2aSession ? { a2aSession } : {}),
         aborted,
       }
       yield result
@@ -509,6 +517,7 @@ export async function* runGroupTurn(
         reasoning,
         followUps,
         sourceUrl,
+        ...(a2aSession ? { a2aSession } : {}),
       })
 
       // Let the agent hand off to peers it @mentioned. Promote/insert them at

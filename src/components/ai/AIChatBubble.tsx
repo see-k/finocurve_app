@@ -6,6 +6,7 @@ import { usePreferences } from '../../store/usePreferences'
 import { useAgents } from '../../store/useAgents'
 import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { toChatAgentPersona } from '../../ai/agentPersona'
+import { a2aSessionRef, isA2ASessionRef, resumeA2ASession, type A2ASessionRef } from '../../ai/a2aSession'
 import { DEFAULT_AGENT_ID, isAgentActive, isDefaultAgent } from '../../types/Agent'
 import type { Agent } from '../../types/Agent'
 import type { ChatAttachment, ChatFollowUp } from '../../ai/types'
@@ -41,6 +42,8 @@ interface ChatMessage {
   followUps?: ChatFollowUp[]
   /** Live Slack thread for Slack-wrapped experts. */
   sourceUrl?: string
+  /** A2A experts: remote session this reply belongs to, continued on the next turn. */
+  a2aSession?: A2ASessionRef
 }
 
 const MAX_CHAT_ATTACHMENTS = 6
@@ -215,6 +218,7 @@ function loadChatMessages(storageKey: string): ChatMessage[] {
           ...(typeof msg.reasoning === 'string' && msg.reasoning ? { reasoning: msg.reasoning } : {}),
           ...(followUps && followUps.length > 0 ? { followUps } : {}),
           ...(typeof msg.sourceUrl === 'string' && msg.sourceUrl ? { sourceUrl: msg.sourceUrl } : {}),
+          ...(msg.role === 'assistant' && isA2ASessionRef(msg.a2aSession) ? { a2aSession: msg.a2aSession } : {}),
         }
       })
   } catch {
@@ -624,7 +628,8 @@ export default function AIChatBubble() {
 
       const agent = activeAgentRef.current
       setStreamingAgentId(agent?.id ?? null)
-      const { text: response, reasoning, followUps, sourceUrl, aborted } = await streamChat({
+      const a2aSession = resumeA2ASession(agent, historyForApi, chatMessages.length)
+      const { text: response, reasoning, followUps, sourceUrl, a2aContextId, aborted } = await streamChat({
         messages: chatMessages,
         context: {
           currentRoute: location.pathname,
@@ -645,8 +650,10 @@ export default function AIChatBubble() {
                 agentPersona: toChatAgentPersona(agent),
               }
             : {}),
+          ...(a2aSession ? { a2aSession } : {}),
         },
       })
+      const replySession = a2aSessionRef(agent, a2aContextId)
 
       unsubscribe?.()
       setStreaming({ reasoning: '', answer: '' })
@@ -668,6 +675,7 @@ export default function AIChatBubble() {
           reasoning,
           ...(!wasStopped && followUps && followUps.length > 0 ? { followUps } : {}),
           ...(sourceUrl ? { sourceUrl } : {}),
+          ...(replySession ? { a2aSession: replySession } : {}),
         },
       ])
     } catch (e) {

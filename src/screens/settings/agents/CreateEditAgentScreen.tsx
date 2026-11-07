@@ -11,6 +11,7 @@ import {
   Cpu,
   FileText,
   LockKeyhole,
+  Network,
   Plus,
   Power,
   RefreshCw,
@@ -32,6 +33,7 @@ import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import { ProviderBrandIcon } from '../../../components/ai/ProviderBrandIcon'
 import { useAgents } from '../../../store/useAgents'
 import type { Agent } from '../../../types/Agent'
+import { isRemoteAgent } from '../../../types/Agent'
 import {
   EXPERT_TOOL_CATEGORIES,
   mergeExpertToolDefinitions,
@@ -46,9 +48,14 @@ import './AgentsScreen.css'
 
 type AgentProviderChoice = 'default' | NonNullable<Agent['provider']>
 type CollapsibleSection = 'specialties' | 'model' | 'guidance'
+type A2AAgentOption = { id: string; name: string; description?: string }
 
-function providerName(provider: AIConfigFromMain['provider'] | 'slack'): string {
+/** Hermes Glass serves its A2A gateway here by default. */
+const DEFAULT_A2A_URL = 'http://127.0.0.1:47821'
+
+function providerName(provider: AIConfigFromMain['provider'] | 'slack' | 'a2a'): string {
   if (provider === 'slack') return 'Slack bot'
+  if (provider === 'a2a') return 'A2A agent'
   if (provider === 'ollama') return 'Ollama'
   if (provider === 'bedrock') return 'AWS Bedrock'
   return 'Azure OpenAI'
@@ -84,6 +91,10 @@ export default function CreateEditAgentScreen() {
   const [slackUserToken, setSlackUserToken] = useState(existing?.slackUserToken || '')
   const [slackBotUserId, setSlackBotUserId] = useState(existing?.slackBotUserId || '')
   const [slackDmChannel, setSlackDmChannel] = useState(existing?.slackDmChannel || '')
+  const [a2aUrl, setA2aUrl] = useState(existing?.a2aUrl || '')
+  const [a2aToken, setA2aToken] = useState(existing?.a2aToken || '')
+  const [a2aAgentId, setA2aAgentId] = useState(existing?.a2aAgentId || '')
+  const [a2aAgents, setA2aAgents] = useState<A2AAgentOption[]>([])
   const [toolAccess, setToolAccess] = useState<NonNullable<Agent['toolAccess']>>(existing?.toolAccess || 'all')
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(existing?.enabledToolNames || [])
   const [toolLimits, setToolLimits] = useState<Record<string, number>>(existing?.toolLimits || {})
@@ -158,6 +169,10 @@ export default function CreateEditAgentScreen() {
       setSlackUserToken(existing.slackUserToken || '')
       setSlackBotUserId(existing.slackBotUserId || '')
       setSlackDmChannel(existing.slackDmChannel || '')
+      setA2aUrl(existing.a2aUrl || '')
+      setA2aToken(existing.a2aToken || '')
+      setA2aAgentId(existing.a2aAgentId || '')
+      setA2aAgents([])
       setToolAccess(existing.toolAccess || 'all')
       setEnabledToolNames(existing.enabledToolNames || [])
       setToolLimits(existing.toolLimits || {})
@@ -194,7 +209,10 @@ export default function CreateEditAgentScreen() {
   const selectProvider = (nextProvider: AgentProviderChoice) => {
     if (nextProvider === provider) return
     setProvider(nextProvider)
-    if (provider === 'slack' && nextProvider !== 'slack') setToolAccess('all')
+    if (isRemoteAgent({ provider: provider === 'default' ? undefined : provider }) &&
+      !isRemoteAgent({ provider: nextProvider === 'default' ? undefined : nextProvider })) {
+      setToolAccess('all')
+    }
     if (nextProvider === 'default') {
       setModel('')
     } else if (nextProvider === 'ollama') {
@@ -208,6 +226,10 @@ export default function CreateEditAgentScreen() {
     } else if (nextProvider === 'slack') {
       setModel('Slack bot')
       setToolAccess('none')
+    } else if (nextProvider === 'a2a') {
+      setModel('')
+      setToolAccess('none')
+      setA2aUrl((value) => value || DEFAULT_A2A_URL)
     } else {
       setModel(
         primaryConfig?.azureDeployment ||
@@ -223,6 +245,11 @@ export default function CreateEditAgentScreen() {
     if (provider === 'slack') {
       if (!slackUserToken.trim() || !slackBotUserId.trim()) {
         setConnectionStatus({ ok: false, message: 'Enter the Slack user token and bot user id first.' })
+        return
+      }
+    } else if (provider === 'a2a') {
+      if (!a2aUrl.trim()) {
+        setConnectionStatus({ ok: false, message: 'Enter the A2A server URL first.' })
         return
       }
     } else if (!model.trim()) {
@@ -246,9 +273,25 @@ export default function CreateEditAgentScreen() {
         slackUserToken: slackUserToken.trim(),
         slackBotUserId: slackBotUserId.trim(),
         slackDmChannel: slackDmChannel.trim() || undefined,
+        a2aUrl: a2aUrl.trim(),
+        a2aToken: a2aToken.trim() || undefined,
+        a2aAgentId: a2aAgentId.trim() || undefined,
       })
       if (result.ok && provider === 'slack' && result.dmChannel && !slackDmChannel.trim()) {
         setSlackDmChannel(result.dmChannel)
+      }
+      if (provider === 'a2a') {
+        const agents = result.agents ?? []
+        setA2aAgents(agents)
+        if (result.ok && !a2aAgentId.trim() && agents.length === 1) chooseA2AAgent(agents[0])
+        const needsChoice = result.ok && !a2aAgentId.trim() && agents.length > 1
+        setConnectionStatus({
+          ok: result.ok,
+          message: result.ok
+            ? `Connected to ${result.agentName || 'the A2A server'}.${needsChoice ? ' Choose which agent this expert talks to.' : ''}`
+            : result.error || 'Could not reach this A2A server.',
+        })
+        return
       }
       setConnectionStatus({
         ok: result.ok,
@@ -264,6 +307,16 @@ export default function CreateEditAgentScreen() {
     } finally {
       setTesting(false)
     }
+  }
+
+  const chooseA2AAgent = (agent: A2AAgentOption | undefined) => {
+    setA2aAgentId(agent?.id || '')
+    if (agent) {
+      setModel(agent.name)
+      // A fresh expert wrapping "Atlas" is most likely called Atlas.
+      setName((current) => current.trim() ? current : agent.name)
+    }
+    setConnectionStatus(null)
   }
 
   const handleAvatarClick = () => fileInputRef.current?.click()
@@ -368,7 +421,7 @@ export default function CreateEditAgentScreen() {
       setError('Expert name is required')
       return
     }
-    if (provider !== 'slack' && !systemPrompt.trim()) {
+    if (provider !== 'slack' && provider !== 'a2a' && !systemPrompt.trim()) {
       setError('System prompt is required')
       setCollapsedSections((current) => ({ ...current, guidance: false }))
       return
@@ -379,6 +432,17 @@ export default function CreateEditAgentScreen() {
         setCollapsedSections((current) => ({ ...current, model: false }))
         return
       }
+    } else if (provider === 'a2a') {
+      if (!a2aUrl.trim()) {
+        setError('A2A experts need the server URL')
+        setCollapsedSections((current) => ({ ...current, model: false }))
+        return
+      }
+      if (a2aAgents.length > 1 && !a2aAgentId.trim()) {
+        setError('Choose which agent on this A2A server the expert talks to')
+        setCollapsedSections((current) => ({ ...current, model: false }))
+        return
+      }
     } else if (provider !== 'default' && !model.trim()) {
       setError('Choose a model for this expert provider')
       setCollapsedSections((current) => ({ ...current, model: false }))
@@ -386,6 +450,9 @@ export default function CreateEditAgentScreen() {
     }
     setError(null)
     const providerOverride = provider === 'default' ? undefined : provider
+    const remote = isRemoteAgent({ provider: providerOverride })
+    const a2aLabel = a2aAgents.find((agent) => agent.id === a2aAgentId.trim())?.name ||
+      model.trim() || a2aAgentId.trim() || 'A2A agent'
     const input = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -394,11 +461,15 @@ export default function CreateEditAgentScreen() {
       systemPrompt: systemPrompt.trim() || (
         provider === 'slack'
           ? `You are ${name.trim()}, a specialist connected from Slack.`
-          : ''
+          : provider === 'a2a'
+            ? `You are ${name.trim()}, a specialist connected over A2A.`
+            : ''
       ),
       image,
       provider: providerOverride,
-      model: providerOverride === 'slack' ? 'Slack bot' : providerOverride ? model.trim() : undefined,
+      model: providerOverride === 'slack'
+        ? 'Slack bot'
+        : providerOverride === 'a2a' ? a2aLabel : providerOverride ? model.trim() : undefined,
       ollamaBaseUrl: providerOverride === 'ollama' ? ollamaBaseUrl.trim() || undefined : undefined,
       bedrockRegion: providerOverride === 'bedrock' ? bedrockRegion.trim() || undefined : undefined,
       bedrockAccessKeyId: providerOverride === 'bedrock' ? bedrockAccessKeyId.trim() || undefined : undefined,
@@ -408,9 +479,12 @@ export default function CreateEditAgentScreen() {
       slackUserToken: providerOverride === 'slack' ? slackUserToken.trim() : undefined,
       slackBotUserId: providerOverride === 'slack' ? slackBotUserId.trim() : undefined,
       slackDmChannel: providerOverride === 'slack' ? slackDmChannel.trim() || undefined : undefined,
-      toolAccess: providerOverride === 'slack' ? 'none' as const : toolAccess,
-      enabledToolNames: providerOverride === 'slack' || toolAccess !== 'selected' ? undefined : enabledToolNames,
-      toolLimits: providerOverride === 'slack' || Object.keys(toolLimits).length === 0 ? undefined : toolLimits,
+      a2aUrl: providerOverride === 'a2a' ? a2aUrl.trim() : undefined,
+      a2aToken: providerOverride === 'a2a' ? a2aToken.trim() || undefined : undefined,
+      a2aAgentId: providerOverride === 'a2a' ? a2aAgentId.trim() || undefined : undefined,
+      toolAccess: remote ? 'none' as const : toolAccess,
+      enabledToolNames: remote || toolAccess !== 'selected' ? undefined : enabledToolNames,
+      toolLimits: remote || Object.keys(toolLimits).length === 0 ? undefined : toolLimits,
     }
     if (isEditing && existing) {
       updateAgent(existing.id, input)
@@ -654,7 +728,9 @@ export default function CreateEditAgentScreen() {
                       ? 'Using the primary model'
                       : provider === 'slack'
                         ? `Slack bot${slackBotUserId ? ` · ${slackBotUserId}` : ''}`
-                        : `${providerName(provider)} · ${model || 'Model not selected'}`
+                        : provider === 'a2a'
+                          ? `A2A agent${model || a2aAgentId ? ` · ${model || a2aAgentId}` : ''}`
+                          : `${providerName(provider)} · ${model || 'Model not selected'}`
                     : 'Choose the intelligence behind this expert.'}</small>
                 </span>
               </div>
@@ -709,6 +785,14 @@ export default function CreateEditAgentScreen() {
                   <ProviderBrandIcon provider="slack" size={22} />
                   <span><strong>Slack bot</strong><small>Wrap an existing workspace bot</small></span>
                 </button>
+                <button
+                  type="button"
+                  className={`agent-provider-card ${provider === 'a2a' ? 'agent-provider-card--active' : ''}`}
+                  onClick={() => selectProvider('a2a')}
+                >
+                  <Network size={20} />
+                  <span><strong>A2A agent</strong><small>Hermes Glass or any A2A server</small></span>
+                </button>
               </div>
 
                 {provider === 'default' ? (
@@ -760,6 +844,75 @@ export default function CreateEditAgentScreen() {
                       onClick={() => void handleTestModel()}
                       isLoading={testing}
                       disabled={!slackUserToken.trim() || !slackBotUserId.trim()}
+                      width="auto"
+                    />
+                  </div>
+                  {connectionStatus && (
+                    <div className={`agent-model-status ${connectionStatus.ok ? 'agent-model-status--success' : 'agent-model-status--error'}`}>
+                      {connectionStatus.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                      <span>{connectionStatus.message}</span>
+                    </div>
+                  )}
+                </div>
+              ) : provider === 'a2a' ? (
+                <div className="agent-model-controls">
+                  <p className="agent-model-note">
+                    FinoCurve sends each turn to this agent over the Agent2Agent protocol and streams its
+                    reply back into the same 1:1 or group conversation. For Hermes Glass, use the bearer
+                    token from the widget (Settings, Channels), then test to pick an agent such as Atlas.
+                  </p>
+                  <div className="agent-model-credentials">
+                    <div>
+                      <label>Server URL</label>
+                      <GlassTextField
+                        value={a2aUrl}
+                        onChange={(value) => { setA2aUrl(value); setA2aAgents([]); setConnectionStatus(null) }}
+                        placeholder={DEFAULT_A2A_URL}
+                      />
+                    </div>
+                    <div>
+                      <label>Bearer token</label>
+                      <GlassTextField
+                        value={a2aToken}
+                        onChange={(value) => { setA2aToken(value); setConnectionStatus(null) }}
+                        placeholder="Leave empty if the server is open"
+                        type="password"
+                      />
+                    </div>
+                    <div>
+                      <label>Agent</label>
+                      {a2aAgents.length > 0 ? (
+                        <select
+                          className="ai-config-select"
+                          value={a2aAgentId}
+                          onChange={(event) => chooseA2AAgent(a2aAgents.find((agent) => agent.id === event.target.value))}
+                        >
+                          <option value="">Choose an agent…</option>
+                          {a2aAgentId && !a2aAgents.some((agent) => agent.id === a2aAgentId) && (
+                            <option value={a2aAgentId}>{a2aAgentId} (not listed)</option>
+                          )}
+                          {a2aAgents.map((agent) => (
+                            <option key={agent.id} value={agent.id} title={agent.description}>
+                              {agent.name === agent.id ? agent.name : `${agent.name} · ${agent.id}`}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <GlassTextField
+                          value={a2aAgentId}
+                          onChange={(value) => { setA2aAgentId(value); setConnectionStatus(null) }}
+                          placeholder="e.g. profile:atlas · test to list agents"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="agent-model-actions">
+                    <GlassButton
+                      text={testing ? 'Connecting…' : 'Test and list agents'}
+                      icon={<RefreshCw size={14} />}
+                      onClick={() => void handleTestModel()}
+                      isLoading={testing}
+                      disabled={!a2aUrl.trim()}
                       width="auto"
                     />
                   </div>
@@ -912,10 +1065,12 @@ export default function CreateEditAgentScreen() {
                   <small>{collapsedSections.guidance
                     ? systemPrompt.trim()
                       ? 'Expert instructions configured'
-                      // handleSave supplies a default prompt for Slack experts, so empty is valid there.
-                      : provider === 'slack' ? 'Using the default description' : 'No guidance configured · Required'
+                      // handleSave supplies a default prompt for Slack and A2A experts, so empty is valid there.
+                      : provider === 'slack' || provider === 'a2a' ? 'Using the default description' : 'No guidance configured · Required'
                     : provider === 'slack'
                       ? 'Describes this expert for FinoCurve routing and group chats. The Slack bot keeps its own instructions, so this text is not sent to Slack.'
+                      : provider === 'a2a'
+                        ? 'Describes this expert for FinoCurve routing and group chats. The A2A agent keeps its own instructions, so this text is not sent to it.'
                       : "Define this expert's point of view, communication style, boundaries, and working method."}</small>
                 </span>
               </div>
@@ -930,8 +1085,8 @@ export default function CreateEditAgentScreen() {
 
                   <div className="agent-guidance-section__tip">
                     <ShieldCheck size={14} />
-                    <span>{provider === 'slack'
-                      ? 'Used to route work to this expert inside FinoCurve. The wrapped Slack bot answers with its own configured instructions.'
+                    <span>{provider === 'slack' || provider === 'a2a'
+                      ? `Used to route work to this expert inside FinoCurve. The wrapped ${provider === 'slack' ? 'Slack bot' : 'A2A agent'} answers with its own configured instructions.`
                       : "Strong profiles state the expert's scope, evidence standards, response format, and when to acknowledge uncertainty."}</span>
                   </div>
                 </div>
@@ -946,15 +1101,17 @@ export default function CreateEditAgentScreen() {
                   <small>
                     {provider === 'slack'
                       ? 'Slack-wrapped experts use the bot’s own tools in Slack. FinoCurve tools stay off so this expert stays a faithful wrapper.'
+                      : provider === 'a2a'
+                        ? 'A2A experts use the remote agent’s own tools. FinoCurve tools stay off so this expert stays a faithful wrapper.'
                       : 'Give this expert only the capabilities needed for their role. Fewer tools usually means faster, more focused decisions.'}
                   </small>
                 </span>
                 <span className="agent-tools-section__count">
-                  {provider === 'slack' ? 'Slack bot' : `${enabledToolCount} of ${availableTools.length}`}
+                  {provider === 'slack' ? 'Slack bot' : provider === 'a2a' ? 'A2A agent' : `${enabledToolCount} of ${availableTools.length}`}
                 </span>
               </div>
 
-              {provider !== 'slack' && (
+              {provider !== 'slack' && provider !== 'a2a' && (
               <>
               <div className="agent-tool-policy" role="radiogroup" aria-label="Tool access policy">
                 <button
