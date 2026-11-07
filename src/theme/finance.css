@@ -580,6 +580,10 @@
 }
 .fin-table__sort--active { color: var(--text-primary); }
 .fin-table__sort svg { opacity: 0.75; }
+.fin-table th.fin-table__num .fin-table__sort {
+  width: 100%;
+  justify-content: flex-end;
+}
 
 /* Identity cell: mark + name + secondary line */
 .fin-table__identity {
