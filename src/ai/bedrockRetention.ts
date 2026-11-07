@@ -1,4 +1,5 @@
 import type { Agent } from '../types/Agent'
+import { isRemoteAgent } from '../types/Agent'
 
 /**
  * Models whose Bedrock (and cross-cloud) terms require `provider_data_share`:
@@ -20,7 +21,7 @@ export function effectiveAgentModel(
   primaryModel: string,
 ): { provider: 'ollama' | 'bedrock' | 'azure'; model: string } {
   return {
-    provider: !agent.provider || agent.provider === 'slack' ? primaryProvider : agent.provider,
+    provider: !agent.provider || agent.provider === 'slack' || agent.provider === 'a2a' ? primaryProvider : agent.provider,
     model: (agent.model || primaryModel).trim(),
   }
 }
@@ -35,7 +36,7 @@ export function agentsRequiringProviderDataShare(
   primaryModel: string,
 ): Agent[] {
   return agents.filter((agent) => {
-    if (agent.provider === 'slack') return false
+    if (isRemoteAgent(agent)) return false
     const { provider, model } = effectiveAgentModel(agent, primaryProvider, primaryModel)
     if (provider === 'ollama') return false
     return requiresProviderDataShareRetention(model)

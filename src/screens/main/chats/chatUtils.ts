@@ -107,8 +107,9 @@ export function containsMention(value: string, name: string): boolean {
   ).test(value)
 }
 
-export function getModelProviderLabel(provider: 'ollama' | 'bedrock' | 'azure' | 'slack', model: string): string {
+export function getModelProviderLabel(provider: 'ollama' | 'bedrock' | 'azure' | 'slack' | 'a2a', model: string): string {
   if (provider === 'slack') return 'Slack bot'
+  if (provider === 'a2a') return 'A2A agent'
   if (provider === 'ollama') return 'Ollama'
   if (provider === 'azure') return 'Azure OpenAI'
   if (/anthropic|claude/i.test(model)) return 'Anthropic via Bedrock'

@@ -1,4 +1,5 @@
 import type { ChatAttachment, ChatFollowUp } from '../ai/types'
+import type { A2ASessionRef } from '../ai/a2aSession'
 
 /** A single turn in a Conversation. Extends the base chat message shape with sender metadata
  *  so the UI can show "who said this" for both the user and any number of agent participants. */
@@ -19,6 +20,8 @@ export interface ConversationMessage {
   followUps?: ChatFollowUp[]
   /** Live Slack thread for Slack-wrapped experts. */
   sourceUrl?: string
+  /** A2A experts: remote session this reply belongs to, continued on the next turn. */
+  a2aSession?: A2ASessionRef
 }
 
 /**

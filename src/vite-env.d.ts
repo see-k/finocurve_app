@@ -120,7 +120,7 @@ interface ElectronAPI {
   aiCheckConnection?: () => Promise<{ ok: boolean; error?: string; modelCount?: number }>
   aiOllamaListModels?: (baseUrl?: string) => Promise<{ models: string[]; error?: string }>
   aiTestConnection?: (payload: {
-    provider: 'ollama' | 'bedrock' | 'azure' | 'slack'
+    provider: 'ollama' | 'bedrock' | 'azure' | 'slack' | 'a2a'
     model?: string
     ollamaBaseUrl?: string
     bedrockRegion?: string
@@ -132,7 +132,17 @@ interface ElectronAPI {
     slackUserToken?: string
     slackBotUserId?: string
     slackDmChannel?: string
-  }) => Promise<{ ok: boolean; error?: string; modelCount?: number; dmChannel?: string }>
+    a2aUrl?: string
+    a2aToken?: string
+    a2aAgentId?: string
+  }) => Promise<{
+    ok: boolean
+    error?: string
+    modelCount?: number
+    dmChannel?: string
+    agentName?: string
+    agents?: { id: string; name: string; description?: string }[]
+  }>
   aiGenerateInsights?: (payload: { documents: { key: string; fileName: string; source: 'cloud' | 'local' }[]; portfolioContext?: unknown }) => Promise<{ insights: { documentKey: string; documentName: string; summary: string; riskRelevantPoints: string[]; recommendations: string[] }[] }>
   aiChatStream?: (payload: {
     messages: {
@@ -146,6 +156,8 @@ interface ElectronAPI {
     reasoning?: string
     followUps?: { label: string; prompt: string }[]
     sourceUrl?: string
+    /** A2A experts: the remote session this reply belongs to. */
+    a2aContextId?: string
     aborted?: boolean
   }>
   aiChatCancel?: () => Promise<{ ok: boolean }>

@@ -25,6 +25,7 @@ import type { StructuredToolInterface } from '@langchain/core/tools'
 import { extractTextFromDocument } from './documentParser'
 import { createFinocurveTools, type FinocurveToolContext } from './tools'
 import { parseSlackBotConfig, streamSlackBotChat } from '../slackBotChat'
+import { parseA2AAgentConfig, streamA2AAgentChat } from '../a2aAgentChat'
 
 /** Detect AbortError-like errors regardless of provider/runtime. */
 function isAbortError(err: unknown): boolean {
@@ -660,6 +661,21 @@ export class LocalAIService implements AIService {
         expertName: context.agentPersona.name,
         messages,
         groupChat: context.groupChat,
+        signal,
+      })
+      return
+    }
+    if (context.agentPersona?.provider === 'a2a') {
+      const a2aConfig = parseA2AAgentConfig(context.agentPersona)
+      if (!a2aConfig) {
+        throw new Error('This A2A expert is missing its server URL. Open the expert profile and complete Model assignment.')
+      }
+      yield* streamA2AAgentChat({
+        config: a2aConfig,
+        expertName: context.agentPersona.name,
+        messages,
+        groupChat: context.groupChat,
+        session: context.a2aSession,
         signal,
       })
       return

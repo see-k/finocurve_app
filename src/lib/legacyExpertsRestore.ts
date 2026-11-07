@@ -33,6 +33,7 @@ const CREDENTIAL_FIELDS = [
   'azureApiKey',
   'slackUserToken',
   'slackDmChannel',
+  'a2aToken',
 ] as const satisfies readonly (keyof Agent)[]
 
 const USER_ARCHIVE_PREFIXES = [

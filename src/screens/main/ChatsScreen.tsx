@@ -14,6 +14,7 @@ import { useConversations } from '../../store/useConversations'
 import { agentsRequiringProviderDataShare } from '../../ai/bedrockRetention'
 import { runGroupTurn } from '../../ai/GroupChatOrchestrator'
 import { toChatAgentPersona } from '../../ai/agentPersona'
+import { a2aSessionRef, resumeA2ASession } from '../../ai/a2aSession'
 import type { Agent } from '../../types/Agent'
 import { isAgentActive } from '../../types/Agent'
 import type { Conversation, ConversationMessage } from '../../types/Conversation'
@@ -162,7 +163,9 @@ export default function ChatsScreen() {
     const provider = agent.provider || agentProviderPresentation.primaryProvider
     const model = agent.provider === 'slack'
       ? (agent.slackBotUserId || 'Slack bot')
-      : (agent.model || agentProviderPresentation.primaryModel)
+      : agent.provider === 'a2a'
+        ? (agent.model || agent.a2aAgentId || 'A2A agent')
+        : (agent.model || agentProviderPresentation.primaryModel)
     const providerLabel = getModelProviderLabel(provider, model)
     return (
       <span
@@ -438,13 +441,23 @@ export default function ChatsScreen() {
               ...(messageAttachments?.length ? { attachments: messageAttachments } : {}),
             }
           })
-          const { text: reply, reasoning, followUps, sourceUrl, aborted } = await window.electronAPI.aiChatStream({
+          const a2aSession = resumeA2ASession(agent, selected.messages, chatMessages.length)
+          const {
+            text: reply,
+            reasoning,
+            followUps,
+            sourceUrl,
+            a2aContextId,
+            aborted,
+          } = await window.electronAPI.aiChatStream({
             messages: chatMessages,
             context: {
               ...baseContext,
               agentPersona: toChatAgentPersona(agent),
+              ...(a2aSession ? { a2aSession } : {}),
             },
           })
+          const replySession = a2aSessionRef(agent, a2aContextId)
 
           if (!aborted && !stoppedRef.current) {
             appendMessage(selected.id, {
@@ -456,6 +469,7 @@ export default function ChatsScreen() {
               reasoning,
               followUps,
               sourceUrl,
+              ...(replySession ? { a2aSession: replySession } : {}),
             })
           }
         } finally {
@@ -500,6 +514,7 @@ export default function ChatsScreen() {
             reasoning: result.reasoning,
             followUps: result.followUps,
             sourceUrl: result.sourceUrl,
+            ...(result.a2aSession ? { a2aSession: result.a2aSession } : {}),
           })
           streamingAgentIdRef.current = null
           setStreamingAgentId(null)

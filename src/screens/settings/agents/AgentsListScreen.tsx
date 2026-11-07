@@ -6,6 +6,7 @@ import {
   BriefcaseBusiness,
   Eye,
   MessageSquare,
+  Network,
   Pencil,
   Plus,
   Search,
@@ -228,10 +229,12 @@ export default function AgentsListScreen() {
                         {agent.provider === 'bedrock' && <ProviderBrandIcon provider="bedrock" size={12} />}
                         {agent.provider === 'azure' && <ProviderBrandIcon provider="azure" size={12} />}
                         {agent.provider === 'slack' && <ProviderBrandIcon provider="slack" size={12} />}
+                        {agent.provider === 'a2a' && <Network size={12} aria-hidden />}
                         {agent.provider === 'ollama' && 'Ollama'}
                         {agent.provider === 'bedrock' && 'AWS Bedrock'}
                         {agent.provider === 'azure' && 'Azure OpenAI'}
                         {agent.provider === 'slack' && 'Slack bot'}
+                        {agent.provider === 'a2a' && 'A2A agent'}
                         {!agent.provider && 'Primary model'}
                         {agent.provider === 'slack' && agent.slackBotUserId
                           ? <b>· {agent.slackBotUserId}</b>
