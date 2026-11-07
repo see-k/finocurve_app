@@ -3,7 +3,8 @@
  * fetch helper, and AI-tool summary formatters consumed by LocalAIService.
  */
 
-import { net, safeStorage } from 'electron'
+import { net } from 'electron'
+import { decryptSecret, encryptSecret, isSecretEncryptionAvailable } from './safeSecret'
 import { maskEnterpriseApiToken } from '../src/lib/enterpriseToken'
 import { getCoreDataDb } from './coreDataDb'
 
@@ -14,17 +15,18 @@ const ENTERPRISE_TOKEN_SETTING_KEY = 'enterprise_api_token'
 const ENTERPRISE_TOKEN_ENCRYPTED_KEY = 'enterprise_api_token_encrypted'
 const REQUEST_TIMEOUT_MS = 20000
 
-function encryptSecret(plain: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
+async function encryptStoredSecret(plain: string): Promise<string> {
+  if (!(await isSecretEncryptionAvailable())) {
     throw new Error('Secure storage is not available on this device.')
   }
-  return safeStorage.encryptString(plain).toString('base64')
+  return encryptSecret(plain)
 }
 
-function decryptSecret(ciphertext: string): string | null {
+async function decryptStoredSecret(ciphertext: string): Promise<{ value: string; ciphertext: string } | null> {
   try {
-    const value = safeStorage.decryptString(Buffer.from(ciphertext, 'base64')).trim()
-    return value || null
+    const decrypted = await decryptSecret(ciphertext)
+    const value = decrypted.plaintext.trim()
+    return value ? { value, ciphertext: decrypted.ciphertext } : null
   } catch {
     return null
   }
@@ -64,20 +66,24 @@ export function readEnterpriseServiceUrl(): string {
  * enough to recognise which credential is installed without the window being
  * able to read it back.
  */
-export function readEnterpriseApiToken(): string {
+export async function readEnterpriseApiToken(): Promise<string> {
   try {
     const encrypted = readSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY)
     if (encrypted) {
-      const decrypted = decryptSecret(encrypted)
-      if (decrypted) deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
-      return decrypted ?? ''
+      const decrypted = await decryptStoredSecret(encrypted)
+      if (!decrypted) return ''
+      if (decrypted.ciphertext !== encrypted) {
+        upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, decrypted.ciphertext)
+      }
+      deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
+      return decrypted.value
     }
 
     const legacy = readSetting(ENTERPRISE_TOKEN_SETTING_KEY)
     if (!legacy) return ''
 
     try {
-      upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, encryptSecret(legacy))
+      upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, await encryptStoredSecret(legacy))
       deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
       return legacy
     } catch {
@@ -93,14 +99,14 @@ export function readEnterpriseApiToken(): string {
   }
 }
 
-export function saveEnterpriseApiToken(token: string): void {
+export async function saveEnterpriseApiToken(token: string): Promise<void> {
   const trimmed = (token ?? '').trim()
   deleteSetting(ENTERPRISE_TOKEN_SETTING_KEY)
   if (!trimmed) {
     deleteSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY)
     return
   }
-  upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, encryptSecret(trimmed))
+  upsertSetting(ENTERPRISE_TOKEN_ENCRYPTED_KEY, await encryptStoredSecret(trimmed))
 }
 
 /** Normalize to a trailing-slash-free http(s) origin+path; '' clears, null = invalid. */
@@ -150,7 +156,7 @@ export async function fetchEnterprisePath(
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
-      const token = readEnterpriseApiToken()
+      const token = await readEnterpriseApiToken()
       const headers: Record<string, string> = { Accept: 'application/json' }
       // Every /api/* route on the service requires a bearer token.
       if (token) headers.Authorization = `Bearer ${token}`

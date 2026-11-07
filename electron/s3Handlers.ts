@@ -1,4 +1,5 @@
-import { ipcMain, app, safeStorage } from 'electron'
+import { ipcMain, app } from 'electron'
+import { decryptSecret, encryptSecret, isSecretEncryptionAvailable } from './safeSecret'
 import path from 'node:path'
 import fs from 'node:fs'
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
@@ -28,10 +29,16 @@ function loadCredentials(): StoredCredentials | null {
   }
 }
 
-function saveCredentials(bucket: string, region: string, accessKeyId: string, secret: string): void {
-  const encryptedBuffer = safeStorage.encryptString(secret)
-  const encryptedSecret = encryptedBuffer.toString('base64')
-  const data: StoredCredentials = { bucket, region, accessKeyId, encryptedSecret }
+async function saveCredentials(bucket: string, region: string, accessKeyId: string, secret: string): Promise<void> {
+  if (!(await isSecretEncryptionAvailable())) {
+    throw new Error('Secure storage is not available on this device.')
+  }
+  const data: StoredCredentials = {
+    bucket,
+    region,
+    accessKeyId,
+    encryptedSecret: await encryptSecret(secret),
+  }
   const filePath = getCredentialsPath()
   fs.writeFileSync(filePath, JSON.stringify(data), 'utf-8')
 }
@@ -45,10 +52,14 @@ function clearCredentials(): void {
   }
 }
 
-function getS3Client(): S3Client | null {
+async function getS3Client(): Promise<S3Client | null> {
   const creds = loadCredentials()
   if (!creds) return null
-  const secret = safeStorage.decryptString(Buffer.from(creds.encryptedSecret, 'base64'))
+  const decrypted = await decryptSecret(creds.encryptedSecret)
+  if (decrypted.ciphertext !== creds.encryptedSecret) {
+    fs.writeFileSync(getCredentialsPath(), JSON.stringify({ ...creds, encryptedSecret: decrypted.ciphertext }), 'utf-8')
+  }
+  const secret = decrypted.plaintext
   return new S3Client({
     region: creds.region,
     credentials: { accessKeyId: creds.accessKeyId, secretAccessKey: secret },
@@ -58,7 +69,7 @@ function getS3Client(): S3Client | null {
 /** Get file buffer from S3 - used by AI handlers */
 /** Upload if credentials exist; returns whether upload ran successfully. */
 export async function uploadS3IfConfigured(key: string, buffer: Uint8Array, contentType?: string): Promise<boolean> {
-  const client = getS3Client()
+  const client = await getS3Client()
   const creds = loadCredentials()
   if (!client || !creds) return false
   await client.send(
@@ -73,7 +84,7 @@ export async function uploadS3IfConfigured(key: string, buffer: Uint8Array, cont
 }
 
 export async function getS3FileBuffer(key: string): Promise<{ buffer: number[]; contentType?: string } | null> {
-  const client = getS3Client()
+  const client = await getS3Client()
   const creds = loadCredentials()
   if (!client || !creds) return null
   try {
@@ -103,7 +114,7 @@ export function registerS3Handlers(): void {
     if (!bucket || !region || !accessKeyId || !secret) {
       throw new Error('Missing required fields: bucket, region, accessKeyId, secret')
     }
-    saveCredentials(bucket, region, accessKeyId, secret)
+    await saveCredentials(bucket, region, accessKeyId, secret)
     return { ok: true }
   })
 
@@ -118,7 +129,7 @@ export function registerS3Handlers(): void {
   })
 
   ipcMain.handle('s3-upload', async (_event, payload: { key: string; buffer: number[]; contentType?: string }) => {
-    const client = getS3Client()
+    const client = await getS3Client()
     if (!client) throw new Error('S3 credentials not configured')
     const creds = loadCredentials()
     if (!creds) throw new Error('S3 credentials not configured')
@@ -135,7 +146,7 @@ export function registerS3Handlers(): void {
   })
 
   ipcMain.handle('s3-list', async (_event, payload: { prefix: string }) => {
-    const client = getS3Client()
+    const client = await getS3Client()
     if (!client) throw new Error('S3 credentials not configured')
     const creds = loadCredentials()
     if (!creds) throw new Error('S3 credentials not configured')
@@ -161,7 +172,7 @@ export function registerS3Handlers(): void {
   })
 
   ipcMain.handle('s3-get-download-url', async (_event, payload: { key: string }) => {
-    const client = getS3Client()
+    const client = await getS3Client()
     if (!client) throw new Error('S3 credentials not configured')
     const creds = loadCredentials()
     if (!creds) throw new Error('S3 credentials not configured')
@@ -173,7 +184,7 @@ export function registerS3Handlers(): void {
   })
 
   ipcMain.handle('s3-delete', async (_event, payload: { key: string }) => {
-    const client = getS3Client()
+    const client = await getS3Client()
     if (!client) throw new Error('S3 credentials not configured')
     const creds = loadCredentials()
     if (!creds) throw new Error('S3 credentials not configured')

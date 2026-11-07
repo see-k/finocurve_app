@@ -134,7 +134,7 @@ function registerEnterpriseHandlers() {
   // The renderer may learn that a token exists and see a masked hint, never the
   // token itself — a window that cannot read a credential cannot leak it.
   ipcMain.handle('enterprise-get-token', async () => {
-    const token = readEnterpriseApiToken()
+    const token = await readEnterpriseApiToken()
     return { configured: Boolean(token), hint: maskEnterpriseApiToken(token) }
   })
 
@@ -144,7 +144,7 @@ function registerEnterpriseHandlers() {
       return { ok: false, error: 'API tokens cannot contain spaces' }
     }
     try {
-      saveEnterpriseApiToken(token)
+      await saveEnterpriseApiToken(token)
       return { ok: true, configured: Boolean(token), hint: maskEnterpriseApiToken(token) }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'Could not save the API token' }
@@ -186,7 +186,7 @@ function registerEnterpriseHandlers() {
         authorized: unauthorized ? false : undefined,
         status: probe.status,
         error: unauthorized
-          ? (readEnterpriseApiToken()
+          ? ((await readEnterpriseApiToken())
             ? 'Finocurve Service rejected the API token.'
             : 'Finocurve Service requires an API token.')
           : probe.error,

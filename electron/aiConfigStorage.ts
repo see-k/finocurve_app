@@ -2,7 +2,8 @@
  * AI configuration storage - persists to userData for use by main process.
  */
 
-import { app, safeStorage } from 'electron'
+import { app } from 'electron'
+import { decryptSecret, encryptSecret, isSecretEncryptionAvailable } from './safeSecret'
 import path from 'node:path'
 import fs from 'node:fs'
 import {
@@ -40,10 +41,16 @@ function getConfigPath(): string {
   return path.join(app.getPath('userData'), CONFIG_FILENAME)
 }
 
+let reencryptStoredSecrets = false
+
 const electronCipher: SecretCipher = {
-  isAvailable: () => safeStorage.isEncryptionAvailable(),
-  encrypt: (plaintext) => safeStorage.encryptString(plaintext).toString('base64'),
-  decrypt: (ciphertext) => safeStorage.decryptString(Buffer.from(ciphertext, 'base64')),
+  isAvailable: () => isSecretEncryptionAvailable(),
+  encrypt: (plaintext) => encryptSecret(plaintext),
+  decrypt: async (ciphertext) => {
+    const decrypted = await decryptSecret(ciphertext)
+    if (decrypted.ciphertext !== ciphertext) reencryptStoredSecrets = true
+    return decrypted.plaintext
+  },
 }
 
 function readPersistedConfig(): Partial<PersistedAIConfig> | null {
@@ -67,15 +74,30 @@ function writePersistedConfig(config: PersistedAIConfig): void {
   }
 }
 
-export function loadAIConfig(): StoredAIConfig {
+export async function loadAIConfig(): Promise<StoredAIConfig> {
+  reencryptStoredSecrets = false
   try {
     const persisted = readPersistedConfig()
     if (!persisted) {
       lastStorageWarning = sessionWarning
       return { ...DEFAULT_CONFIG, ...sessionSecrets }
     }
-    const decoded = decodeAIConfig(persisted, electronCipher)
+    const decoded = await decodeAIConfig(persisted, electronCipher)
     lastStorageWarning = decoded.warning ?? sessionWarning
+    if (reencryptStoredSecrets && !decoded.migratedPersisted) {
+      const refreshed = await encodeAIConfig(
+        { ...DEFAULT_CONFIG, ...decoded.config, ...sessionSecrets },
+        electronCipher,
+        persisted,
+      )
+      if (refreshed.secretsPersisted) {
+        try {
+          writePersistedConfig(refreshed.persisted)
+        } catch {
+          lastStorageWarning = 'AI credentials were unlocked, but the rotated encryption key could not be written.'
+        }
+      }
+    }
     if (decoded.migratedPersisted) {
       try {
         writePersistedConfig(decoded.migratedPersisted)
@@ -97,10 +119,11 @@ export interface AIConfigSaveResult {
   warning?: string
 }
 
-export function saveAIConfig(config: StoredAIConfig): AIConfigSaveResult {
+export async function saveAIConfig(config: StoredAIConfig): Promise<AIConfigSaveResult> {
+  reencryptStoredSecrets = false
   let previous: Partial<PersistedAIConfig> | undefined
   try { previous = readPersistedConfig() ?? undefined } catch { /* replace unreadable config after validation */ }
-  const encoded = encodeAIConfig(config, electronCipher, previous)
+  const encoded = await encodeAIConfig(config, electronCipher, previous)
   writePersistedConfig(encoded.persisted)
   sessionSecrets = encoded.sessionSecrets
   sessionWarning = encoded.warning
@@ -111,12 +134,12 @@ export function saveAIConfig(config: StoredAIConfig): AIConfigSaveResult {
   }
 }
 
-export function getAIConfigStorageStatus(): {
+export async function getAIConfigStorageStatus(): Promise<{
   encryptionAvailable: boolean
   warning?: string
-} {
+}> {
   let encryptionAvailable = false
-  try { encryptionAvailable = electronCipher.isAvailable() } catch { /* Electron may not have initialized safeStorage yet */ }
+  try { encryptionAvailable = await electronCipher.isAvailable() } catch { /* Electron may not have initialized safeStorage yet */ }
   return {
     encryptionAvailable,
     warning: lastStorageWarning ?? sessionWarning,

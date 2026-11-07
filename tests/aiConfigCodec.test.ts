@@ -41,8 +41,8 @@ const unavailableCipher: SecretCipher = {
 }
 
 describe('AI config credential codec', () => {
-  it('encrypts cloud credentials and never emits plaintext secret properties', () => {
-    const encoded = encodeAIConfig({
+  it('encrypts cloud credentials and never emits plaintext secret properties', async () => {
+    const encoded = await encodeAIConfig({
       ...config,
       // Renderer-only metadata must never be copied into persistence.
       secretStorageWarning: 'do not persist me',
@@ -61,9 +61,9 @@ describe('AI config credential codec', () => {
     expect(serialized).not.toContain('azure-secret-value')
   })
 
-  it('decrypts v2 credentials into runtime-only configuration', () => {
-    const persisted = encodeAIConfig(config, availableCipher()).persisted
-    const decoded = decodeAIConfig(persisted, availableCipher())
+  it('decrypts v2 credentials into runtime-only configuration', async () => {
+    const persisted = (await encodeAIConfig(config, availableCipher())).persisted
+    const decoded = await decodeAIConfig(persisted, availableCipher())
 
     expect(decoded.config.bedrockSecretKey).toBe('bedrock-secret-value')
     expect(decoded.config.azureApiKey).toBe('azure-secret-value')
@@ -72,7 +72,7 @@ describe('AI config credential codec', () => {
     expect(decoded.warning).toBeUndefined()
   })
 
-  it('prepares a verified one-time migration for legacy plaintext credentials', () => {
+  it('prepares a verified one-time migration for legacy plaintext credentials', async () => {
     const legacy: PersistedAIConfig = {
       provider: 'azure',
       model: 'gpt-4o',
@@ -81,7 +81,7 @@ describe('AI config credential codec', () => {
       bedrockSecretKey: 'legacy-bedrock-key',
       a2aEnabled: false,
     }
-    const decoded = decodeAIConfig(legacy, availableCipher())
+    const decoded = await decodeAIConfig(legacy, availableCipher())
     const migratedJson = JSON.stringify(decoded.migratedPersisted)
 
     expect(decoded.config.azureApiKey).toBe('legacy-azure-key')
@@ -95,8 +95,8 @@ describe('AI config credential codec', () => {
     expect(migratedJson).not.toContain('legacy-bedrock-key')
   })
 
-  it('uses session-only secrets instead of plaintext persistence when encryption is unavailable', () => {
-    const encoded = encodeAIConfig(config, unavailableCipher)
+  it('uses session-only secrets instead of plaintext persistence when encryption is unavailable', async () => {
+    const encoded = await encodeAIConfig(config, unavailableCipher)
 
     expect(encoded.secretsPersisted).toBe(false)
     expect(encoded.sessionSecrets).toEqual({
@@ -110,21 +110,21 @@ describe('AI config credential codec', () => {
     expect(encoded.warning).toContain('session only')
   })
 
-  it('does not destroy legacy plaintext until its encrypted migration can be verified', () => {
+  it('does not destroy legacy plaintext until its encrypted migration can be verified', async () => {
     const legacy: PersistedAIConfig = {
       provider: 'bedrock',
       model: 'model',
       bedrockSecretKey: 'legacy-secret',
       a2aEnabled: false,
     }
-    const decoded = decodeAIConfig(legacy, unavailableCipher)
+    const decoded = await decodeAIConfig(legacy, unavailableCipher)
 
     expect(decoded.config.bedrockSecretKey).toBe('legacy-secret')
     expect(decoded.migratedPersisted).toBeUndefined()
     expect(decoded.warning).toContain('Legacy plaintext AI credentials could not be migrated')
   })
 
-  it('surfaces corrupt encrypted credentials without failing the non-secret config', () => {
+  it('surfaces corrupt encrypted credentials without failing the non-secret config', async () => {
     const persisted: PersistedAIConfig = {
       provider: 'azure',
       model: 'gpt-4o',
@@ -132,21 +132,21 @@ describe('AI config credential codec', () => {
       storageVersion: AI_CONFIG_STORAGE_VERSION,
       a2aEnabled: false,
     }
-    const decoded = decodeAIConfig(persisted, availableCipher())
+    const decoded = await decodeAIConfig(persisted, availableCipher())
 
     expect(decoded.config.provider).toBe('azure')
     expect(decoded.config.azureApiKey).toBeUndefined()
     expect(decoded.warning).toContain('could not be decrypted')
   })
 
-  it('preserves an existing encrypted secret when a save contains no replacement', () => {
-    const previous = encodeAIConfig(config, availableCipher()).persisted
+  it('preserves an existing encrypted secret when a save contains no replacement', async () => {
+    const previous = (await encodeAIConfig(config, availableCipher())).persisted
     const withoutRuntimeSecrets = {
       ...config,
       bedrockSecretKey: undefined,
       azureApiKey: undefined,
     }
-    const encoded = encodeAIConfig(withoutRuntimeSecrets, availableCipher(), previous)
+    const encoded = await encodeAIConfig(withoutRuntimeSecrets, availableCipher(), previous)
 
     expect(encoded.persisted.bedrockSecretKeyEncrypted).toBe(previous.bedrockSecretKeyEncrypted)
     expect(encoded.persisted.azureApiKeyEncrypted).toBe(previous.azureApiKeyEncrypted)
@@ -172,13 +172,13 @@ describe('AI config credential codec', () => {
     expect(replaced.azureApiKey).toBe('new-azure-secret')
   })
 
-  it('falls back to memory when encryption verification fails', () => {
+  it('falls back to memory when encryption verification fails', async () => {
     const brokenCipher: SecretCipher = {
       isAvailable: () => true,
       encrypt: () => 'encrypted-but-corrupt',
       decrypt: () => 'different-plaintext',
     }
-    const encoded = encodeAIConfig(config, brokenCipher)
+    const encoded = await encodeAIConfig(config, brokenCipher)
 
     expect(encoded.secretsPersisted).toBe(false)
     expect(encoded.sessionSecrets.bedrockSecretKey).toBe('bedrock-secret-value')

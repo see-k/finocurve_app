@@ -10,11 +10,11 @@ const FMP_PLUGIN_API_KEY_MASK = '••••••••' as const
 
 export function registerPluginSettingsHandlers(): void {
   ipcMain.handle('plugins-fmp-is-configured', async () => ({
-    configured: isFmpApiKeyConfigured(),
+    configured: await isFmpApiKeyConfigured(),
   }))
 
   ipcMain.handle('plugins-settings-get', async () => {
-    const s = loadPluginSettings()
+    const s = await loadPluginSettings()
     const has = !!(s.fmpApiKey && s.fmpApiKey.trim())
     return {
       fmpApiKey: has ? FMP_PLUGIN_API_KEY_MASK : '',
@@ -24,15 +24,15 @@ export function registerPluginSettingsHandlers(): void {
   ipcMain.handle(
     'plugins-settings-save',
     async (_event, payload: { fmpApiKey: unknown }) => {
-      const existing = loadPluginSettings()
+      const existing = await loadPluginSettings()
       const raw = payload?.fmpApiKey
       const incoming = typeof raw === 'string' ? raw.trim() : ''
       if (!incoming) {
-        savePluginSettings({ ...existing, fmpApiKey: undefined })
+        await savePluginSettings({ ...existing, fmpApiKey: undefined })
       } else if (incoming === FMP_PLUGIN_API_KEY_MASK) {
         /* unchanged masked value — keep stored key */
       } else {
-        savePluginSettings({ ...existing, fmpApiKey: incoming })
+        await savePluginSettings({ ...existing, fmpApiKey: incoming })
       }
       return { ok: true }
     }
