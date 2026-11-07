@@ -53,6 +53,13 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+.markets-dashboard__btn--icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
 .markets-dashboard__btn--primary {
   color: var(--brand-primary);
   border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--glass-border));

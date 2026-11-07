@@ -472,6 +472,11 @@
   color: var(--text-tertiary);
   cursor: pointer;
 }
+.tracker-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .tracker-icon-btn--edit:hover {
   color: var(--brand-primary);
   background: rgba(99, 102, 241, 0.12);

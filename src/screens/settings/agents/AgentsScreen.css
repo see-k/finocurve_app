@@ -462,7 +462,14 @@
 }
 
 .agent-private-files__actions > button {
-  padding: 8px 12px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.agent-private-files__actions > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .agent-private-files__list {
@@ -920,9 +927,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
   min-height: 34px;
   gap: 6px;
-  padding: 0 11px;
+  padding: 0;
   border: 1px solid var(--glass-border);
   border-radius: 10px;
   background: var(--glass-bg);
@@ -938,7 +946,8 @@
 }
 
 .expert-card__actions .expert-card__message {
-  flex: 1;
+  flex: none;
+  width: 34px;
   border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--glass-border));
   background: color-mix(in srgb, var(--brand-primary) 11%, var(--glass-bg));
   color: var(--brand-primary);
@@ -1249,9 +1258,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 76px;
+  width: 40px;
+  min-width: 40px;
   gap: 5px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, var(--glass-border));
   border-radius: 11px;
   background: color-mix(in srgb, var(--brand-primary) 10%, var(--glass-bg));
@@ -1889,9 +1899,9 @@
 }
 
 .agent-specialties__input > button {
-  min-width: 94px;
-  padding: 0 16px;
-  font-size: 12px;
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
 }
 
 .agent-specialties__chips {

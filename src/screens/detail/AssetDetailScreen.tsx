@@ -86,7 +86,9 @@ export default function AssetDetailScreen() {
       <div className="detail-screen">
         <GlassContainer>
           <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>Asset not found</p>
-          <GlassButton text="Go Back" onClick={() => navigate(-1)} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+            <GlassIconButton icon={<ArrowLeft size={20} />} onClick={() => navigate(-1)} size={44} title="Go back" />
+          </div>
         </GlassContainer>
       </div>
     )
@@ -286,8 +288,8 @@ export default function AssetDetailScreen() {
         )}
 
         <div className="detail-actions">
-          <GlassButton text="Edit Asset" onClick={() => setShowEdit(true)} icon={<Edit3 size={16} />} />
-          <GlassButton text="Delete Asset" onClick={() => setShowDeleteConfirm(true)} icon={<Trash2 size={16} />} />
+          <GlassIconButton icon={<Edit3 size={18} />} onClick={() => setShowEdit(true)} size={40} title="Edit asset" />
+          <GlassIconButton icon={<Trash2 size={18} />} onClick={() => setShowDeleteConfirm(true)} size={40} title="Delete asset" />
         </div>
       </div>
 

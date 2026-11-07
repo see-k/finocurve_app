@@ -55,12 +55,24 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
           </p>
         </div>
         <div className="fin-enterprise__actions">
-          <button type="button" className="fin-btn" onClick={refresh} disabled={loading}>
-            <RefreshCw size={13} aria-hidden className={loading ? 'fin-enterprise__spin' : undefined} />
-            Refresh
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={refresh}
+            disabled={loading}
+            title="Refresh"
+            aria-label="Refresh consolidated custody"
+          >
+            <RefreshCw size={15} aria-hidden className={loading ? 'fin-enterprise__spin' : undefined} />
           </button>
-          <button type="button" className="fin-btn" onClick={onOpenEnterprise}>
-            Full workspace <ExternalLink size={13} aria-hidden />
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={onOpenEnterprise}
+            title="Full workspace"
+            aria-label="Open enterprise workspace"
+          >
+            <ExternalLink size={15} aria-hidden />
           </button>
         </div>
       </header>
@@ -70,7 +82,9 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
           <div className="fin-empty">
             <span className="fin-empty__title">Consolidated custody could not be loaded</span>
             <span className="fin-empty__body">{error}</span>
-            <button type="button" className="fin-btn" onClick={refresh}>Try again</button>
+            <button type="button" className="fin-btn fin-btn--icon" onClick={refresh} title="Try again" aria-label="Try again">
+              <RefreshCw size={15} aria-hidden />
+            </button>
           </div>
         </Panel>
       ) : (

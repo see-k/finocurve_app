@@ -802,8 +802,8 @@ export default function ChatsScreen() {
           <span><MessagesSquare size={28} /></span>
           <h2>Your private advisory room</h2>
           <p>Start a focused conversation with one or more AI advisors.</p>
-          <button type="button" onClick={() => setShowNewModal(true)}>
-            <Plus size={16} /> New conversation
+          <button type="button" onClick={() => setShowNewModal(true)} title="New conversation" aria-label="New conversation">
+            <Plus size={16} aria-hidden />
           </button>
         </section>
       )}

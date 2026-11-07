@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Building2, Eye, EyeOff, KeyRound, Link2 } from 'lucide-react'
+import { ArrowLeft, Building2, Check, ExternalLink, Eye, EyeOff, KeyRound, Link2, PlugZap, Trash2, Unplug } from 'lucide-react'
 import Panel from '../../components/financial/Panel'
 import { Notice, StatusChip, type StatusTone } from '../../components/financial/Status'
 import PageGround from '../../components/financial/PageGround'
@@ -18,6 +18,19 @@ type CheckState =
   | { status: 'ok' }
   | { status: 'unauthorized'; detail: string }
   | { status: 'unreachable'; detail: string }
+
+/** http(s) only — this is opened in the system browser. */
+function servicePageUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
 
 /** Probes the service, distinguishing "cannot reach" from "will not authorize". */
 async function testService(rawUrl: string): Promise<CheckState> {
@@ -209,6 +222,12 @@ export default function EnterpriseServiceScreen() {
       : 'Not configured'
 
   const urlDirty = url.trim().replace(/\/+$/, '') !== savedUrl
+  const openUrl = servicePageUrl(url)
+
+  const handleOpenService = () => {
+    if (!openUrl) return
+    window.open(openUrl, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <div className="fin-page settings-sub-page">
@@ -230,8 +249,14 @@ export default function EnterpriseServiceScreen() {
         </div>
         <div className="fin-masthead__actions">
           <StatusChip tone={connectionTone} label={connectionLabel} />
-          <button type="button" className="fin-btn" onClick={() => navigate('/main?tab=settings')}>
-            <ArrowLeft size={13} aria-hidden /> Back
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={() => navigate('/main?tab=settings')}
+            title="Back to settings"
+            aria-label="Back to settings"
+          >
+            <ArrowLeft size={15} aria-hidden />
           </button>
         </div>
       </header>
@@ -254,35 +279,51 @@ export default function EnterpriseServiceScreen() {
                 <>
                   <button
                     type="button"
-                    className="fin-btn"
+                    className="fin-btn fin-btn--icon"
                     onClick={handleTest}
                     disabled={check.status === 'testing' || saving || !url.trim()}
+                    title={check.status === 'testing' ? 'Testing connection' : 'Test connection'}
+                    aria-label={check.status === 'testing' ? 'Testing connection' : 'Test connection'}
                   >
-                    {check.status === 'testing' ? 'Testing…' : 'Test connection'}
+                    <PlugZap size={15} aria-hidden className={check.status === 'testing' ? 'fin-spin' : undefined} />
                   </button>
                   <button
                     type="button"
-                    className="fin-btn fin-btn--accent"
+                    className="fin-btn fin-btn--icon fin-btn--accent"
                     onClick={handleSaveUrl}
                     disabled={saving || !urlDirty}
+                    title="Save service URL"
+                    aria-label="Save service URL"
                   >
-                    Save
+                    <Check size={15} aria-hidden />
                   </button>
                 </>
               }
             >
               <div className="fin-field">
                 <label className="fin-label" htmlFor="enterprise-url">Service URL</label>
-                <input
-                  id="enterprise-url"
-                  className="fin-input"
-                  type="text"
-                  value={url}
-                  onChange={(event) => setUrl(event.target.value)}
-                  placeholder="http://127.0.0.1:8002"
-                  spellCheck={false}
-                  autoComplete="off"
-                />
+                <div className="fin-field__row">
+                  <input
+                    id="enterprise-url"
+                    className="fin-input"
+                    type="text"
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                    placeholder="http://127.0.0.1:8002"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="fin-btn fin-btn--icon"
+                    onClick={handleOpenService}
+                    disabled={!openUrl}
+                    title="Open service"
+                    aria-label="Open service in browser"
+                  >
+                    <ExternalLink size={15} aria-hidden />
+                  </button>
+                </div>
                 <span className="fin-field__hint">
                   Usually http://127.0.0.1:8002 when the service runs on this machine.
                 </span>
@@ -312,17 +353,26 @@ export default function EnterpriseServiceScreen() {
               actions={
                 <>
                   {tokenStatus.configured && (
-                    <button type="button" className="fin-btn" onClick={handleRemoveToken} disabled={saving}>
-                      Remove
+                    <button
+                      type="button"
+                      className="fin-btn fin-btn--icon"
+                      onClick={handleRemoveToken}
+                      disabled={saving}
+                      title="Remove API token"
+                      aria-label="Remove API token"
+                    >
+                      <Trash2 size={15} aria-hidden />
                     </button>
                   )}
                   <button
                     type="button"
-                    className="fin-btn fin-btn--accent"
+                    className="fin-btn fin-btn--icon fin-btn--accent"
                     onClick={handleSaveToken}
                     disabled={saving || !token.trim()}
+                    title={tokenStatus.configured ? 'Replace token' : 'Save token'}
+                    aria-label={tokenStatus.configured ? 'Replace token' : 'Save token'}
                   >
-                    {tokenStatus.configured ? 'Replace token' : 'Save token'}
+                    <Check size={15} aria-hidden />
                   </button>
                 </>
               }
@@ -376,8 +426,15 @@ export default function EnterpriseServiceScreen() {
 
             {savedUrl && (
               <Panel title="Disconnect" note="Clears the service URL and the API token from this device.">
-                <button type="button" className="fin-btn" onClick={handleDisconnect} disabled={saving}>
-                  Disconnect enterprise service
+                <button
+                  type="button"
+                  className="fin-btn fin-btn--icon"
+                  onClick={handleDisconnect}
+                  disabled={saving}
+                  title="Disconnect enterprise service"
+                  aria-label="Disconnect enterprise service"
+                >
+                  <Unplug size={15} aria-hidden />
                 </button>
               </Panel>
             )}

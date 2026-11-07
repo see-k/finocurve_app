@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen, GitBranch } from 'lucide-react'
+import { ArrowLeft, Cpu, Cloud, Shield, ChevronDown, CheckCircle, XCircle, Play, Square, Copy, Loader2, Globe, Info, Terminal, Server, FolderOpen, GitBranch, RefreshCw } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
 import GlassButton from '../../components/glass/GlassButton'
 import GlassTextField from '../../components/glass/GlassTextField'
@@ -579,11 +579,12 @@ export default function AIConfigScreen() {
                       </p>
                     )}
                     <div style={{ marginTop: 8 }}>
-                      <GlassButton
-                        text={ollamaModelsLoading ? 'Refreshing...' : 'Refresh models'}
+                      <GlassIconButton
+                        icon={<RefreshCw size={16} className={ollamaModelsLoading ? 'fin-spin' : undefined} />}
                         onClick={fetchOllamaModels}
                         disabled={ollamaModelsLoading}
-                        width="auto"
+                        size={38}
+                        title={ollamaModelsLoading ? 'Refreshing models' : 'Refresh models'}
                       />
                     </div>
                   </div>
@@ -779,11 +780,12 @@ export default function AIConfigScreen() {
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-                    <GlassButton
-                      text={routerModelsLoading ? 'Refreshing...' : 'Refresh models'}
+                    <GlassIconButton
+                      icon={<RefreshCw size={16} className={routerModelsLoading ? 'fin-spin' : undefined} />}
                       onClick={fetchRouterOllamaModels}
                       disabled={routerModelsLoading}
-                      width="auto"
+                      size={38}
+                      title={routerModelsLoading ? 'Refreshing models' : 'Refresh models'}
                     />
                     <GlassButton
                       text={routerConnectionTesting ? 'Testing...' : 'Test router model'}
@@ -900,7 +902,10 @@ export default function AIConfigScreen() {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 8,
-                            padding: '8px 12px',
+                            width: 36,
+                            height: 36,
+                            padding: 0,
+                            justifyContent: 'center',
                             borderRadius: 8,
                             background: 'rgba(255,255,255,0.05)',
                             border: '1px solid rgba(255,255,255,0.1)',
@@ -908,16 +913,18 @@ export default function AIConfigScreen() {
                             cursor: 'pointer',
                             fontSize: 13,
                           }}
-                          title="View A2A logs"
+                          title="View logs"
+                          aria-label="View logs"
                         >
                           <Terminal size={16} />
-                          Logs
                         </button>
                         <button
                           type="button"
                           className={`a2a-control-btn ${a2aStatus?.running ? 'a2a-control-btn--stop' : 'a2a-control-btn--start'}`}
                           onClick={a2aStatus?.running ? handleA2AStop : handleA2AStart}
                           disabled={a2aLoading}
+                          title={a2aLoading ? 'Updating server' : a2aStatus?.running ? 'Stop server' : 'Start server'}
+                          aria-label={a2aLoading ? 'Updating server' : a2aStatus?.running ? 'Stop server' : 'Start server'}
                         >
                           {a2aLoading ? (
                             <Loader2 size={16} className="a2a-spinner" />
@@ -926,7 +933,6 @@ export default function AIConfigScreen() {
                           ) : (
                             <Play size={16} />
                           )}
-                          {a2aStatus?.running ? 'Stop' : 'Start'}
                         </button>
                       </div>
                     </div>

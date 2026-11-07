@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Upload, Download, Trash2, Shield, Cloud, HardDrive, Eye, X, FolderOpen, RefreshCw, Loader2, FileChartColumnIncreasing, Calendar, ArrowDownAZ, Search, Pencil } from 'lucide-react'
-import GlassContainer from '../../components/glass/GlassContainer'
-import GlassButton from '../../components/glass/GlassButton'
-import GlassIconButton from '../../components/glass/GlassIconButton'
-import GlassTextField from '../../components/glass/GlassTextField'
+import { FileText, Upload, Download, Trash2, Shield, Cloud, HardDrive, Eye, X, FolderOpen, RefreshCw, FileChartColumnIncreasing, Search, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import PageGround from '../../components/financial/PageGround'
+import Panel from '../../components/financial/Panel'
+import KeyFigures from '../../components/financial/KeyFigures'
+import Segmented from '../../components/financial/Segmented'
+import { Notice, StatusChip } from '../../components/financial/Status'
 import './ReportsScreen.css'
 
-const REPORTS_BG = 'https://images.unsplash.com/photo-1515266591878-f93e32bc5937?q=80&w=1287&auto=format&fit=crop'
 const REPORTS_PREFIX = 'finocurve/reports/'
 const DOCUMENTS_PREFIX = 'finocurve/documents/'
 const MAX_FILE_SIZE_MB = 20
@@ -23,6 +23,13 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatModified(value: string): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function fileNameFromKey(key: string): string {
@@ -45,22 +52,24 @@ function documentParentPrefix(key: string): string {
   return key.slice(0, lastSlash + 1)
 }
 
-type SortBy = 'date' | 'name'
+type SortKey = 'name' | 'source' | 'size' | 'modified'
 
-function sortFileItems(items: FileItem[], sortBy: SortBy): FileItem[] {
-  const out = [...items]
-  if (sortBy === 'name') {
-    out.sort((a, b) =>
-      fileNameFromKey(a.key).localeCompare(fileNameFromKey(b.key), undefined, { sensitivity: 'base' }),
-    )
-  } else {
-    out.sort((a, b) => {
-      const ta = a.lastModified ? new Date(a.lastModified).getTime() : 0
-      const tb = b.lastModified ? new Date(b.lastModified).getTime() : 0
-      return tb - ta
-    })
+function compareFileItems(a: FileItem, b: FileItem, sortKey: SortKey): number {
+  if (sortKey === 'name') {
+    return fileNameFromKey(a.key).localeCompare(fileNameFromKey(b.key), undefined, { sensitivity: 'base', numeric: true })
   }
-  return out
+  if (sortKey === 'source') return a.source.localeCompare(b.source)
+  if (sortKey === 'size') return a.size - b.size
+  const ta = a.lastModified ? new Date(a.lastModified).getTime() : 0
+  const tb = b.lastModified ? new Date(b.lastModified).getTime() : 0
+  return ta - tb
+}
+
+function sortFileItems(items: FileItem[], sortKey: SortKey, descending: boolean): FileItem[] {
+  return [...items].sort((a, b) => {
+    const compared = compareFileItems(a, b, sortKey)
+    return descending ? -compared : compared
+  })
 }
 
 function sanitizeFileName(name: string): string {
@@ -86,7 +95,8 @@ export default function ReportsScreen() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [subTab, setSubTab] = useState<'reports' | 'documents'>('reports')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'cloud' | 'local'>('all')
-  const [sortBy, setSortBy] = useState<SortBy>('date')
+  const [sortKey, setSortKey] = useState<SortKey>('modified')
+  const [sortDescending, setSortDescending] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [s3Connected, setS3Connected] = useState<boolean | null>(null)
   const [reports, setReports] = useState<FileItem[]>([])
@@ -250,8 +260,23 @@ export default function ReportsScreen() {
     return filteredDocuments.filter((i) => fileNameFromKey(i.key).toLowerCase().includes(searchNeedle))
   }, [filteredDocuments, searchNeedle])
 
-  const sortedReports = useMemo(() => sortFileItems(reportsMatchingSearch, sortBy), [reportsMatchingSearch, sortBy])
-  const sortedDocuments = useMemo(() => sortFileItems(documentsMatchingSearch, sortBy), [documentsMatchingSearch, sortBy])
+  const sortedReports = useMemo(
+    () => sortFileItems(reportsMatchingSearch, sortKey, sortDescending),
+    [reportsMatchingSearch, sortKey, sortDescending],
+  )
+  const sortedDocuments = useMemo(
+    () => sortFileItems(documentsMatchingSearch, sortKey, sortDescending),
+    [documentsMatchingSearch, sortKey, sortDescending],
+  )
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDescending((descending) => !descending)
+    } else {
+      setSortKey(key)
+      setSortDescending(key === 'size' || key === 'modified')
+    }
+  }
 
   const visibleReportIds = useMemo(() => sortedReports.map((i) => fileItemId(i)), [sortedReports])
   const visibleDocumentIds = useMemo(() => sortedDocuments.map((i) => fileItemId(i)), [sortedDocuments])
@@ -535,423 +560,370 @@ export default function ReportsScreen() {
     setError(null)
   }
 
-  const FileRow = ({
-    item,
+  const cloudCount = [...reports, ...documents].filter((item) => item.source === 'cloud').length
+  const deviceCount = [...reports, ...documents].filter((item) => item.source === 'local').length
+
+  const renderFileTable = ({
+    items,
     listKind,
-    selected,
-    onToggleSelect,
+    selectedIds,
+    onToggle,
+    selectAllRef,
+    allSelected,
+    onToggleAll,
   }: {
-    item: FileItem
+    items: FileItem[]
     listKind: 'reports' | 'documents'
-    selected: boolean
-    onToggleSelect: () => void
+    selectedIds: string[]
+    onToggle: (id: string) => void
+    selectAllRef: RefObject<HTMLInputElement | null>
+    allSelected: boolean
+    onToggleAll: () => void
   }) => (
-    <div
-      className={`reports-file-row reports-file-row--${item.source}${selected ? ' reports-file-row--selected' : ''}`}
-    >
-      <label className="reports-file-row__check">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => {
-            e.stopPropagation()
-            onToggleSelect()
-          }}
-          aria-label={`Select ${fileNameFromKey(item.key)}`}
-        />
-      </label>
-      <div className="reports-file-row__info">
-        {item.source === 'cloud' ? (
-          <Cloud size={20} className="reports-file-row__icon reports-file-row__icon--cloud" />
-        ) : (
-          <HardDrive size={20} className="reports-file-row__icon reports-file-row__icon--local" />
-        )}
-        <div className="reports-file-row__meta">
-          <div className="reports-file-row__name-row">
-            <span className="reports-file-row__name">{fileNameFromKey(item.key)}</span>
-            <span className={`reports-file-row__badge reports-file-row__badge--${item.source}`}>
-              {item.source === 'cloud' ? 'Cloud' : 'Device'}
-            </span>
-          </div>
-          <span className="reports-file-row__detail">
-            {formatSize(item.size)} · {item.lastModified ? new Date(item.lastModified).toLocaleDateString() : ''}
+    <div className="fin-table-wrap">
+      <table className="fin-table">
+        <thead>
+          <tr>
+            <th className="reports-check">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                checked={allSelected}
+                onChange={onToggleAll}
+                aria-label={listKind === 'reports' ? 'Select all reports in this list' : 'Select all documents in this list'}
+              />
+            </th>
+            {([
+              ['name', 'File', false],
+              ['source', 'Source', false],
+              ['size', 'Size', true],
+              ['modified', 'Modified', true],
+            ] as const).map(([key, label, numeric]) => (
+              <th
+                key={key}
+                scope="col"
+                className={numeric ? 'fin-table__num' : undefined}
+                aria-sort={sortKey === key ? (sortDescending ? 'descending' : 'ascending') : 'none'}
+              >
+                <button
+                  type="button"
+                  className={`fin-table__sort ${sortKey === key ? 'fin-table__sort--active' : ''}`.trim()}
+                  onClick={() => toggleSort(key)}
+                >
+                  {label}
+                  {sortKey === key && (sortDescending
+                    ? <ChevronDown size={11} aria-hidden />
+                    : <ChevronUp size={11} aria-hidden />)}
+                </button>
+              </th>
+            ))}
+            <th className="reports-actions-head">
+              <span className="reports-sr">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => {
+            const id = fileItemId(item)
+            const selected = selectedIds.includes(id)
+            const name = fileNameFromKey(item.key)
+            return (
+              <tr key={id} className={selected ? 'reports-row--selected' : undefined}>
+                <td className="reports-check">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => onToggle(id)}
+                    aria-label={`Select ${name}`}
+                  />
+                </td>
+                <td>
+                  <span className="fin-table__identity">
+                    <span className="fin-mark" aria-hidden>
+                      {item.source === 'cloud' ? <Cloud size={14} /> : <HardDrive size={14} />}
+                    </span>
+                    <span className="fin-table__identity-text">
+                      <span className="fin-table__primary">{name}</span>
+                    </span>
+                  </span>
+                </td>
+                <td>
+                  <StatusChip tone={item.source === 'cloud' ? 'ok' : 'neutral'} label={item.source === 'cloud' ? 'Cloud' : 'Device'} />
+                </td>
+                <td className="fin-table__num">
+                  <span className="fin-table__value">{formatSize(item.size)}</span>
+                </td>
+                <td className="fin-table__num">
+                  <span className="fin-num">{formatModified(item.lastModified)}</span>
+                </td>
+                <td>
+                  <div className="reports-row__actions">
+                    {listKind === 'documents' && (
+                      <button type="button" className="fin-btn fin-btn--icon" onClick={() => openRenameDocument(item)} title="Rename" aria-label={`Rename ${name}`}>
+                        <Pencil size={14} aria-hidden />
+                      </button>
+                    )}
+                    {isViewable(item.key) && (
+                      <button type="button" className="fin-btn fin-btn--icon" onClick={() => handleView(item)} title="View" aria-label={`View ${name}`}>
+                        <Eye size={14} aria-hidden />
+                      </button>
+                    )}
+                    <button type="button" className="fin-btn fin-btn--icon" onClick={() => handleDownload(item)} title="Download" aria-label={`Download ${name}`}>
+                      <Download size={14} aria-hidden />
+                    </button>
+                    <button type="button" className="fin-btn fin-btn--icon" onClick={() => handleDelete(item)} title="Delete" aria-label={`Delete ${name}`}>
+                      <Trash2 size={14} aria-hidden />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  const masthead = (actions?: ReactNode) => (
+    <header className="fin-masthead">
+      <div className="fin-masthead__id">
+        <div className="fin-masthead__eyebrow">
+          <strong>FinoCurve</strong>
+          <span className="fin-masthead__sep">/</span>
+          <span>Library</span>
+        </div>
+        <h1 className="fin-masthead__title">Reports & documents</h1>
+        <p className="fin-masthead__sub">
+          Risk reports and files kept on this device or in S3.
+        </p>
+      </div>
+      {actions ? <div className="fin-masthead__actions">{actions}</div> : null}
+    </header>
+  )
+
+  const frame = (body: ReactNode, actions?: ReactNode) => (
+    <div className="fin-page reports">
+      <PageGround />
+      {masthead(actions)}
+      <div className="fin-stack reports__stack">{body}</div>
+    </div>
+  )
+
+  if (!hasElectronS3 && !hasElectronLocal) {
+    return frame(
+      <Panel title="Storage" icon={<FileText size={14} aria-hidden />}>
+        <div className="fin-empty">
+          <FileText size={28} aria-hidden />
+          <span className="fin-empty__title">Storage is in the desktop app</span>
+          <span className="fin-empty__body">
+            Reports and documents are available when you run FinoCurve on the desktop. Configure an S3 bucket or choose a local folder in Settings.
           </span>
         </div>
-      </div>
-      <div className="reports-file-row__actions">
-        {listKind === 'documents' && (
-          <GlassIconButton
-            icon={<Pencil size={16} aria-hidden />}
-            onClick={() => openRenameDocument(item)}
-            size={36}
-            title="Rename"
-          />
-        )}
-        {isViewable(item.key) && (
-          <GlassIconButton icon={<Eye size={16} />} onClick={() => handleView(item)} size={36} title="View" />
-        )}
-        <GlassIconButton icon={<Download size={16} />} onClick={() => handleDownload(item)} size={36} title="Open / Download" />
-        <GlassIconButton icon={<Trash2 size={16} />} onClick={() => handleDelete(item)} size={36} title="Delete" />
-      </div>
-    </div>
-  )
+      </Panel>,
+    )
+  }
 
-  const emptyState = (
-    <div className="reports-page">
-      <div className="reports-bg">
-        <img src={REPORTS_BG} alt="" className="reports-bg__img" />
-        <div className="reports-bg__overlay" />
-      </div>
-      <div className="reports-content">
-        <div className="reports-header">
-          <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
+  if (!s3Connected && !localConnected) {
+    return frame(
+      <Panel title="Storage" icon={<FileText size={14} aria-hidden />} note="Nothing is filed until a store is connected.">
+        <div className="fin-empty">
+          <FileText size={28} aria-hidden />
+          <span className="fin-empty__title">Connect storage</span>
+          <span className="fin-empty__body">
+            Configure an S3 bucket or choose a local folder to keep risk reports and documents such as tax files and financial statements.
+          </span>
+          <button type="button" className="fin-btn fin-btn--accent" onClick={() => navigate('/settings/cloud-storage')}>
+            Storage settings
+          </button>
         </div>
-        <GlassContainer padding="32px" borderRadius={20} className="reports-empty">
-          <FileText size={48} style={{ color: 'var(--text-tertiary)', marginBottom: 16 }} />
-          <h2>Storage in desktop app</h2>
-          <p>Reports and documents are available when you run FinoCurve in the desktop app. Configure an S3 bucket or choose a local folder in Settings.</p>
-        </GlassContainer>
-      </div>
-    </div>
-  )
+      </Panel>,
+    )
+  }
 
-  if (!hasElectronS3 && !hasElectronLocal) return emptyState
+  const activeItems = subTab === 'reports' ? sortedReports : sortedDocuments
+  const activeTotal = subTab === 'reports' ? reports.length : documents.length
+  const activeFiltered = subTab === 'reports' ? filteredReports.length : filteredDocuments.length
+  const selectedIds = subTab === 'reports' ? selectedReportIds : selectedDocumentIds
+  const clearSelection = () => (subTab === 'reports' ? setSelectedReportIds([]) : setSelectedDocumentIds([]))
+  const bulkDelete = () => void (subTab === 'reports' ? handleBulkDeleteReports() : handleBulkDeleteDocuments())
 
-  const connectState = (
-    <div className="reports-page">
-      <div className="reports-bg">
-        <img src={REPORTS_BG} alt="" className="reports-bg__img" />
-        <div className="reports-bg__overlay" />
-      </div>
-      <div className="reports-content">
-        <div className="reports-header">
-          <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
-        </div>
-        <GlassContainer padding="32px" borderRadius={20} className="reports-empty">
-          <FileText size={48} style={{ color: 'var(--text-tertiary)', marginBottom: 16 }} />
-          <h2>Connect storage</h2>
-          <p style={{ marginBottom: 20 }}>Configure an S3 bucket or choose a local folder in Settings to store risk reports and upload documents (tax files, financial statements).</p>
-          <GlassButton text="Open Storage Settings" onClick={() => navigate('/settings/cloud-storage')} isPrimary />
-        </GlassContainer>
-      </div>
-    </div>
-  )
-
-  if (!s3Connected && !localConnected) return connectState
+  const emptyCopy = subTab === 'reports'
+    ? (reports.length === 0
+      ? 'No reports yet. Generate one from Risk analysis.'
+      : filteredReports.length === 0
+        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} reports. Try a different filter.`
+        : `No files match “${searchQuery.trim()}”.`)
+    : (documents.length === 0
+      ? `No documents yet. Upload tax files, financial statements, and similar records. ${MAX_FILE_SIZE_MB} MB per file.`
+      : filteredDocuments.length === 0
+        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} documents. Try a different filter.`
+        : `No files match “${searchQuery.trim()}”.`)
 
   return (
-    <div className="reports-page">
-      <div className="reports-bg">
-        <img src={REPORTS_BG} alt="" className="reports-bg__img" />
-        <div className="reports-bg__overlay" />
-      </div>
-      <div className="reports-content">
-        <div className="reports-header">
-          <h1 className="reports-title"><FileText size={24} /> Reports & Documents</h1>
-          {hasElectronLocal && localConnected && window.electronAPI?.localStorageOpenDocumentsFolder && (
-            <GlassIconButton
-              icon={<FolderOpen size={18} aria-hidden />}
-              onClick={() => void handleOpenLocalDocumentsFolder()}
-              title="Open documents folder"
-              size={40}
-            />
-          )}
-        </div>
+    <>
+      {frame(
+        <>
+          <KeyFigures
+            figures={[
+              { label: 'Risk reports', value: loading ? '—' : String(reports.length), meta: 'Generated analyses' },
+              { label: 'Documents', value: loading ? '—' : String(documents.length), meta: `Up to ${MAX_FILE_SIZE_MB} MB each` },
+              {
+                label: 'In the cloud',
+                value: s3Connected ? (loading ? '—' : String(cloudCount)) : '—',
+                meta: s3Connected ? 'S3' : 'Not connected',
+              },
+              {
+                label: 'On this device',
+                value: localConnected ? (loading ? '—' : String(deviceCount)) : '—',
+                meta: localConnected ? 'Local folder' : 'Not connected',
+              },
+            ]}
+          />
 
-        {/* Sub-page menu */}
-        <div className="reports-tabs">
-          <button
-            type="button"
-            className={`reports-tab ${subTab === 'reports' ? 'reports-tab--active' : ''}`}
-            onClick={() => setSubTabAndClearSelection('reports')}
-          >
-            <Shield size={16} /> Reports
-          </button>
-          <button
-            type="button"
-            className={`reports-tab ${subTab === 'documents' ? 'reports-tab--active' : ''}`}
-            onClick={() => setSubTabAndClearSelection('documents')}
-          >
-            <FileText size={16} /> Documents
-          </button>
-        </div>
+          {error && <Notice tone="bad">{error}</Notice>}
 
-        <div className="reports-layout">
-          <div className="reports-layout__main">
-            {error && <p className="reports-error">{error}</p>}
-
-            {/* Reports sub-page */}
-        {subTab === 'reports' && (
-          <div className="reports-section">
-            <div className="reports-section__header">
-              <h2 className="reports-section__title"><Shield size={18} /> Risk Reports</h2>
-              <GlassIconButton
-                icon={<FileChartColumnIncreasing size={18} aria-hidden />}
-                onClick={() => navigate('/risk-analysis')}
-                title="Generate report"
-                size={40}
+          <div className="reports-toolbar">
+            <label className="reports-search">
+              <Search size={14} aria-hidden />
+              <input
+                className="fin-input"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by file name"
+                aria-label="Search by file name"
               />
-            </div>
-            <GlassContainer padding="16px" borderRadius={16}>
-              {loading ? (
-                <p className="reports-loading">Loading...</p>
-              ) : reportsMatchingSearch.length === 0 ? (
-                <div className="reports-empty-list">
-                  <FileText size={32} style={{ opacity: 0.5 }} />
-                  <p>
-                    {reports.length === 0
-                      ? 'No reports yet. Generate one from Risk Analysis.'
-                      : filteredReports.length === 0
-                        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} reports. Try a different filter.`
-                        : `No files match “${searchQuery.trim()}”.`}
-                  </p>
-                  {reports.length === 0 ? (
-                    <GlassButton text="Go to Risk Analysis" onClick={() => navigate('/risk-analysis')} width="auto" />
-                  ) : filteredReports.length === 0 ? (
-                    <GlassButton text="Show all" onClick={() => setSourceFilter('all')} width="auto" />
-                  ) : searchNeedle ? (
-                    <GlassButton text="Clear search" onClick={() => setSearchQuery('')} width="auto" />
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  {selectedReportIds.length > 0 && (
-                    <div className="reports-bulk-bar">
-                      <span className="reports-bulk-bar__count">{selectedReportIds.length} selected</span>
-                      <div className="reports-bulk-bar__actions">
-                        <GlassButton
-                          text="Clear"
-                          onClick={() => setSelectedReportIds([])}
-                          width="auto"
-                          disabled={deletingBulk}
-                        />
-                        <GlassButton
-                          text={`Delete (${selectedReportIds.length})`}
-                          onClick={() => void handleBulkDeleteReports()}
-                          width="auto"
-                          icon={<Trash2 size={16} aria-hidden />}
-                          disabled={deletingBulk}
-                          isLoading={deletingBulk}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <label className="reports-select-all">
-                    <input
-                      ref={selectAllReportsRef}
-                      type="checkbox"
-                      checked={allReportsVisibleSelected}
-                      onChange={toggleSelectAllReports}
-                      aria-label="Select all reports in this list"
-                    />
-                    <span>Select all</span>
-                  </label>
-                  <div className="reports-list">
-                    {sortedReports.map((item) => {
-                      const id = fileItemId(item)
-                      return (
-                        <FileRow
-                          key={id}
-                          item={item}
-                          listKind="reports"
-                          selected={selectedReportIds.includes(id)}
-                          onToggleSelect={() => toggleReportSelection(id)}
-                        />
-                      )
-                    })}
-                  </div>
-                </>
+              {searchQuery && (
+                <button type="button" className="reports-search__clear" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                  <X size={14} aria-hidden />
+                </button>
               )}
-            </GlassContainer>
-          </div>
-        )}
-
-            {/* Documents sub-page */}
-        {subTab === 'documents' && (
-          <div className="reports-section">
-            <div className="reports-section__header">
-              <h2 className="reports-section__title"><FileText size={18} /> Documents</h2>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  style={{ display: 'none' }}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt"
-                  onChange={handleUpload}
-                />
-                <GlassIconButton
-                  icon={
-                    uploading ? (
-                      <Loader2 size={18} className="reports-toolbar-icon--spin" aria-hidden />
-                    ) : (
-                      <Upload size={18} aria-hidden />
-                    )
-                  }
-                  onClick={() => fileInputRef.current?.click()}
-                  title={uploading ? 'Uploading…' : 'Upload document'}
-                  disabled={uploading}
-                  size={40}
-                />
-                <GlassIconButton
-                  icon={<RefreshCw size={18} aria-hidden />}
-                  onClick={() => void loadAll()}
-                  title="Refresh list"
-                  disabled={loading}
-                  size={40}
-                />
-              </div>
-            </div>
-            <GlassContainer padding="16px" borderRadius={16}>
-              {loading ? (
-                <p className="reports-loading">Loading...</p>
-              ) : documentsMatchingSearch.length === 0 ? (
-                <div className="reports-empty-list">
-                  <FileText size={32} style={{ opacity: 0.5 }} />
-                  <p>
-                    {documents.length === 0
-                      ? `No documents yet. Upload tax files, financial statements, etc. Max ${MAX_FILE_SIZE_MB} MB per file.`
-                      : filteredDocuments.length === 0
-                        ? `No ${sourceFilter === 'cloud' ? 'cloud' : 'device'} documents. Try a different filter.`
-                        : `No files match “${searchQuery.trim()}”.`}
-                  </p>
-                  {documents.length > 0 && filteredDocuments.length === 0 && (
-                    <GlassButton text="Show all" onClick={() => setSourceFilter('all')} width="auto" />
-                  )}
-                  {documents.length > 0 && filteredDocuments.length > 0 && searchNeedle && (
-                    <GlassButton text="Clear search" onClick={() => setSearchQuery('')} width="auto" />
-                  )}
-                </div>
-              ) : (
-                <>
-                  {selectedDocumentIds.length > 0 && (
-                    <div className="reports-bulk-bar">
-                      <span className="reports-bulk-bar__count">{selectedDocumentIds.length} selected</span>
-                      <div className="reports-bulk-bar__actions">
-                        <GlassButton
-                          text="Clear"
-                          onClick={() => setSelectedDocumentIds([])}
-                          width="auto"
-                          disabled={deletingBulk}
-                        />
-                        <GlassButton
-                          text={`Delete (${selectedDocumentIds.length})`}
-                          onClick={() => void handleBulkDeleteDocuments()}
-                          width="auto"
-                          icon={<Trash2 size={16} aria-hidden />}
-                          disabled={deletingBulk}
-                          isLoading={deletingBulk}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <label className="reports-select-all">
-                    <input
-                      ref={selectAllDocumentsRef}
-                      type="checkbox"
-                      checked={allDocumentsVisibleSelected}
-                      onChange={toggleSelectAllDocuments}
-                      aria-label="Select all documents in this list"
-                    />
-                    <span>Select all</span>
-                  </label>
-                  <div className="reports-list">
-                    {sortedDocuments.map((item) => {
-                      const id = fileItemId(item)
-                      return (
-                        <FileRow
-                          key={id}
-                          item={item}
-                          listKind="documents"
-                          selected={selectedDocumentIds.includes(id)}
-                          onToggleSelect={() => toggleDocumentSelection(id)}
-                        />
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </GlassContainer>
-          </div>
-        )}
+            </label>
+            <Segmented
+              options={['reports', 'documents'] as const}
+              value={subTab}
+              onChange={setSubTabAndClearSelection}
+              labelFor={(tab) => (tab === 'reports' ? 'Reports' : 'Documents')}
+              ariaLabel="Library section"
+            />
+            {showSourceFilter && (
+              <Segmented
+                options={['all', 'cloud', 'local'] as const}
+                value={sourceFilter}
+                onChange={setSourceFilter}
+                labelFor={(source) => (source === 'all' ? 'All' : source === 'cloud' ? 'Cloud' : 'Device')}
+                ariaLabel="File source"
+              />
+            )}
           </div>
 
-          <aside className="reports-layout__side" aria-label="Search and filters">
-            <div className="reports-controls-panel">
-              <div className="reports-toolbar-row">
-                <div className="reports-search">
-                  <GlassTextField
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search by file name…"
-                    prefixIcon={<Search size={18} aria-hidden />}
-                    suffixIcon={
-                      searchQuery ? (
-                        <button
-                          type="button"
-                          className="reports-search__clear"
-                          onClick={() => setSearchQuery('')}
-                          aria-label="Clear search"
-                        >
-                          <X size={16} aria-hidden />
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                </div>
-                {showSourceFilter && (
-                  <div className="reports-source-filter">
-                    <span className="reports-source-filter__label">Show:</span>
-                    <div className="reports-source-filter__pills">
-                      <button
-                        type="button"
-                        className={`reports-source-filter__pill ${sourceFilter === 'all' ? 'reports-source-filter__pill--active' : ''}`}
-                        onClick={() => setSourceFilter('all')}
-                      >
-                        All
-                      </button>
-                      <button
-                        type="button"
-                        className={`reports-source-filter__pill ${sourceFilter === 'cloud' ? 'reports-source-filter__pill--active' : ''}`}
-                        onClick={() => setSourceFilter('cloud')}
-                      >
-                        <Cloud size={12} /> Cloud
-                      </button>
-                      <button
-                        type="button"
-                        className={`reports-source-filter__pill ${sourceFilter === 'local' ? 'reports-source-filter__pill--active' : ''}`}
-                        onClick={() => setSourceFilter('local')}
-                      >
-                        <HardDrive size={12} /> Device
-                      </button>
-                    </div>
-                  </div>
+          <Panel
+            title={subTab === 'reports' ? 'Risk reports' : 'Documents'}
+            icon={subTab === 'reports' ? <Shield size={14} aria-hidden /> : <FileText size={14} aria-hidden />}
+            count={loading ? undefined : String(activeItems.length)}
+            note={subTab === 'reports'
+              ? 'Produced from Risk analysis and stored with the connected library.'
+              : 'Tax files, statements, and other records you upload.'}
+            flushBody={activeItems.length > 0}
+            actions={
+              <>
+                {selectedIds.length > 0 && (
+                  <>
+                    <button type="button" className="fin-btn fin-btn--icon" onClick={clearSelection} disabled={deletingBulk} title="Clear selection" aria-label="Clear selection">
+                      <X size={14} aria-hidden />
+                    </button>
+                    <button type="button" className="fin-btn" onClick={bulkDelete} disabled={deletingBulk}>
+                      <Trash2 size={13} aria-hidden className={deletingBulk ? 'reports-spin' : undefined} />
+                      Delete {selectedIds.length}
+                    </button>
+                  </>
                 )}
-                <div className="reports-sort">
-                  <span className="reports-sort__label">Sort:</span>
-                  <div className="reports-sort__pills">
+                {subTab === 'reports' ? (
+                  <button type="button" className="fin-btn fin-btn--icon" onClick={() => navigate('/risk-analysis')} title="Generate report" aria-label="Generate report">
+                    <FileChartColumnIncreasing size={15} aria-hidden />
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      hidden
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt"
+                      onChange={handleUpload}
+                    />
                     <button
                       type="button"
-                      className={`reports-sort__pill ${sortBy === 'date' ? 'reports-sort__pill--active' : ''}`}
-                      onClick={() => setSortBy('date')}
-                      title="Newest first"
+                      className="fin-btn fin-btn--icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      title={uploading ? 'Uploading' : 'Upload document'}
+                      aria-label={uploading ? 'Uploading' : 'Upload document'}
                     >
-                      <Calendar size={12} aria-hidden /> Date
+                      <Upload size={15} aria-hidden className={uploading ? 'reports-spin' : undefined} />
                     </button>
-                    <button
-                      type="button"
-                      className={`reports-sort__pill ${sortBy === 'name' ? 'reports-sort__pill--active' : ''}`}
-                      onClick={() => setSortBy('name')}
-                      title="Alphabetical by file name"
-                    >
-                      <ArrowDownAZ size={12} aria-hidden /> A–Z
-                    </button>
-                  </div>
-                </div>
+                  </>
+                )}
+                <button type="button" className="fin-btn fin-btn--icon" onClick={() => void loadAll()} disabled={loading} title="Refresh list" aria-label="Refresh list">
+                  <RefreshCw size={15} aria-hidden className={loading ? 'reports-spin' : undefined} />
+                </button>
+                {hasElectronLocal && localConnected && window.electronAPI?.localStorageOpenDocumentsFolder && (
+                  <button type="button" className="fin-btn fin-btn--icon" onClick={() => void handleOpenLocalDocumentsFolder()} title="Open documents folder" aria-label="Open documents folder">
+                    <FolderOpen size={15} aria-hidden />
+                  </button>
+                )}
+              </>
+            }
+            footer={
+              <span className="fin-footnote">
+                A file stays in the store it was saved to. Cloud copies use S3. Device copies use the local folder.
+              </span>
+            }
+          >
+            {loading ? (
+              <div className="fin-empty">
+                <RefreshCw size={22} className="reports-spin" aria-hidden />
+                <span className="fin-empty__body">Loading the library…</span>
               </div>
-            </div>
-          </aside>
-        </div>
-      </div>
+            ) : activeItems.length === 0 ? (
+              <div className="fin-empty">
+                <FileText size={28} aria-hidden />
+                <span className="fin-empty__title">{activeTotal === 0 ? (subTab === 'reports' ? 'No reports on file' : 'No documents on file') : 'Nothing matches'}</span>
+                <span className="fin-empty__body">{emptyCopy}</span>
+                {subTab === 'reports' && reports.length === 0 && (
+                  <button type="button" className="fin-btn" onClick={() => navigate('/risk-analysis')}>Risk analysis</button>
+                )}
+                {activeTotal > 0 && activeFiltered === 0 && (
+                  <button type="button" className="fin-btn" onClick={() => setSourceFilter('all')}>Show all</button>
+                )}
+                {activeTotal > 0 && activeFiltered > 0 && searchNeedle && (
+                  <button type="button" className="fin-btn" onClick={() => setSearchQuery('')}>Clear search</button>
+                )}
+              </div>
+            ) : subTab === 'reports' ? (
+              renderFileTable({
+                items: sortedReports,
+                listKind: 'reports',
+                selectedIds: selectedReportIds,
+                onToggle: toggleReportSelection,
+                selectAllRef: selectAllReportsRef,
+                allSelected: allReportsVisibleSelected,
+                onToggleAll: toggleSelectAllReports,
+              })
+            ) : (
+              renderFileTable({
+                items: sortedDocuments,
+                listKind: 'documents',
+                selectedIds: selectedDocumentIds,
+                onToggle: toggleDocumentSelection,
+                selectAllRef: selectAllDocumentsRef,
+                allSelected: allDocumentsVisibleSelected,
+                onToggleAll: toggleSelectAllDocuments,
+              })
+            )}
+          </Panel>
+        </>,
+        null,
+      )}
 
       {renameItem && (
         <div
@@ -963,77 +935,60 @@ export default function ReportsScreen() {
         >
           <div
             className="reports-rename-modal"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-labelledby="reports-rename-title"
             aria-modal="true"
           >
-            <h3 id="reports-rename-title" className="reports-rename-title">
-              Rename document
-            </h3>
+            <h2 id="reports-rename-title" className="reports-rename-title">Rename document</h2>
             <p className="reports-rename-hint">
-              Include the extension (e.g. <code className="reports-rename-code">.pdf</code>). Only letters, numbers, dots,
-              dashes, and underscores are kept.
+              Include the extension, for example <span className="fin-mono">.pdf</span>. Only letters, numbers, dots, dashes, and underscores are kept.
             </p>
-            <GlassTextField value={renameDraft} onChange={setRenameDraft} placeholder="File name" />
+            <input
+              className="fin-input"
+              value={renameDraft}
+              onChange={(event) => setRenameDraft(event.target.value)}
+              placeholder="File name"
+              aria-label="File name"
+              disabled={renameBusy}
+            />
             <div className="reports-rename-actions">
-              <GlassButton
-                text="Cancel"
-                onClick={() => {
-                  if (!renameBusy) setRenameItem(null)
-                }}
-                width="auto"
-                disabled={renameBusy}
-              />
-              <GlassButton
-                text="Save"
-                onClick={() => void performRenameDocument()}
-                width="auto"
-                isPrimary
-                isLoading={renameBusy}
-                disabled={renameBusy}
-              />
+              <button type="button" className="fin-btn" onClick={() => { if (!renameBusy) setRenameItem(null) }} disabled={renameBusy}>
+                Cancel
+              </button>
+              <button type="button" className="fin-btn fin-btn--accent" onClick={() => void performRenameDocument()} disabled={renameBusy}>
+                {renameBusy ? 'Saving…' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Viewer modal */}
       {viewItem && (
         <div className="reports-viewer-overlay" onClick={closeViewer}>
-          <div className="reports-viewer-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="reports-viewer-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={fileNameFromKey(viewItem.key)}>
             <div className="reports-viewer-header">
-              <h3 className="reports-viewer-title">{fileNameFromKey(viewItem.key)}</h3>
-              <button className="reports-viewer-close" onClick={closeViewer} aria-label="Close">
-                <X size={24} />
+              <h2 className="reports-viewer-title">{fileNameFromKey(viewItem.key)}</h2>
+              <button type="button" className="fin-btn fin-btn--icon" onClick={closeViewer} aria-label="Close">
+                <X size={15} aria-hidden />
               </button>
             </div>
             <div className={`reports-viewer-body${viewLoading || viewError ? ' reports-viewer-body--centered' : ''}`}>
-              {viewLoading && <p className="reports-viewer-loading">Loading...</p>}
+              {viewLoading && <p className="reports-viewer-loading">Loading…</p>}
               {viewError && <p className="reports-viewer-error">{viewError}</p>}
               {viewUrl && !viewLoading && !viewError && (
-                <>
-                  {viewItem.key.toLowerCase().endsWith('.pdf') ? (
-                    <div className="reports-viewer-iframe-wrap">
-                      <iframe
-                        src={viewUrl}
-                        title={fileNameFromKey(viewItem.key)}
-                        className="reports-viewer-iframe"
-                      />
-                    </div>
-                  ) : (
-                    <img
-                      src={viewUrl}
-                      alt={fileNameFromKey(viewItem.key)}
-                      className="reports-viewer-img"
-                    />
-                  )}
-                </>
+                viewItem.key.toLowerCase().endsWith('.pdf') ? (
+                  <div className="reports-viewer-iframe-wrap">
+                    <iframe src={viewUrl} title={fileNameFromKey(viewItem.key)} className="reports-viewer-iframe" />
+                  </div>
+                ) : (
+                  <img src={viewUrl} alt={fileNameFromKey(viewItem.key)} className="reports-viewer-img" />
+                )
               )}
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

@@ -239,8 +239,8 @@ export default function DashboardScreen() {
             icon={<Shield size={14} aria-hidden />}
             note={riskMeta ? riskMeta.desc : 'Measured on investable assets, excluding liabilities.'}
             actions={
-              <span className="fin-btn" aria-hidden>
-                Full analysis <ChevronRight size={13} />
+              <span className="fin-btn fin-btn--icon" aria-hidden title="Full analysis">
+                <ChevronRight size={15} />
               </span>
             }
             onClick={() => navigate('/risk-analysis')}
@@ -321,10 +321,12 @@ export default function DashboardScreen() {
             holdings.length > DASHBOARD_HOLDINGS_LIMIT ? (
               <button
                 type="button"
-                className="fin-btn"
+                className="fin-btn fin-btn--icon"
                 onClick={() => navigate('/main?tab=portfolio')}
+                title="All positions"
+                aria-label="All positions"
               >
-                All positions <ChevronRight size={13} aria-hidden />
+                <ChevronRight size={15} aria-hidden />
               </button>
             ) : undefined
           }

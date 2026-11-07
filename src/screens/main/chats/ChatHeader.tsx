@@ -244,8 +244,10 @@ export default function ChatHeader({
                 type="button"
                 className="chats-screen__chat-settings-delete"
                 onClick={onRequestDeleteSelected}
+                title="Delete conversation"
+                aria-label="Delete conversation"
               >
-                <Trash2 size={14} /> Delete conversation
+                <Trash2 size={14} aria-hidden />
               </button>
             </div>
           )}

@@ -128,12 +128,24 @@ export default function SettingsScreen() {
           </p>
         </div>
         <div className="fin-masthead__actions">
-          <button type="button" className="fin-btn" onClick={handleRefreshPrices} disabled={refreshing}>
-            <RefreshCw size={13} aria-hidden className={refreshing ? 'spin' : ''} />
-            {refreshing ? 'Refreshing…' : 'Refresh prices'}
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={handleRefreshPrices}
+            disabled={refreshing}
+            title={refreshing ? 'Refreshing prices' : 'Refresh prices'}
+            aria-label={refreshing ? 'Refreshing prices' : 'Refresh prices'}
+          >
+            <RefreshCw size={15} aria-hidden className={refreshing ? 'spin' : ''} />
           </button>
-          <button type="button" className="fin-btn" onClick={() => setShowExportModal(true)}>
-            <Download size={13} aria-hidden /> Export data
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon"
+            onClick={() => setShowExportModal(true)}
+            title="Export data"
+            aria-label="Export data"
+          >
+            <Download size={15} aria-hidden />
           </button>
         </div>
       </header>
