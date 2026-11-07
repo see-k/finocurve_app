@@ -682,8 +682,15 @@ export default function TrackerScreen() {
                           onClick={() => void saveEditEntry()}
                           disabled={saving || !editAmount.trim()}
                         />
-                        <button type="button" className="tracker-text-btn" onClick={cancelEditEntry} disabled={saving}>
-                          <X size={16} aria-hidden /> Cancel
+                        <button
+                          type="button"
+                          className="tracker-icon-btn"
+                          onClick={cancelEditEntry}
+                          disabled={saving}
+                          title="Cancel"
+                          aria-label="Cancel"
+                        >
+                          <X size={16} aria-hidden />
                         </button>
                       </div>
                     </div>
@@ -905,8 +912,15 @@ export default function TrackerScreen() {
                             editGoalInvalidSpan
                           }
                         />
-                        <button type="button" className="tracker-text-btn" onClick={cancelEditGoal} disabled={saving}>
-                          <X size={16} aria-hidden /> Cancel
+                        <button
+                          type="button"
+                          className="tracker-icon-btn"
+                          onClick={cancelEditGoal}
+                          disabled={saving}
+                          title="Cancel"
+                          aria-label="Cancel"
+                        >
+                          <X size={16} aria-hidden />
                         </button>
                       </div>
                     </div>

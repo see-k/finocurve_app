@@ -292,13 +292,14 @@ export default function MarketsDashboard({
           </button>
           <button
             type="button"
-            className="markets-dashboard__btn"
+            className="markets-dashboard__btn markets-dashboard__btn--icon"
             onClick={() => {
               resetDashboard()
             }}
+            title="Reset layout"
+            aria-label="Reset layout"
           >
-            <RotateCcw size={16} />
-            Reset layout
+            <RotateCcw size={16} aria-hidden />
           </button>
         </div>
       </div>

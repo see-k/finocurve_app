@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Bell, Check, CheckCheck, Trash2, Info, AlertTriangle, Star } from 'lucide-react'
 import GlassContainer from '../../components/glass/GlassContainer'
-import GlassButton from '../../components/glass/GlassButton'
 import GlassIconButton from '../../components/glass/GlassIconButton'
 import { useNotifications } from '../../store/useNotifications'
 import type { AppNotification } from '../../types'
@@ -60,7 +59,7 @@ export default function NotificationsScreen() {
         </div>
         <div className="notif-header-actions">
           {unreadCount > 0 && (
-            <GlassButton text="Mark All Read" onClick={markAllAsRead} icon={<CheckCheck size={16} />} width="auto" />
+            <GlassIconButton icon={<CheckCheck size={18} />} onClick={markAllAsRead} size={40} title="Mark all read" />
           )}
           {notifications.length > 0 && (
             <GlassIconButton icon={<Trash2 size={18} />} onClick={clearAll} size={40} title="Clear all" />

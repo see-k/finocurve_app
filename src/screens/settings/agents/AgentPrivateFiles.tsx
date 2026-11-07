@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { File, FolderLock, FolderOpen, HardDrive, RefreshCw, Trash2, Upload } from 'lucide-react'
-import GlassButton from '../../../components/glass/GlassButton'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 
@@ -111,9 +110,31 @@ export default function AgentPrivateFiles({ agentId }: { agentId?: string }) {
       ) : (
         <>
           <div className="agent-private-files__actions">
-            <GlassButton text={uploading ? 'Adding files…' : 'Add files'} icon={<Upload size={15} />} onClick={() => inputRef.current?.click()} disabled={uploading} width="auto" />
-            <button type="button" onClick={() => void window.electronAPI?.localStorageOpenFolder?.({ prefix })}><FolderOpen size={15} /> Open folder</button>
-            <button type="button" onClick={() => void loadFiles()} aria-label="Refresh private files"><RefreshCw size={15} /> Refresh</button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              title={uploading ? 'Adding files' : 'Add files'}
+              aria-label={uploading ? 'Adding files' : 'Add files'}
+            >
+              <Upload size={15} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => void window.electronAPI?.localStorageOpenFolder?.({ prefix })}
+              title="Open folder"
+              aria-label="Open folder"
+            >
+              <FolderOpen size={15} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadFiles()}
+              title="Refresh private files"
+              aria-label="Refresh private files"
+            >
+              <RefreshCw size={15} aria-hidden />
+            </button>
           </div>
           {error && <p className="agent-private-files__error">{error}</p>}
           {loading ? (

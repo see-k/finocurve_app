@@ -444,7 +444,7 @@
   white-space: nowrap;
 }
 
-.fin-btn:hover {
+.fin-btn:hover:not(:disabled) {
   color: var(--text-primary);
   border-color: var(--fin-rule-strong);
 }
@@ -459,7 +459,7 @@
   border-color: var(--brand-primary);
   color: #fff;
 }
-.fin-btn--accent:hover {
+.fin-btn--accent:hover:not(:disabled) {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
   color: #fff;
@@ -471,6 +471,19 @@
   width: 34px;
   height: 34px;
   justify-content: center;
+}
+
+.fin-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fin-spin {
+  animation: fin-spin 0.9s linear infinite;
+}
+
+@keyframes fin-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================
@@ -1093,7 +1106,6 @@
 }
 
 .fin-row__value {
-  margin-left: auto;
   font-size: 12.5px;
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -1102,9 +1114,8 @@
   max-width: 45%;
 }
 
-/* Both carry auto margins: with a value present the value claims the free
-   space and the arrow trails it; with no value the arrow claims it instead, so
-   a bare row still puts its chevron at the right edge. */
+/* The chevron is the row affordance, so it stays at the trailing edge.
+   Labels, values and status chips stay together on the left. */
 .fin-row__arrow {
   margin-left: auto;
   color: var(--fin-rule-strong);
@@ -1163,4 +1174,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fin-row, .fin-input, .fin-toggle, .fin-toggle__thumb { transition: none; }
+  .fin-spin { animation: none; }
 }

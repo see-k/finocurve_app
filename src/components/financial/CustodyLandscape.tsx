@@ -486,11 +486,12 @@ export default function CustodyLandscape({ matrix, height = 560 }: CustodyLandsc
           </button>
           <button
             type="button"
-            className="fin-btn fin-landscape__reset"
+            className="fin-btn fin-btn--icon"
             onClick={resetView}
-            title="Reset rotation, zoom and pan"
+            title="Reset view"
+            aria-label="Reset view"
           >
-            <RotateCcw size={13} aria-hidden /> Reset
+            <RotateCcw size={14} aria-hidden />
           </button>
         </div>
       </div>

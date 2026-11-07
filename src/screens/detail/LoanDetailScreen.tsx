@@ -171,7 +171,9 @@ export default function LoanDetailScreen({ embeddedInShell = false, assetId: ass
         <div className={`detail-content ${embeddedInShell ? 'detail-content--shell' : ''} ${visible ? 'detail-content--visible' : ''}`}>
           <GlassContainer>
             <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>Loan not found</p>
-            <GlassButton text="Go Back" onClick={goBack} />
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+              <GlassIconButton icon={<ArrowLeft size={20} />} onClick={goBack} size={44} title="Go back" />
+            </div>
           </GlassContainer>
         </div>
       </div>

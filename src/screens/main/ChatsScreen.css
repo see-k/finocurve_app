@@ -847,11 +847,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: 34px;
+  height: 34px;
   min-height: 34px;
-  gap: 7px;
   margin-top: 8px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--status-error) 22%, var(--glass-border));
   border-radius: 10px;
   background: color-mix(in srgb, var(--status-error) 6%, transparent);
@@ -1927,8 +1927,10 @@
 .chats-screen__placeholder button {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 10px 14px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--brand-primary) 30%, var(--glass-border));
   border-radius: 12px;
   background: color-mix(in srgb, var(--brand-primary) 10%, var(--glass-bg));

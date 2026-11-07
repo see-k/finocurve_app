@@ -232,7 +232,6 @@
 .detail-actions {
   display: flex; gap: 12px; margin-top: 16px;
 }
-.detail-actions > * { flex: 1; }
 
 /* Edit Modal */
 .modal-overlay {

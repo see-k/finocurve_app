@@ -684,8 +684,14 @@ export default function CreateEditAgentScreen() {
                         }
                       }}
                     />
-                    <button type="button" onClick={addSpecialty} disabled={!specialtyInput.trim() || specialties.length >= 8}>
-                      <Plus size={15} /> Add
+                    <button
+                      type="button"
+                      onClick={addSpecialty}
+                      disabled={!specialtyInput.trim() || specialties.length >= 8}
+                      title="Add specialty"
+                      aria-label="Add specialty"
+                    >
+                      <Plus size={15} aria-hidden />
                     </button>
                   </div>
                   {specialties.length > 0 ? (
@@ -1014,12 +1020,12 @@ export default function CreateEditAgentScreen() {
 
                   <div className="agent-model-actions">
                     {provider === 'ollama' && (
-                      <GlassButton
-                        text={modelsLoading ? 'Refreshing…' : 'Refresh models'}
-                        icon={<RefreshCw size={14} />}
+                      <GlassIconButton
+                        icon={<RefreshCw size={16} className={modelsLoading ? 'fin-spin' : undefined} />}
                         onClick={() => void loadOllamaModels()}
                         disabled={modelsLoading}
-                        width="auto"
+                        size={38}
+                        title={modelsLoading ? 'Refreshing models' : 'Refresh models'}
                       />
                     )}
                     <GlassButton

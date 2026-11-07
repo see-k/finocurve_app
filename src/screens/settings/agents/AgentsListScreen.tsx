@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import GlassContainer from '../../../components/glass/GlassContainer'
 import GlassButton from '../../../components/glass/GlassButton'
+import GlassIconButton from '../../../components/glass/GlassIconButton'
 import UserAvatar, { getInitials } from '../../../components/UserAvatar'
 import { ProviderBrandIcon } from '../../../components/ai/ProviderBrandIcon'
 import { useAgents } from '../../../store/useAgents'
@@ -119,12 +120,11 @@ export default function AgentsListScreen() {
             <span>Private expert network</span>
             <h1 className="settings-sub-title">AI Experts</h1>
           </div>
-          <GlassButton
-            text="Create Expert"
-            icon={<Plus size={16} />}
+          <GlassIconButton
+            icon={<Plus size={18} />}
             onClick={() => navigate('/settings/agents/new')}
-            isPrimary
-            width="auto"
+            size={40}
+            title="Create expert"
           />
         </div>
 
@@ -259,16 +259,18 @@ export default function AgentsListScreen() {
                         className="expert-card__message"
                         onClick={() => handleChat(agent.id, agent.name)}
                         disabled={!active}
-                        title={active ? 'Chat with this expert' : 'Reactivate this expert to start a chat'}
+                        title={active ? 'Message' : 'Reactivate this expert to start a chat'}
+                        aria-label={active ? `Message ${agent.name}` : `Reactivate ${agent.name} to start a chat`}
                       >
-                        <MessageSquare size={15} /> Message
+                        <MessageSquare size={15} />
                       </button>
                       <button
                         type="button"
                         onClick={() => navigate(`/settings/agents/${agent.id}`)}
-                        title="Edit expert profile"
+                        title="Edit"
+                        aria-label={`Edit ${agent.name}`}
                       >
-                        <Pencil size={15} /> Edit
+                        <Pencil size={15} />
                       </button>
                       {!isDefault && (
                         <button

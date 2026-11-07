@@ -189,17 +189,17 @@ export default function CongressionalTradesView() {
             <span className="ct-fetched">Last updated: {formatDate(fetchedAt)}</span>
           )}
           <button
-            className="ct-refresh-btn"
+            className="ct-refresh-btn ct-refresh-btn--icon"
             onClick={pullLatest}
             disabled={pulling || showFmpKeyPrompt}
             title={
               showFmpKeyPrompt
                 ? 'Add an FMP API key in Settings → Plugins first'
-                : 'Fetch latest from FMP (2 API calls)'
+                : 'Refresh disclosures'
             }
+            aria-label="Refresh disclosures"
           >
             {pulling ? <Loader2 size={14} className="ct-spin" /> : <RefreshCw size={14} />}
-            Refresh
           </button>
           <span className="ct-disclaimer">STOCK Act disclosures. Informational only.</span>
         </div>
@@ -231,14 +231,15 @@ export default function CongressionalTradesView() {
           ) : (
             <>
               <p>No cached disclosures.</p>
-              <p className="ct-empty-hint">Click Refresh to fetch data (2 API calls).</p>
+              <p className="ct-empty-hint">Fetch the latest disclosures (2 API calls).</p>
               <button
-                className="ct-refresh-btn ct-refresh-btn--primary"
+                className="ct-refresh-btn ct-refresh-btn--primary ct-refresh-btn--icon"
                 onClick={pullLatest}
                 disabled={pulling}
+                title="Refresh disclosures"
+                aria-label="Refresh disclosures"
               >
                 {pulling ? <Loader2 size={18} className="ct-spin" /> : <RefreshCw size={18} />}
-                Refresh
               </button>
             </>
           )}
@@ -312,8 +313,8 @@ export default function CongressionalTradesView() {
                           <div className="ct-filing-amount">{formatValue(f.amount)}</div>
                           <div className="ct-filing-date">{formatDate(f.transactionDate)}</div>
                           {filingUrl && (
-                            <span className="ct-filing-doc-link">
-                              <ExternalLink size={12} /> View filing
+                            <span className="ct-filing-doc-link" title="View filing">
+                              <ExternalLink size={14} aria-hidden />
                             </span>
                           )}
                         </>

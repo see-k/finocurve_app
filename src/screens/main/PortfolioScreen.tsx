@@ -89,8 +89,14 @@ export default function PortfolioScreen() {
         <h2>No positions on file</h2>
         <p>Add holdings and liabilities, or load a demonstration portfolio to explore the reports.</p>
         <div className="portfolio-empty__actions">
-          <button type="button" className="fin-btn fin-btn--accent" onClick={() => navigate('/add-asset/search')}>
-            <Plus size={14} aria-hidden /> Add position
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon fin-btn--accent"
+            onClick={() => navigate('/add-asset/search')}
+            title="Add position"
+            aria-label="Add position"
+          >
+            <Plus size={15} aria-hidden />
           </button>
           <button type="button" className="fin-btn" onClick={loadDemo}>Load demo portfolio</button>
         </div>
@@ -136,8 +142,14 @@ export default function PortfolioScreen() {
         </div>
 
         <div className="fin-masthead__actions">
-          <button type="button" className="fin-btn fin-btn--accent" onClick={() => setShowAddModal(true)}>
-            <Plus size={14} aria-hidden /> Add position
+          <button
+            type="button"
+            className="fin-btn fin-btn--icon fin-btn--accent"
+            onClick={() => setShowAddModal(true)}
+            title="Add position"
+            aria-label="Add position"
+          >
+            <Plus size={15} aria-hidden />
           </button>
         </div>
       </header>
@@ -218,8 +230,14 @@ export default function PortfolioScreen() {
             note="Positions into asset classes into gross assets. Liabilities are shown separately, not netted."
             actions={
               selectedFlowNode != null ? (
-                <button type="button" className="fin-btn" onClick={() => setSelectedFlowNode(null)}>
-                  <X size={13} aria-hidden /> Clear selection
+                <button
+                  type="button"
+                  className="fin-btn fin-btn--icon"
+                  onClick={() => setSelectedFlowNode(null)}
+                  title="Clear selection"
+                  aria-label="Clear selection"
+                >
+                  <X size={15} aria-hidden />
                 </button>
               ) : (
                 <span className="fin-label">Select a node to isolate it</span>

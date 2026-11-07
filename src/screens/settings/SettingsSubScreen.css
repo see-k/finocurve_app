@@ -254,8 +254,10 @@
 .a2a-control-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
