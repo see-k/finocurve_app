@@ -23,6 +23,8 @@ import { usePreferences } from '../../store/usePreferences'
 import { useNotifications } from '../../store/useNotifications'
 import { usePerformanceSeries } from '../../hooks/usePerformanceSeries'
 import { useEnterpriseMode } from '../../hooks/useEnterpriseMode'
+import { useEnterpriseDashboard } from '../../hooks/useEnterpriseDashboard'
+import { totalPositions } from '../../lib/enterprisePositions'
 import { deriveAccountTotals } from '../../lib/accountTotals'
 import { deriveCalculatedProvenance, formatProvenanceAsOf } from '../../lib/financialProvenance'
 import {
@@ -42,7 +44,8 @@ export default function DashboardScreen() {
   const { portfolio, totalValue, loadDemo } = usePortfolio()
   const { prefs } = usePreferences()
   const { unreadCount } = useNotifications()
-  const { isEnterprise } = useEnterpriseMode()
+  const { isEnterprise, mode } = useEnterpriseMode()
+  const enterprise = useEnterpriseDashboard(isEnterprise)
 
   const userName = prefs.userName || prefs.userEmail?.split('@')[0] || 'Investor'
 
@@ -88,12 +91,23 @@ export default function DashboardScreen() {
   )
   const riskMeta = riskResult ? RISK_LEVEL_META[riskResult.riskLevel] : null
 
+  const brokerTotals = useMemo(
+    () => totalPositions(enterprise.positions.positions),
+    [enterprise.positions.positions]
+  )
+
   const riskProvenance = useMemo(
     () => deriveCalculatedProvenance(performance.portfolioProvenance, 'FinoCurve risk engine', 'risk_model'),
     [performance.portfolioProvenance]
   )
 
-  if (!hasAssets) {
+  // Local holdings are optional for an enterprise account: consolidated custody
+  // still has figures to show. Hold the empty state until that check settles so
+  // a subscriber is not told there is nothing on file and then handed the page.
+  if (!hasAssets && !isEnterprise) {
+    if (mode === 'checking') {
+      return <div className="fin-page dashboard" aria-busy="true"><PageGround /></div>
+    }
     return (
       <div className="dashboard-empty">
         <BriefcaseBusiness size={36} aria-hidden />
@@ -109,10 +123,26 @@ export default function DashboardScreen() {
     )
   }
 
+  // With no local holdings the account is the consolidated custody book: the
+  // hero states that total and the personal panels, which would all read zero,
+  // are left out.
+  const custodyOnly = !hasAssets && isEnterprise
+  const custodyReady = enterprise.loaded && !enterprise.error
+
   const gainPositive = unrealizedGain >= 0
-  const currency = portfolio!.currency
-  const hero = splitCurrency(totalValue, currency)
-  const asOf = formatProvenanceAsOf(performance.portfolioProvenance.asOf)
+  const returnTone = investedCost === 0 && unrealizedGain === 0
+    ? undefined
+    : gainPositive ? 'positive' : 'negative'
+  // Consolidated balances are reported in USD by Finocurve Service.
+  const currency = custodyOnly ? 'USD' : portfolio?.currency ?? 'USD'
+  const portfolioName = custodyOnly ? 'Consolidated custody' : portfolio?.name ?? 'Portfolio'
+  const hero = custodyOnly
+    ? (custodyReady ? splitCurrency(enterprise.matrix.total, currency) : { whole: '—', cents: '' })
+    : splitCurrency(totalValue, currency)
+  const asOf = custodyOnly
+    ? (enterprise.asOf ? formatProvenanceAsOf(enterprise.asOf) : '—')
+    : formatProvenanceAsOf(performance.portfolioProvenance.asOf)
+  const reportingInstitutions = enterprise.matrix.rows.filter((row) => row.total > 0).length
 
   function openAsset(asset: Asset) {
     navigate(isLoan(asset) ? `/main/loan/${asset.id}` : `/asset/${asset.id}`)
@@ -135,23 +165,49 @@ export default function DashboardScreen() {
             />
             <strong>{userName}</strong>
             <span className="fin-masthead__sep">/</span>
-            <span>{portfolio!.name}</span>
+            <span>{portfolioName}</span>
             <span className="fin-masthead__sep">/</span>
-            <span>{portfolio!.currency}</span>
+            <span>{currency}</span>
           </div>
 
           <div className="fin-masthead__value">
             <span className="fin-masthead__amount">
               {hero.whole}<span className="fin-masthead__cents">{hero.cents}</span>
             </span>
-            <Delta value={unrealizedGain} currency={currency} pill />
-            <Delta value={totalReturnPercent} kind="percent" pill />
+            {custodyOnly ? (
+              brokerTotals.measured > 0 && (
+                <>
+                  <Delta value={brokerTotals.unrealizedPl} currency={currency} pill />
+                  {brokerTotals.unrealizedPlPercent != null && (
+                    <Delta value={brokerTotals.unrealizedPlPercent} kind="percent" pill />
+                  )}
+                </>
+              )
+            ) : (
+              <>
+                <Delta value={unrealizedGain} currency={currency} pill />
+                <Delta value={totalReturnPercent} kind="percent" pill />
+              </>
+            )}
           </div>
 
           <div className="fin-masthead__sub">
-            <span>Net worth, assets less liabilities</span>
-            <span>Change shown on invested capital</span>
-            <span>As of {asOf}</span>
+            {custodyOnly ? (
+              <>
+                <span>
+                  Assets under administration across {reportingInstitutions}{' '}
+                  {reportingInstitutions === 1 ? 'institution' : 'institutions'}
+                </span>
+                {brokerTotals.measured > 0 && <span>Change shown on broker positions at cost</span>}
+                <span>Last provider sync {asOf}</span>
+              </>
+            ) : (
+              <>
+                <span>Net worth, assets less liabilities</span>
+                <span>Change shown on invested capital</span>
+                <span>As of {asOf}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -182,174 +238,181 @@ export default function DashboardScreen() {
 
       <div className="fin-stack dashboard__stack">
         {/* ── The figures a reader checks first ── */}
-        <KeyFigures
-          figures={[
-            {
-              label: 'Gross assets',
-              value: formatCurrency(grossAssets, currency),
-              meta: `${holdings.length} ${holdings.length === 1 ? 'position' : 'positions'}`,
-            },
-            {
-              label: 'Liabilities',
-              value: totalLiabilities > 0 ? formatCurrency(totalLiabilities, currency) : '—',
-              meta: loans.length > 0
-                ? `${loans.length} ${loans.length === 1 ? 'obligation' : 'obligations'}`
-                : 'None on file',
-            },
-            {
-              label: 'Invested cost',
-              value: formatCurrency(investedCost, currency),
-              meta: 'Capital deployed in holdings',
-            },
-            {
-              label: 'Unrealized gain/loss',
-              value: formatCurrency(unrealizedGain, currency),
-              meta: 'Holdings against invested cost',
-              tone: gainPositive ? 'positive' : 'negative',
-            },
-            {
-              label: 'Total return',
-              value: formatPercentSigned(totalReturnPercent),
-              meta: 'On invested cost',
-              tone: gainPositive ? 'positive' : 'negative',
-            },
-          ]}
-        />
+        {!custodyOnly && (
+          <KeyFigures
+            figures={[
+              {
+                label: 'Gross assets',
+                value: formatCurrency(grossAssets, currency),
+                meta: `${holdings.length} ${holdings.length === 1 ? 'position' : 'positions'}`,
+              },
+              {
+                label: 'Liabilities',
+                value: totalLiabilities > 0 ? formatCurrency(totalLiabilities, currency) : '—',
+                meta: loans.length > 0
+                  ? `${loans.length} ${loans.length === 1 ? 'obligation' : 'obligations'}`
+                  : 'None on file',
+              },
+              {
+                label: 'Invested cost',
+                value: formatCurrency(investedCost, currency),
+                meta: 'Capital deployed in holdings',
+              },
+              {
+                label: 'Unrealized gain/loss',
+                value: formatCurrency(unrealizedGain, currency),
+                meta: 'Holdings against invested cost',
+                tone: returnTone,
+              },
+              {
+                label: 'Total return',
+                value: formatPercentSigned(totalReturnPercent),
+                meta: 'On invested cost',
+                tone: returnTone,
+              },
+            ]}
+          />
+        )}
 
         {/* ── Enterprise: consolidated custody, subscribers only ── */}
         <EnterpriseSection
           enabled={isEnterprise}
+          data={enterprise}
           onOpenEnterprise={() => navigate('/main?tab=enterprise')}
         />
 
-        <PortfolioAnalysis
-          holdings={holdings}
-          grossAssets={grossAssets}
-          performance={performance}
-          onSelectAsset={openAsset}
-          currency={currency}
-          maxRows={8}
-          title="Portfolio analysis"
-        />
+        {!custodyOnly && (
+          <>
+            <PortfolioAnalysis
+              holdings={holdings}
+              grossAssets={grossAssets}
+              performance={performance}
+              onSelectAsset={openAsset}
+              currency={currency}
+              maxRows={8}
+              title="Portfolio analysis"
+            />
 
-        <div className="fin-row-2">
-          {/* ── Risk ── */}
-          <Panel
-            title="Risk profile"
-            icon={<Shield size={14} aria-hidden />}
-            note={riskMeta ? riskMeta.desc : 'Measured on investable assets, excluding liabilities.'}
-            actions={
-              <span className="fin-btn fin-btn--icon" aria-hidden title="Full analysis">
-                <ChevronRight size={15} />
-              </span>
-            }
-            onClick={() => navigate('/risk-analysis')}
-            footer={<ValuationDisclosure provenance={riskProvenance} label="Risk metrics" compact />}
-          >
-            {riskResult && riskMeta ? (
-              <div className="dash-risk">
-                <div className="dash-risk__score">
-                  <span className="dash-risk__number fin-num">{riskResult.riskScore}</span>
-                  <span className="fin-label">of 100</span>
-                  <span
-                    className="dash-risk__band"
-                    style={{ color: riskMeta.color, borderColor: riskMeta.color }}
-                  >
-                    {riskMeta.label}
+            <div className="fin-row-2">
+              {/* ── Risk ── */}
+              <Panel
+                title="Risk profile"
+                icon={<Shield size={14} aria-hidden />}
+                note={riskMeta ? riskMeta.desc : 'Measured on investable assets, excluding liabilities.'}
+                actions={
+                  <span className="fin-btn fin-btn--icon" aria-hidden title="Full analysis">
+                    <ChevronRight size={15} />
                   </span>
-                </div>
-                <dl className="dash-risk__metrics">
-                  <div>
-                    <dt className="fin-label">Sharpe ratio</dt>
-                    <dd className="fin-num">{riskResult.sharpeRatio}</dd>
-                  </div>
-                  <div>
-                    <dt className="fin-label">Ann. volatility</dt>
-                    <dd className="fin-num">{formatWeight(riskResult.annualizedVolatility)}</dd>
-                  </div>
-                  <div>
-                    <dt className="fin-label">Max drawdown</dt>
-                    <dd className="fin-num fin-neg">−{formatWeight(riskResult.maxDrawdownPercent)}</dd>
-                  </div>
-                </dl>
-              </div>
-            ) : (
-              <div className="fin-empty">
-                <span className="fin-empty__title">Not enough data</span>
-                <span className="fin-empty__body">Risk is computed once investable holdings are on file.</span>
-              </div>
-            )}
-          </Panel>
-
-          {/* ── Allocation ── */}
-          <Panel
-            title="Asset allocation"
-            icon={<PieIcon size={14} aria-hidden />}
-            note="By asset class, as a share of gross assets."
-          >
-            <AllocationBreakdown data={allocation} total={grossAssets} currency={currency} />
-          </Panel>
-        </div>
-
-        {/* ── Movers, split by direction rather than scrolled past ── */}
-        <div className="fin-row-2">
-          <MoversPanel
-            title="Leaders"
-            icon={<TrendingUp size={14} aria-hidden />}
-            rows={movers.leaders}
-            emptyText="No positions are up against cost basis."
-            currency={currency}
-            onSelect={openAsset}
-          />
-          <MoversPanel
-            title="Laggards"
-            icon={<TrendingDown size={14} aria-hidden />}
-            rows={movers.laggards}
-            emptyText="No positions are down against cost basis."
-            currency={currency}
-            onSelect={openAsset}
-          />
-        </div>
-
-        {/* ── Positions ── */}
-        <Panel
-          title="Positions"
-          count={`${holdings.length}`}
-          note="Ranked by market value. Each row carries its valuation source."
-          flushBody
-          actions={
-            holdings.length > DASHBOARD_HOLDINGS_LIMIT ? (
-              <button
-                type="button"
-                className="fin-btn fin-btn--icon"
-                onClick={() => navigate('/main?tab=portfolio')}
-                title="All positions"
-                aria-label="All positions"
+                }
+                onClick={() => navigate('/risk-analysis')}
+                footer={<ValuationDisclosure provenance={riskProvenance} label="Risk metrics" compact />}
               >
-                <ChevronRight size={15} aria-hidden />
-              </button>
-            ) : undefined
-          }
-        >
-          <HoldingsTable
-            assets={holdings}
-            totalValue={grossAssets}
-            onSelect={openAsset}
-            currency={currency}
-            limit={DASHBOARD_HOLDINGS_LIMIT}
-          />
-        </Panel>
+                {riskResult && riskMeta ? (
+                  <div className="dash-risk">
+                    <div className="dash-risk__score">
+                      <span className="dash-risk__number fin-num">{riskResult.riskScore}</span>
+                      <span className="fin-label">of 100</span>
+                      <span
+                        className="dash-risk__band"
+                        style={{ color: riskMeta.color, borderColor: riskMeta.color }}
+                      >
+                        {riskMeta.label}
+                      </span>
+                    </div>
+                    <dl className="dash-risk__metrics">
+                      <div>
+                        <dt className="fin-label">Sharpe ratio</dt>
+                        <dd className="fin-num">{riskResult.sharpeRatio}</dd>
+                      </div>
+                      <div>
+                        <dt className="fin-label">Ann. volatility</dt>
+                        <dd className="fin-num">{formatWeight(riskResult.annualizedVolatility)}</dd>
+                      </div>
+                      <div>
+                        <dt className="fin-label">Max drawdown</dt>
+                        <dd className="fin-num fin-neg">−{formatWeight(riskResult.maxDrawdownPercent)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : (
+                  <div className="fin-empty">
+                    <span className="fin-empty__title">Not enough data</span>
+                    <span className="fin-empty__body">Risk is computed once investable holdings are on file.</span>
+                  </div>
+                )}
+              </Panel>
 
-        {/* ── Liabilities ── */}
-        <Panel
-          title="Liabilities"
-          count={loans.length > 0 ? `${loans.length}` : undefined}
-          icon={<Landmark size={14} aria-hidden />}
-          note="Outstanding balances netted against gross assets in the figure above."
-          flushBody={loans.length > 0}
-        >
-          <LiabilitiesTable loans={loans} onSelect={openAsset} currency={currency} />
-        </Panel>
+              {/* ── Allocation ── */}
+              <Panel
+                title="Asset allocation"
+                icon={<PieIcon size={14} aria-hidden />}
+                note="By asset class, as a share of gross assets."
+              >
+                <AllocationBreakdown data={allocation} total={grossAssets} currency={currency} />
+              </Panel>
+            </div>
+
+            {/* ── Movers, split by direction rather than scrolled past ── */}
+            <div className="fin-row-2">
+              <MoversPanel
+                title="Leaders"
+                icon={<TrendingUp size={14} aria-hidden />}
+                rows={movers.leaders}
+                emptyText="No positions are up against cost basis."
+                currency={currency}
+                onSelect={openAsset}
+              />
+              <MoversPanel
+                title="Laggards"
+                icon={<TrendingDown size={14} aria-hidden />}
+                rows={movers.laggards}
+                emptyText="No positions are down against cost basis."
+                currency={currency}
+                onSelect={openAsset}
+              />
+            </div>
+
+            {/* ── Positions ── */}
+            <Panel
+              title="Positions"
+              count={`${holdings.length}`}
+              note="Ranked by market value. Each row carries its valuation source."
+              flushBody
+              actions={
+                holdings.length > DASHBOARD_HOLDINGS_LIMIT ? (
+                  <button
+                    type="button"
+                    className="fin-btn fin-btn--icon"
+                    onClick={() => navigate('/main?tab=portfolio')}
+                    title="All positions"
+                    aria-label="All positions"
+                  >
+                    <ChevronRight size={15} aria-hidden />
+                  </button>
+                ) : undefined
+              }
+            >
+              <HoldingsTable
+                assets={holdings}
+                totalValue={grossAssets}
+                onSelect={openAsset}
+                currency={currency}
+                limit={DASHBOARD_HOLDINGS_LIMIT}
+              />
+            </Panel>
+
+            {/* ── Liabilities ── */}
+            <Panel
+              title="Liabilities"
+              count={loans.length > 0 ? `${loans.length}` : undefined}
+              icon={<Landmark size={14} aria-hidden />}
+              note="Outstanding balances netted against gross assets in the figure above."
+              flushBody={loans.length > 0}
+            >
+              <LiabilitiesTable loans={loans} onSelect={openAsset} currency={currency} />
+            </Panel>
+          </>
+        )}
 
       </div>
     </div>

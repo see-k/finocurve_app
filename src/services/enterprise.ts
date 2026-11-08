@@ -200,7 +200,8 @@ export async function enterpriseFetch<T>(path: string, options: { force?: boolea
   // Every /api/* route on the service requires a bearer token.
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const response = await fetch(`${serviceUrl}${path}${force ? '?refresh=1' : ''}`, {
+  const refreshParam = force ? `${path.includes('?') ? '&' : '?'}refresh=1` : ''
+  const response = await fetch(`${serviceUrl}${path}${refreshParam}`, {
     method,
     signal,
     headers,
