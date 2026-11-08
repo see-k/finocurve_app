@@ -138,7 +138,7 @@ export type EnterpriseFetchResult =
 export async function fetchEnterprisePath(
   pathName: string,
   method: 'GET' | 'POST' = 'GET',
-  options?: { refresh?: boolean; baseUrl?: string },
+  options?: { refresh?: boolean; baseUrl?: string; query?: string },
 ): Promise<EnterpriseFetchResult> {
   try {
     const baseUrl = (options?.baseUrl ?? readEnterpriseServiceUrl()).trim().replace(/\/+$/, '')
@@ -150,7 +150,9 @@ export async function fetchEnterprisePath(
       return { ok: false, status: 400, error: 'Enterprise service URL must use HTTP or HTTPS' }
     }
     requestUrl.pathname = `${requestUrl.pathname.replace(/\/+$/, '')}${pathName}`
-    requestUrl.search = options?.refresh ? 'refresh=1' : ''
+    const search = new URLSearchParams(options?.query ?? '')
+    if (options?.refresh) search.set('refresh', '1')
+    requestUrl.search = search.toString()
     requestUrl.hash = ''
 
     const controller = new AbortController()

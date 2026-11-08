@@ -206,15 +206,25 @@ function registerEnterpriseHandlers() {
     ['/api/health/connections', 'GET'],
     ['/api/reports/transactions', 'GET'],
     ['/api/balance-history/snapshot', 'POST'],
+    // Read-only broker pass-throughs the dashboard aggregates. The service also
+    // proxies order-entry routes for these brokers; those stay off this list.
+    ['/api/alpaca/v2/positions', 'GET'],
+    ['/api/kalshi/portfolio/positions', 'GET'],
+    ['/api/schwab/accounts?fields=positions', 'GET'],
   ])
 
   ipcMain.handle('enterprise-request', async (_event, payload: { path?: string; refresh?: boolean; method?: string }) => {
-    const pathName = payload?.path ?? ''
+    // Entries are matched on the full path including any query string, so the
+    // window can only send the exact queries listed above.
+    const requested = payload?.path ?? ''
     const method = payload?.method === 'POST' ? 'POST' : 'GET'
-    if (allowedEnterprisePaths.get(pathName) !== method) {
+    if (allowedEnterprisePaths.get(requested) !== method) {
       return { ok: false, status: 400, error: 'Enterprise API path is not allowed' }
     }
-    return fetchEnterprisePath(pathName, method, { refresh: payload?.refresh })
+    const queryAt = requested.indexOf('?')
+    const pathName = queryAt === -1 ? requested : requested.slice(0, queryAt)
+    const query = queryAt === -1 ? '' : requested.slice(queryAt + 1)
+    return fetchEnterprisePath(pathName, method, { refresh: payload?.refresh, query })
   })
 }
 

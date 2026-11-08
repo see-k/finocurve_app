@@ -74,7 +74,7 @@ export interface CustodyMatrix {
 /** Providers whose balances are digital-asset custody rather than fiat. */
 const CRYPTO_PRODUCTS = new Set(['coinbase', 'binance_us'])
 
-const PRODUCT_LABELS: Record<string, string> = {
+export const PRODUCT_LABELS: Record<string, string> = {
   simplefin: 'SimpleFIN',
   teller: 'Teller',
   schwab: 'Charles Schwab',

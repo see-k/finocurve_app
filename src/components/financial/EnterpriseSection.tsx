@@ -1,15 +1,25 @@
-import { Building2, Boxes, ExternalLink, Layers, RefreshCw } from 'lucide-react'
+import { useMemo } from 'react'
+import { Activity, Briefcase, Building2, Boxes, ExternalLink, Layers, LineChart, PieChart, RefreshCw } from 'lucide-react'
 import Panel from './Panel'
 import KeyFigures from './KeyFigures'
 import CustodyLandscape from './CustodyLandscape'
+import AllocationBreakdown from './AllocationBreakdown'
 import { CustodyMatrixTable, ConnectionHealthTable } from './EnterpriseTables'
-import { useEnterpriseDashboard } from '../../hooks/useEnterpriseDashboard'
-import { formatCurrency } from '../../lib/formatMoney'
+import {
+  BalanceHistoryChart, EnterprisePositionsTable, RecentActivityTable, historyChange,
+} from './EnterpriseFeeds'
+import type { EnterpriseDashboardData } from '../../hooks/useEnterpriseDashboard'
+import { allocateByClass, totalPositions } from '../../lib/enterprisePositions'
+import { formatCurrency, formatCurrencySigned, formatPercentSigned } from '../../lib/formatMoney'
 import './EnterpriseSection.css'
 
+/** Broker positions listed inline; the rest are counted in the panel header. */
+const POSITIONS_LIMIT = 10
+
 interface EnterpriseSectionProps {
-  /** Enterprise mode gate — no request is issued when false. */
+  /** Enterprise mode gate. The caller loads `data` with the same gate. */
   enabled: boolean
+  data: EnterpriseDashboardData
   onOpenEnterprise: () => void
 }
 
@@ -20,8 +30,14 @@ interface EnterpriseSectionProps {
  *
  * Rendered only for subscribers whose Finocurve Service is reachable.
  */
-export default function EnterpriseSection({ enabled, onOpenEnterprise }: EnterpriseSectionProps) {
-  const { matrix, connections, healthUnavailable, loading, error, loaded, refresh } = useEnterpriseDashboard(enabled)
+export default function EnterpriseSection({ enabled, data, onOpenEnterprise }: EnterpriseSectionProps) {
+  const {
+    matrix, connections, healthUnavailable, history, activity, positions, loading, error, loaded, refresh,
+  } = data
+
+  const positionTotals = useMemo(() => totalPositions(positions.positions), [positions.positions])
+  const positionAllocation = useMemo(() => allocateByClass(positions.positions), [positions.positions])
+  const change = useMemo(() => historyChange(history.data), [history.data])
 
   if (!enabled) return null
 
@@ -118,6 +134,16 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
           />
 
           <Panel
+            title="Consolidated balance history"
+            icon={<LineChart size={14} aria-hidden />}
+            note={change
+              ? `${formatCurrencySigned(change.amount)}${change.percent != null ? ` (${formatPercentSigned(change.percent)})` : ''} since ${change.since}, from recorded snapshots.`
+              : 'Recorded snapshots of the consolidated total.'}
+          >
+            <BalanceHistoryChart history={history.data} unavailable={history.unavailable} loaded={history.loaded} />
+          </Panel>
+
+          <Panel
             title="Custody landscape"
             icon={<Layers size={14} aria-hidden />}
             note="Institution by exposure type. Bar height is the balance held in that cell."
@@ -138,13 +164,53 @@ export default function EnterpriseSection({ enabled, onOpenEnterprise }: Enterpr
           </Panel>
 
           <Panel
-            title="Connection health"
+            title="Broker positions"
+            icon={<Briefcase size={14} aria-hidden />}
+            count={positions.positions.length > 0 ? `${positions.positions.length}` : undefined}
+            note={positionTotals.measured > 0
+              ? `${formatCurrency(positionTotals.marketValue)} across brokers. Unrealized ${formatCurrencySigned(positionTotals.unrealizedPl)}${positionTotals.unrealizedPlPercent != null ? ` (${formatPercentSigned(positionTotals.unrealizedPlPercent)})` : ''} on ${formatCurrency(positionTotals.costBasis)} cost.`
+              : 'Open positions reported by connected brokerages, ranked by market value.'}
+            flushBody={positions.positions.length > 0}
+          >
+            <EnterprisePositionsTable
+              positions={positions.positions}
+              total={positionTotals.grossValue}
+              loaded={positions.loaded}
+              failedVenues={positions.failedVenues}
+              limit={POSITIONS_LIMIT}
+            />
+          </Panel>
+
+          {positionAllocation.length > 1 && (
+            <Panel
+              title="Brokerage allocation"
+              icon={<PieChart size={14} aria-hidden />}
+              note="Broker positions by asset class, as a share of their market value."
+            >
+              <AllocationBreakdown data={positionAllocation} total={positionTotals.grossValue} currency="USD" />
+            </Panel>
+          )}
+
+          <div className="fin-row-2">
+            <Panel
+              title="Recent activity"
+              icon={<Activity size={14} aria-hidden />}
+              count={activity.data.length > 0 ? `${activity.data.length}` : undefined}
+              note="Latest institutional transactions. The full ledger is in the Enterprise workspace."
+              flushBody={activity.data.length > 0}
+            >
+              <RecentActivityTable transactions={activity.data} unavailable={activity.unavailable} loaded={activity.loaded} />
+            </Panel>
+
+            <Panel
+              title="Connection health"
             count={connections.length > 0 ? `${connections.length}` : undefined}
             note="Provider link status. Balances are only as current as the last successful check."
             flushBody={connections.length > 0 && !healthUnavailable}
           >
-            <ConnectionHealthTable connections={connections} unavailable={healthUnavailable} />
-          </Panel>
+              <ConnectionHealthTable connections={connections} unavailable={healthUnavailable} />
+            </Panel>
+          </div>
         </div>
       )}
     </section>

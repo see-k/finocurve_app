@@ -69,3 +69,25 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ── Broker positions & recent activity ───── */
+
+.fin-broker-positions {
+  min-width: 640px;
+}
+
+.fin-broker-positions__note {
+  padding: 8px 14px 12px;
+}
+
+.fin-activity {
+  min-width: 360px;
+}
+
+.fin-activity .fin-table__primary {
+  display: block;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
