@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.5.1](https://github.com/see-k/finocurve_app/compare/v1.5.0...v1.5.1) (2026-11-08)
+
 # [1.5.0](https://github.com/see-k/finocurve_app/compare/v1.4.4...v1.5.0) (2026-11-07)
 
 ### Features
