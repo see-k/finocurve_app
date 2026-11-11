@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allocateByClass, readAlpacaPositions, readKalshiPositions, readSchwabPositions, totalPositions,
+  allocateByClass, readAlpacaPositions, readKalshiPositions, readPolymarketUsPositions, readSchwabPositions, totalPositions,
 } from '../src/lib/enterprisePositions'
 
 describe('readAlpacaPositions', () => {
@@ -42,6 +42,51 @@ describe('readKalshiPositions', () => {
     expect(rows.map((r) => r.symbol)).toEqual(['FED-25DEC', 'CPI-25NOV'])
     expect(rows[0]).toMatchObject({ marketValue: 12.4, valuedAtCost: true, unrealizedPl: null, name: 'Yes contracts' })
     expect(rows[1]).toMatchObject({ marketValue: 2.6, quantity: -4, name: 'No contracts' })
+  })
+})
+
+describe('readPolymarketUsPositions', () => {
+  it('marks contracts at cost plus unrealized P/L and skips flat positions', () => {
+    const rows = readPolymarketUsPositions({
+      positions: {
+        'fed-cut': {
+          netPositionDecimal: '20',
+          cost: { value: '12.40', currency: 'USD' },
+          cashValue: { value: '1.60', currency: 'USD' },
+          marketMetadata: { title: 'Fed cuts in December', outcome: 'Yes' },
+        },
+        'cpi-print': {
+          netPosition: '-4',
+          cost: { value: '2.60', currency: 'USD' },
+          marketMetadata: { slug: 'cpi-print', outcome: 'No' },
+        },
+        closed: { netPositionDecimal: '0', cost: { value: '5', currency: 'USD' } },
+      },
+    })
+    expect(rows.map((r) => r.symbol)).toEqual(['Fed cuts in December', 'cpi-print'])
+    expect(rows[0]).toMatchObject({
+      key: 'polymarket_us:fed-cut',
+      venue: 'polymarket_us',
+      name: 'Yes',
+      assetClass: 'event_contract',
+      quantity: 20,
+      marketValue: 14,
+      costBasis: 12.4,
+      unrealizedPl: 1.6,
+      valuedAtCost: false,
+    })
+    expect(rows[0].unrealizedPlPercent).toBeCloseTo((1.6 / 12.4) * 100)
+    expect(rows[1]).toMatchObject({
+      quantity: -4,
+      marketValue: 2.6,
+      name: 'No',
+      unrealizedPl: null,
+      valuedAtCost: true,
+    })
+  })
+
+  it('returns nothing for an error body', () => {
+    expect(readPolymarketUsPositions({ error: 'not configured' })).toEqual([])
   })
 })
 

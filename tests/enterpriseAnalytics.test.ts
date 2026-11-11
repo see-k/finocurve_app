@@ -151,6 +151,19 @@ describe('deriveCustodyMatrix', () => {
     expect(matrix.peakCell).toBe(0)
   })
 
+  it('splits Polymarket US cash from contract notional', () => {
+    const polymarket = {
+      product: 'polymarket_us',
+      total_usd: 1_500,
+      balances: [{ balance: 400, positions_value: 1_100, buying_power: 350, portfolio_value: 1_500, currency: 'USD' }],
+    }
+    const matrix = deriveCustodyMatrix(balances({ by_product: [polymarket] }))
+    expect(matrix.rows[0].label).toBe('Polymarket US')
+    expect(matrix.rows[0].exposures.cash).toBeCloseTo(400, 6)
+    expect(matrix.rows[0].exposures.securities).toBeCloseTo(1_100, 6)
+    expect(matrix.total).toBeCloseTo(1_500, 6)
+  })
+
   it('never produces a negative exposure from a negative portfolio remainder', () => {
     // Cash exceeding portfolio value would otherwise yield negative securities.
     const odd = {

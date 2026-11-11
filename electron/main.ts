@@ -210,6 +210,7 @@ function registerEnterpriseHandlers() {
     // proxies order-entry routes for these brokers; those stay off this list.
     ['/api/alpaca/v2/positions', 'GET'],
     ['/api/kalshi/portfolio/positions', 'GET'],
+    ['/api/polymarket-us/portfolio/positions', 'GET'],
     ['/api/schwab/accounts?fields=positions', 'GET'],
   ])
 
