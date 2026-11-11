@@ -82,6 +82,7 @@ export const PRODUCT_LABELS: Record<string, string> = {
   alpaca: 'Alpaca',
   binance_us: 'Binance US',
   kalshi: 'Kalshi',
+  polymarket_us: 'Polymarket US',
 }
 
 function numeric(value: unknown): number {
@@ -134,6 +135,15 @@ function readExposures(product: EnterpriseBalanceProduct): Record<ExposureKind, 
         const cash = numeric(row.balance)
         exposures.cash += cash
         exposures.securities += Math.max(0, numeric(row.portfolio_value) - cash)
+        break
+      }
+      case 'polymarket_us': {
+        // Service total is cash (`balance`) plus contract notional (`positions_value`).
+        const cash = numeric(row.balance)
+        exposures.cash += cash
+        exposures.securities += row.positions_value != null
+          ? Math.max(0, numeric(row.positions_value))
+          : Math.max(0, numeric(row.portfolio_value) - cash)
         break
       }
       case 'simplefin':

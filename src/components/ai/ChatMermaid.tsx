@@ -6,22 +6,33 @@ type RenderState =
   | { status: 'ready'; svg: string }
   | { status: 'error'; message: string }
 
-let mermaidInit: Promise<typeof import('mermaid').default> | null = null
+let mermaidModule: Promise<typeof import('mermaid').default> | null = null
+let appliedTheme: string | null = null
+
+function currentMermaidTheme(): 'dark' | 'neutral' {
+  const appTheme = document.documentElement.getAttribute('data-theme') ?? ''
+  return appTheme.startsWith('light') ? 'neutral' : 'dark'
+}
 
 async function getMermaid() {
-  if (!mermaidInit) {
-    mermaidInit = import('mermaid').then((mod) => {
-      const mermaid = mod.default
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: 'neutral',
-        fontFamily: 'inherit',
-      })
-      return mermaid
+  if (!mermaidModule) mermaidModule = import('mermaid').then((mod) => mod.default)
+  const mermaid = await mermaidModule
+  // Re-initialise only when the app theme changed since the last render.
+  const theme = currentMermaidTheme()
+  if (theme !== appliedTheme) {
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme,
+      fontFamily: 'inherit',
+      // Labels must be SVG <text>, not HTML inside <foreignObject>: the SVG-only
+      // sanitizer below strips foreignObject, which left every node blank.
+      htmlLabels: false,
+      flowchart: { htmlLabels: false },
     })
+    appliedTheme = theme
   }
-  return mermaidInit
+  return mermaid
 }
 
 /** Sanitize Mermaid SVG before DOM injection; library strict mode alone is not enough. */

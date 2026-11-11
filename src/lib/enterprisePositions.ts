@@ -8,7 +8,7 @@
  * inventing a zero that would read as a real figure.
  */
 
-export type PositionVenue = 'alpaca' | 'kalshi' | 'schwab'
+export type PositionVenue = 'alpaca' | 'kalshi' | 'polymarket_us' | 'schwab'
 
 export type PositionClass = 'equity' | 'fund' | 'option' | 'crypto' | 'fixed_income' | 'event_contract' | 'cash' | 'other'
 
@@ -20,7 +20,7 @@ export interface EnterprisePosition {
   assetClass: PositionClass
   /** Signed: negative for short (or Kalshi "No") positions. */
   quantity: number
-  /** USD. For Kalshi this is the cost of the position, see `valuedAtCost`. */
+  /** USD. When `valuedAtCost` is set, this is cost rather than a mark. */
   marketValue: number
   costBasis: number | null
   unrealizedPl: number | null
@@ -34,6 +34,7 @@ export interface EnterprisePosition {
 export const POSITION_PATHS: Record<PositionVenue, string> = {
   alpaca: '/api/alpaca/v2/positions',
   kalshi: '/api/kalshi/portfolio/positions',
+  polymarket_us: '/api/polymarket-us/portfolio/positions',
   schwab: '/api/schwab/accounts?fields=positions',
 }
 
@@ -143,6 +144,60 @@ export function readKalshiPositions(data: unknown): EnterprisePosition[] {
   })
 }
 
+/* ── Polymarket US: GET /v1/portfolio/positions ────────────────────────── */
+/*
+ * The proxy returns the upstream body unchanged: `positions` is a map of
+ * market slug to position. Amounts are `{ value, currency }` decimal dollars.
+ * `cost` is cost basis; `cashValue` is unrealized P/L, so current value is
+ * their sum. A missing mark falls back to cost.
+ */
+
+function amountValue(value: unknown): number | null {
+  if (isRow(value) && 'value' in value) return num(value.value)
+  return num(value)
+}
+
+function polymarketRows(data: unknown): Array<[string, Row]> {
+  if (!isRow(data)) return []
+  const positions = data.positions
+  if (Array.isArray(positions)) {
+    return positions.filter(isRow).map((row, index) => {
+      const meta = isRow(row.marketMetadata) ? row.marketMetadata : {}
+      return [str(meta.slug) || str(row.slug) || String(index), row] as [string, Row]
+    })
+  }
+  if (!isRow(positions)) return []
+  return Object.entries(positions).flatMap(([slug, row]) => (isRow(row) ? [[slug, row] as [string, Row]] : []))
+}
+
+export function readPolymarketUsPositions(data: unknown): EnterprisePosition[] {
+  return polymarketRows(data).flatMap(([slug, row]) => {
+    const quantity = num(row.netPositionDecimal) ?? num(row.netPosition) ?? 0
+    if (!slug || quantity === 0) return []
+    const meta = isRow(row.marketMetadata) ? row.marketMetadata : {}
+    const title = str(meta.title)
+    const outcome = str(meta.outcome)
+    const costBasis = amountValue(row.cost)
+    const unrealized = amountValue(row.cashValue)
+    const marked = costBasis != null && unrealized != null
+    const marketValue = marked ? costBasis + unrealized : costBasis != null ? Math.abs(costBasis) : null
+    if (marketValue == null) return []
+    return [{
+      key: `polymarket_us:${slug}`,
+      venue: 'polymarket_us' as const,
+      symbol: title || slug,
+      name: outcome || title || slug,
+      assetClass: 'event_contract' as const,
+      quantity,
+      marketValue,
+      costBasis,
+      unrealizedPl: marked ? unrealized : null,
+      unrealizedPlPercent: marked ? percentOf(unrealized, costBasis) : null,
+      valuedAtCost: !marked,
+    }]
+  })
+}
+
 /* ── Schwab: GET /trader/v1/accounts?fields=positions ──────────────────── */
 
 function schwabClass(assetType: string): PositionClass {
@@ -196,6 +251,7 @@ export function readSchwabPositions(data: unknown): EnterprisePosition[] {
 export const POSITION_READERS: Record<PositionVenue, (data: unknown) => EnterprisePosition[]> = {
   alpaca: readAlpacaPositions,
   kalshi: readKalshiPositions,
+  polymarket_us: readPolymarketUsPositions,
   schwab: readSchwabPositions,
 }
 

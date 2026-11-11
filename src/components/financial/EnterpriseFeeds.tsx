@@ -168,7 +168,7 @@ export function EnterprisePositionsTable({
       <div className="fin-empty">
         <span className="fin-empty__title">No open positions reported</span>
         <span className="fin-empty__body">
-          {failureNote || 'Positions appear here once a connected brokerage (Alpaca, Schwab or Kalshi) reports holdings.'}
+          {failureNote || 'Positions appear here once a connected brokerage (Alpaca, Schwab, Kalshi or Polymarket US) reports holdings.'}
         </span>
       </div>
     )

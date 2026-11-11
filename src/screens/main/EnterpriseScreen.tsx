@@ -23,6 +23,7 @@ const productNames: Record<string, string> = {
   alpaca: 'Alpaca',
   binance_us: 'Binance US',
   kalshi: 'Kalshi',
+  polymarket_us: 'Polymarket US',
 }
 
 type BalanceColumn = {
@@ -76,6 +77,14 @@ function balanceColumnsFor(product: string): BalanceColumn[] {
       return [
         { label: 'Balance', align: 'numeric', format: row => formatUsd(row.balance) },
         { label: 'Portfolio value', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
+        { label: 'Currency', format: row => textField(row.currency, 'USD') },
+      ]
+    case 'polymarket_us':
+      return [
+        { label: 'Cash', align: 'numeric', format: row => formatUsd(row.balance) },
+        { label: 'Positions', align: 'numeric', format: row => formatUsd(row.positions_value) },
+        { label: 'Buying power', align: 'numeric', format: row => formatUsd(row.buying_power) },
+        { label: 'Total', align: 'numeric', format: row => formatUsd(row.portfolio_value) },
         { label: 'Currency', format: row => textField(row.currency, 'USD') },
       ]
     case 'binance_us':
